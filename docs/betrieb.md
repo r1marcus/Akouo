@@ -647,10 +647,10 @@ launchctl bootout gui/$(id -u)/de.akouo.audio
 #    alembic.ini und es entsteht eine zweite, leere Datenbank statt einer Migration.
 DATABASE_URL="sqlite+aiosqlite:///$PWD/data/tontechnik.db" .venv/bin/alembic upgrade head
 
-# 4. CSS neu bauen, falls Templates geändert wurden
+# 5. CSS neu bauen, falls Templates geändert wurden
 make css
 
-# 5. Dienste wieder starten
+# 6. Dienste wieder starten
 sudo launchctl bootstrap system /Library/LaunchDaemons/de.akouo.api.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/de.akouo.audio.plist
 ```
@@ -671,7 +671,14 @@ cp data/tontechnik.db data/tontechnik.db.bak-$(date +%Y%m%d-%H%M%S)
 sudo launchctl bootout system/de.tontechnik.api
 launchctl bootout gui/$(id -u)/com.tontechnik.audio
 
-# 3. Migrieren, solange nichts schreibt
+# 3. Die dreisprachige Oberflaeche dazuholen. Sie liegt bewusst auf einem eigenen
+#    Zweig: Templates sind heiss, und sobald eines t("…") aufruft, braucht es die
+#    neue Python-Fassung — sonst steht das Dashboard sofort, bis zu genau diesem
+#    Neustart. Deshalb erst jetzt, wo die Dienste ohnehin stehen.
+#    Nach dem Zusammenfuehren ist das Migrationsziel 015, nicht 014.
+git merge --no-ff i18n-oberflaeche -m "merge: dreisprachige Oberflaeche"
+
+# 4. Migrieren, solange nichts schreibt
 DATABASE_URL="sqlite+aiosqlite:///$PWD/data/tontechnik.db" .venv/bin/alembic upgrade head
 
 # 4. CSS neu bauen — die Einstellungsseite ist neu und bringt neue Tailwind-Klassen mit
