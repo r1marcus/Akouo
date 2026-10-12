@@ -1,5 +1,7 @@
 # Akouo
 
+**English** · [Deutsch](README.de.md) · [Русский](README.ru.md)
+
 **Continuous service recording, live transcription and automatic segment detection for a church
 sound booth — self-hosted on a single Mac.**
 
@@ -7,10 +9,12 @@ sound booth — self-hosted on a single Mac.**
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Apple%20Silicon-lightgrey)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 
-> **Language note.** The user interface and the operating documentation are **German** — that is
-> the language of the congregation this was built for, and the service structure it models
-> (*Gebetsstunde*, *Vermeldungen*, *Erntedankfest*) does not translate cleanly. This README and
-> [`ARCHITECTURE.md`](ARCHITECTURE.md) are in English; everything under [`docs/`](docs/) is German.
+> **Language note.** The operating documentation under [`docs/`](docs/) is **German** — its
+> audience is the person at the mixing console, not the developer — and so are the domain terms in
+> the code, because the service structure it models (*Gebetsstunde*, *Vermeldungen*,
+> *Erntedankfest*) does not translate cleanly. This README and
+> [`ARCHITECTURE.md`](ARCHITECTURE.md) are in English. The interface is German today; English and
+> Russian are being built.
 >
 > *Akouo* — from the Greek ἀκούω, "I hear".
 

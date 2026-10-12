@@ -59,11 +59,17 @@ Für beides existiert kein Code und keine Abhängigkeit.
   PortAudio-Handbuch → englisch.
 - **Kommentare und Docstrings: deutsch.** Sie erklären das Warum, und das Warum kommt aus dem
   Gottesdienst.
-- **Alles, was der Nutzer liest, ist deutsch** — UI-Texte, Toasts, und ausdrücklich auch
-  `HTTPException(detail=…)` und `{"message": …}`: diese Strings landen über
-  `api/templates/dashboard.html` ungefiltert im Toast.
-- **README und ARCHITECTURE sind englisch**, alles unter `docs/` deutsch. Zielgruppe der
-  Betriebsdoku ist der Tontechniker, nicht der Entwickler.
+- **Alles, was der Nutzer liest, ist übersetzbar** — und zwar deutsch, englisch, russisch.
+  Kein sichtbarer Text wird fest verdrahtet; er bekommt einen Schlüssel in `api/sprachen/*.json`
+  und wird über `t("…")` geholt. Das gilt ausdrücklich auch für `HTTPException(detail=…)` und
+  `{"message": …}`: diese Strings landen über `api/templates/dashboard.html` ungefiltert im Toast.
+  Deutsch ist die Ausgangssprache und der Rückfall, wenn ein Schlüssel fehlt.
+- **Fachbegriffe sind Daten, keine Texte.** Gottesdienst- und Beitragsarten stehen mit ihrem
+  deutschen Namen in der Datenbank, und an diesem Namen hängt Logik (Anker der Zuordnung,
+  Ansage-Regeln). Übersetzt wird nur der Anzeigename je Sprache — nie der Name selbst.
+- **README gibt es dreimal**: `README.md` (englisch, maßgeblich), `README.de.md`, `README.ru.md`.
+  Eine Änderung an einem gehört in alle drei. `ARCHITECTURE.md` ist englisch, alles unter `docs/`
+  deutsch — Zielgruppe der Betriebsdoku ist der Tontechniker, nicht der Entwickler.
 - **Commit-Messages:** englisches Conventional-Commit-Präfix, deutscher Betreff.
   `feat(automodus): Typ live aus Ansagen und Klang ableiten`
 
