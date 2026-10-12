@@ -5,9 +5,19 @@ is owned by ContinuousRecorder; this adapter only forwards already-deinterleaved
 While streaming it sets recorder.stream_enabled so the callback fills _str_q at all.
 """
 import asyncio
+import os
 import queue
 from datetime import datetime
 from typing import Optional
+
+
+def _ice_name() -> str:
+    """Name, den Hörer im Player sehen.
+
+    Über STREAM_NAME einstellbar. Die Voreinstellung bleibt bewusst „Tontechnik":
+    das steht seit dem ersten Stream in den Playern der Gemeinde, und eine
+    Umbenennung des Projekts ist kein Grund, es dort zu ändern."""
+    return os.environ.get("STREAM_NAME", "Tontechnik")
 
 from config import config
 
@@ -41,7 +51,7 @@ class StreamAdapter:
                 "ffmpeg",
                 "-f", "s16le", "-ar", str(config.sample_rate), "-ac", "2", "-i", "pipe:0",
                 "-acodec", "libmp3lame", "-b:a", "128k",
-                "-f", "mp3", "-ice_name", "Tontechnik", "-ice_public", "0",
+                "-f", "mp3", "-ice_name", _ice_name(), "-ice_public", "0",
                 stream_target,
             ]
         else:

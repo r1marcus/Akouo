@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
     sync.cancel()
 
 
-app = FastAPI(title="Tontechnik API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Akouo API", version="1.0.0", lifespan=lifespan)
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 

@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
     continuous_recorder.close_input()
 
 
-app = FastAPI(title="Tontechnik Audio Service", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="Akouo Audio-Dienst", version="2.0.0", lifespan=lifespan)
 recorder = Recorder()                       # legacy
 continuous_recorder = ContinuousRecorder()  # Phase 4
 stream_adapter = StreamAdapter()            # Phase 4

@@ -30,6 +30,14 @@ never touches a Start button.
 
 It runs entirely on one Mac in the building. No cloud, no API keys, no internet required.
 
+![The dashboard during a service: the service type in the header, checklist progress, the
+recording clock and a level meter that runs whether or not a recording is
+going](docs/bilder/dashboard.png)
+
+<sup>The live system, five minutes before a Sunday evening service. The level meter runs
+continuously — not only while recording — because the operator needs to see signal before
+pressing anything.</sup>
+
 ## Status — honest version
 
 This is **one congregation's working system**, in weekly use since September 2026, published in
@@ -72,6 +80,39 @@ And the honest operational caveats:
 | **Checklists** | Per service type, tickable from the tablet, so the pre-service routine is not in someone's head. |
 | **Livestream** | Icecast or RTMP via FFmpeg, plus a local monitor bus without the Icecast delay. |
 | **NAS upload** | Segments pushed to an SMB share, never overwriting what is already there. |
+
+## What it looks like
+
+The interface is built for a tablet propped up next to a mixing console — large targets, no
+hover, nothing that needs a second hand. It is in German, because the people using it are.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+![Choosing the service: four large tiles for the regular services, the rest behind "Weitere",
+and an optional free-text theme](docs/bilder/gottesdienst-waehlen.png)
+
+**Choosing the service.** Four tiles for the ones that happen every week, the rest folded away.
+The choice drives the checklist, the folder layout on the NAS, and what the automatic detection
+expects to hear. `Thema` is free text — *Erntedankfest*, a baptism, an anniversary.
+
+</td>
+<td width="50%" valign="top">
+
+![The settings page: export, detection and cut-edge values, each with a sentence explaining what
+it does and what happens if you get it wrong](docs/bilder/einstellungen.png)
+
+**Settings.** Nineteen values across five groups, each with a sentence saying what it changes —
+and, where it was measured rather than guessed, what the measurement was. Item types,
+announcement rules and the NAS folder template are editable here too.
+
+</td>
+</tr>
+</table>
+
+<sup>Screenshots from a fresh install with an empty database, which is why the audio service
+reports as offline in the right-hand shot.</sup>
 
 ## Requirements
 
