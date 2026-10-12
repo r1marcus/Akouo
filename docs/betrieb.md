@@ -588,8 +588,9 @@ gestartete Aufnahme lässt sich z. B. am iPad stoppen.
 
 - **Keine Anmeldung:** Jede Person im selben Netzwerk kann das Dashboard steuern. Vor dem Einsatz
   in einem Gemeinde-WLAN, in das auch Besucher kommen, lösen.
-- Das WLAN des Mac Studio lieferte zuletzt die ungewöhnliche Adresse `192.0.0.2` — vor dem
-  iPad-Einsatz prüfen, ob Geräte im WLAN sich gegenseitig erreichen.
+- Das WLAN des Mac Studio lieferte zuletzt eine Adresse aus einem Bereich, der kein übliches
+  Heimnetz ist — ein Zeichen dafür, dass der Zugangspunkt die Geräte voneinander trennt. Vor dem
+  iPad-Einsatz also prüfen, ob sich Geräte im WLAN gegenseitig erreichen.
 - Die macOS-Firewall ist aus; bei Aktivierung eingehende Verbindungen für Python erlauben.
 
 ---
