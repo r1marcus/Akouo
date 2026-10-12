@@ -716,13 +716,20 @@ cp data/tontechnik.db data/tontechnik.db.bak-$(date +%Y%m%d-%H%M%S)
 sudo launchctl bootout system/de.tontechnik.api
 launchctl bootout gui/$(id -u)/com.tontechnik.audio
 
-# 3. Migrieren, solange nichts schreibt
+# 3. Die dreisprachige Oberflaeche dazuholen. Sie liegt bewusst auf einem eigenen
+#    Zweig: Templates sind heiss, und sobald eines t("…") aufruft, braucht es die
+#    neue Python-Fassung — sonst steht das Dashboard sofort. Deshalb erst jetzt,
+#    wo die Dienste ohnehin stehen.
+git merge --no-ff i18n-oberflaeche -m "merge: dreisprachige Oberflaeche"
+
+# 4. Migrieren, solange nichts schreibt. Jetzt bis 015 — 014 bringt die Arten in die
+#    Datenbank, 015 die Anzeigenamen je Sprache.
 DATABASE_URL="sqlite+aiosqlite:///$PWD/data/tontechnik.db" .venv/bin/alembic upgrade head
 
-# 4. CSS neu bauen — die Einstellungsseite ist neu und bringt neue Tailwind-Klassen mit
+# 5. CSS neu bauen — Einstellungsseite und Sprachumschalter bringen neue Klassen mit
 make css
 
-# 5. Die neuen Dienste einrichten und starten. Die Installer entladen die alten
+# 6. Die neuen Dienste einrichten und starten. Die Installer entladen die alten
 #    whisper- und Dashboard-Labels selbst und benutzen die vorhandene Datenbank.
 AKOUO_WHISPER_MODEL=~/ai/models/ggml-large-v3-turbo.bin bash autostart/install.sh
 bash audio-service/install.sh
@@ -732,8 +739,9 @@ Danach prüfen, ob die Einstellbarkeit wirklich angekommen ist — das ist der P
 Übung:
 
 ```bash
-sqlite3 data/tontechnik.db "SELECT version_num FROM alembic_version;"  # 014
+sqlite3 data/tontechnik.db "SELECT version_num FROM alembic_version;"  # 015
 curl -s -o /dev/null -w "%{http_code}\n" localhost:8001/api/config/erkennung  # 200, nicht 404
+curl -s -o /dev/null -w "%{http_code}\n" localhost:8000/sprache/ru            # 303
 launchctl list | grep -c akouo                                          # 3 (api, whisper, dashboard)
                                                                         # + de.akouo.audio
 ```
