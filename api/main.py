@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 import automode_sync
+import sprache
 from database import AsyncSessionLocal, engine, get_db
 from models import Base, ChecklistTemplate, ChecklistItem
 from routers import recordings, health, settings, streaming, checklists, sessions, segments, uploads, service, insights, konfiguration
@@ -51,6 +52,54 @@ def static_url(path: str) -> str:
 
 
 templates.env.globals["static_url"] = static_url
+
+
+# ─── Sprache ────────────────────────────────────────────────────────────────
+# Die Sprache steht nicht im Template-Kontext, sondern in einer ContextVar, die diese
+# Middleware je Request setzt. Dadurch bleiben alle TemplateResponse-Aufrufe unveraendert
+# und niemand kann vergessen, die Sprache mitzugeben — ein vergessener Aufruf faellt sonst
+# erst auf, wenn jemand genau diese Seite auf Russisch oeffnet.
+#
+# Bewusst eine reine ASGI-Middleware und NICHT @app.middleware("http"): Letztere ist eine
+# BaseHTTPMiddleware, und die ruft den nachgelagerten Teil in einer eigenen Task auf. Eine
+# davor gesetzte ContextVar kommt dort nicht an — die Oberflaeche blieb deutsch, obwohl das
+# Cookie richtig stand. Hier laeuft alles in derselben Task.
+class SpracheMiddleware:
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "http":
+            sprache.setzen(sprache.aus_request(Request(scope)))
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(SpracheMiddleware)
+
+
+templates.env.globals["t"] = sprache.uebersetze
+templates.env.globals["sprache_aktuell"] = sprache.aktuelle
+templates.env.globals["sprachen"] = sprache.SPRACHEN
+templates.env.globals["sprach_katalog"] = sprache.katalog
+
+
+@app.get("/sprache/{code}", include_in_schema=False)
+async def sprache_waehlen(code: str, request: Request):
+    """Sprache dieses Geraets umstellen und zurueck, wo man war.
+
+    Als Server-Route und nicht als JavaScript: Der Umschalter muss auch dann funktionieren,
+    wenn ein Skript haengt — und das Cookie soll der Browser schreiben, nicht die Seite.
+    """
+    ziel = request.query_params.get("weiter", "/")
+    # Nur eigene Pfade. Ohne diese Pruefung waere der Umschalter eine offene Weiterleitung.
+    if not ziel.startswith("/") or ziel.startswith("//"):
+        ziel = "/"
+    antwort = RedirectResponse(ziel, status_code=303)
+    antwort.set_cookie(
+        sprache.COOKIE, sprache.gueltig(code),
+        max_age=60 * 60 * 24 * 365, samesite="lax", httponly=False,
+    )
+    return antwort
 
 
 def _typen_in_templates(t: "typen.Typen") -> None:

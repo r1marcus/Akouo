@@ -4,7 +4,7 @@
   <div class="flex items-center justify-between gap-3 mb-3">
     <div class="flex items-center gap-2.5">
       <span class="w-2 h-2 rounded-full" :class="running ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-600'"></span>
-      <span class="eyebrow">Live-Transkript</span>
+      <span class="eyebrow">{{ t("Live-Transkript") }}</span>
     </div>
     <div class="flex items-center gap-3 text-xs text-zinc-500">
       <span x-show="error" x-cloak class="text-amber-400" x-text="error"></span>
@@ -24,7 +24,7 @@
         <span class="text-zinc-200" x-text="l.text"></span>
       </p>
     </template>
-    <p x-show="lines.length === 0" class="text-sm text-zinc-500">Warte auf die ersten Worte…</p>
+    <p x-show="lines.length === 0" class="text-sm text-zinc-500">{{ t("Warte auf die ersten Worte…") }}</p>
   </div>
 </section>
 
@@ -49,7 +49,7 @@ function transcriptPanel() {
         if (!r.ok) return;
         const d = await r.json();
         this.running = Boolean(d.running);
-        this.error = d.enabled === false ? 'Transkription ausgeschaltet' : (d.error || null);
+        this.error = d.enabled === false ? t('Transkription ausgeschaltet') : (d.error || null);
         if (typeof d.next === 'number' && d.next < this.next) {   // service restarted or new session
           this.lines = [];
           this.next = 0;

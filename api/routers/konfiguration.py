@@ -23,6 +23,7 @@ import nas_pfad
 import typen
 from database import get_db
 from models import AnsageRegel, Marker, MarkerType, RecordingSession, ServiceType
+from sprache import uebersetze
 
 router = APIRouter(prefix="/api/konfiguration", tags=["konfiguration"])
 
@@ -53,8 +54,12 @@ async def alles_lesen(db: AsyncSession = Depends(get_db)):
         "einstellungen": werte,
         "felder": [
             {
-                "schluessel": f.schluessel, "bereich": f.bereich, "name": f.name,
-                "art": f.art, "hilfe": f.hilfe, "einheit": f.einheit,
+                # Beschriftung, Bereich, Hilfe und Einheit sind das, was der Nutzer
+                # liest — sie gehen uebersetzt hinaus. Der Schluessel nicht: an ihm
+                # haengt die Zuordnung zur Datenbank und zum Audio-Dienst.
+                "schluessel": f.schluessel, "bereich": uebersetze(f.bereich),
+                "name": uebersetze(f.name), "art": f.art,
+                "hilfe": uebersetze(f.hilfe), "einheit": uebersetze(f.einheit),
                 "von": f.von, "bis": f.bis, "auswahl": list(f.auswahl),
                 "wirkt": f.wirkt, "standard": f.standard,
             }

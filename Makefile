@@ -18,7 +18,8 @@ TESTENV   := DATABASE_URL=sqlite+aiosqlite:///:memory: AUDIO_SERVICE_URL=http://
 API_TESTS := tests/test_archive.py tests/test_current_service.py tests/test_database.py \
              tests/test_segments_api.py tests/test_service_types.py tests/test_session_api.py \
              tests/test_settings_api.py tests/test_uploads_api.py tests/test_ui_phase5.py \
-             tests/test_typen.py tests/test_konfiguration_api.py tests/test_nas_pfad.py
+             tests/test_typen.py tests/test_konfiguration_api.py tests/test_nas_pfad.py \
+             tests/test_sprache.py
 
 AUDIO_TESTS := tests/test_boundaries.py tests/test_continuous_recording.py tests/test_insights.py \
                tests/test_mp3_export.py tests/test_nas_client.py tests/test_nas_push.py \

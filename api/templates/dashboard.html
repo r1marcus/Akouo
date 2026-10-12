@@ -14,8 +14,8 @@ function dashboard() {
         },
 
         errorDetail(xhr) {
-            try { return JSON.parse(xhr.response).detail || 'Fehler ' + xhr.status; }
-            catch (_) { return 'Fehler ' + xhr.status; }
+            try { return JSON.parse(xhr.response).detail || t('Fehler') + ' ' + xhr.status; }
+            catch (_) { return t('Fehler') + ' ' + xhr.status; }
         },
 
         // Starts recording with the service selected in the header — no dialog.
@@ -40,10 +40,10 @@ function dashboard() {
                     svc.load();
                 } else {
                     const err = await resp.json().catch(() => ({}));
-                    this.notify('Aufnahme konnte nicht starten: ' + (err.detail || 'Fehler ' + resp.status));
+                    this.notify(t('Aufnahme konnte nicht starten:') + ' ' + (err.detail || t('Fehler') + ' ' + resp.status));
                 }
             } catch (e) {
-                this.notify('Netzwerkfehler beim Starten: ' + e.message);
+                this.notify(t('Netzwerkfehler beim Starten:') + ' ' + e.message);
             }
         },
     };
@@ -72,13 +72,13 @@ function checklistBadge() {
      x-show="total > 0" x-cloak class="mb-4">
     <a href="/checkliste"
        class="flex items-center gap-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] transition-colors px-4 py-2.5">
-        <span class="eyebrow shrink-0">Checkliste</span>
+        <span class="eyebrow shrink-0">{{ t("Checkliste") }}</span>
         <span class="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
             <span class="block h-full rounded-full transition-all duration-500"
                   :class="open === 0 ? 'bg-emerald-500' : 'bg-amber-400'"
                   :style="'width: ' + (total ? (done / total * 100) : 0) + '%'"></span>
         </span>
-        <span x-show="open === 0" class="text-sm font-medium text-emerald-400">Alles erledigt</span>
+        <span x-show="open === 0" class="text-sm font-medium text-emerald-400">{{ t("Alles erledigt") }}</span>
         <span x-show="open > 0" x-cloak class="font-mono text-sm tabular-nums text-zinc-300">
             <span x-text="done"></span><span class="text-zinc-600">/</span><span x-text="total"></span>
         </span>
@@ -100,8 +100,8 @@ function checklistBadge() {
     <!-- STREAM -->
     <section class="card flex flex-col lg:self-start">
         <div class="flex items-center justify-between">
-            <div class="eyebrow">Stream</div>
-            <a href="/settings" class="text-xs text-zinc-500 hover:text-zinc-300">Ziel ändern</a>
+            <div class="eyebrow">{{ t("Stream") }}</div>
+            <a href="/settings" class="text-xs text-zinc-500 hover:text-zinc-300">{{ t("Ziel ändern") }}</a>
         </div>
         <div id="streaming-status" class="mt-4"
              hx-get="/api/streaming/status"
@@ -117,7 +117,7 @@ function checklistBadge() {
                     @htmx:response-error="notify('Stream konnte nicht starten: ' + errorDetail($event.detail.xhr))"
                     class="btn w-full min-h-14 text-base bg-emerald-600 text-white hover:bg-emerald-500">
                 <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9.5-5.5z"/></svg>
-                Stream starten
+                {{ t("Stream starten") }}
             </button>
             <button x-show="streaming" x-cloak
                     hx-post="/api/streaming/stop"
@@ -126,7 +126,7 @@ function checklistBadge() {
                     @htmx:response-error="notify('Stream konnte nicht stoppen: ' + errorDetail($event.detail.xhr))"
                     class="btn w-full min-h-14 text-base bg-white/[0.06] text-zinc-100 hover:bg-white/10">
                 <span class="w-3 h-3 rounded-sm bg-zinc-300"></span>
-                Stream stoppen
+                {{ t("Stream stoppen") }}
             </button>
         </div>
     </section>
@@ -153,7 +153,7 @@ function checklistBadge() {
                 px-4 py-3 text-sm text-zinc-100 shadow-2xl">
         <span class="mt-1.5 w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
         <span class="flex-1" x-text="toast"></span>
-        <button @click="toast = null" class="text-zinc-500 hover:text-zinc-200" aria-label="Schließen">✕</button>
+        <button @click="toast = null" class="text-zinc-500 hover:text-zinc-200" aria-label="{{ t('Schließen') }}">✕</button>
     </div>
 </div>
 {% endblock %}

@@ -50,7 +50,7 @@
   {% set nicht_export = segments | rejectattr('exportieren') | list | length %}
   <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-3">
     <div>
-      <div class="eyebrow">Segmente exportieren</div>
+      <div class="eyebrow">{{ t("Segmente exportieren") }}</div>
       <p class="mt-1 text-sm text-zinc-400">Session #{{ session_id }} · {{ service_type }}</p>
     </div>
     <div class="flex items-center gap-2">
@@ -60,23 +60,23 @@
             hx-swap="outerHTML"
             :disabled="running"
             class="btn min-h-9 px-4 text-sm bg-white/[0.06] text-zinc-200 hover:bg-white/10">
-      Kanten korrigieren
+      {{ t("Kanten korrigieren") }}
     </button>
     <button @click="exportAll()" :disabled="running"
             class="btn min-h-9 px-4 text-sm bg-zinc-100 text-zinc-900 hover:bg-white">
       <span x-text="running ? `Schneide ${done}/${ids.length}…`
-                            : ('Alle exportieren' + ({{ nicht_export }} ? ' ({{ nicht_export }} übersprungen)' : ''))">Alle exportieren</span>
+                            : ('Alle exportieren' + ({{ nicht_export }} ? ' ({{ nicht_export }} übersprungen)' : ''))">{{ t("Alle exportieren") }}</span>
     </button>
     {% endif %}
     <button hx-get="/api/sessions/{{ session_id }}/segments"
             hx-target="#segment-review-{{ session_id }}"
             hx-swap="outerHTML"
-            class="btn min-h-9 px-3 text-sm bg-white/[0.06] text-zinc-300 hover:bg-white/10">Aktualisieren</button>
+            class="btn min-h-9 px-3 text-sm bg-white/[0.06] text-zinc-300 hover:bg-white/10">{{ t("Aktualisieren") }}</button>
     </div>
   </div>
 
   {% if not segments %}
-    <p class="text-sm text-zinc-500">Keine Marker in dieser Session — keine Segmente zu exportieren.</p>
+    <p class="text-sm text-zinc-500">{{ t("Keine Marker in dieser Session — keine Segmente zu exportieren.") }}</p>
   {% else %}
     <ul class="divide-y divide-white/5">
       {% for seg in segments %}
@@ -88,7 +88,7 @@
               <span class="font-medium text-zinc-100">{{ seg.marker_type }}</span>
               {% if not seg.exportieren %}
               <span class="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-zinc-400">
-                nur dokumentiert
+                {{ t("nur dokumentiert") }}
               </span>
               {% endif %}
               <span class="font-mono text-xs text-zinc-500 tabular-nums">
@@ -134,7 +134,7 @@
           <div class="flex items-center gap-2 shrink-0">
           <button @click="analyse({{ seg.marker_id }})" :disabled="busyInsight !== null"
                   class="btn min-h-10 px-3 text-sm bg-white/[0.06] text-zinc-300 hover:bg-white/10">
-            <span x-text="busyInsight === {{ seg.marker_id }} ? 'Denkt…' : (insights[{{ seg.marker_id }}] ? 'Neu auswerten' : 'KI-Auswertung')">KI-Auswertung</span>
+            <span x-text="busyInsight === {{ seg.marker_id }} ? 'Denkt…' : (insights[{{ seg.marker_id }}] ? 'Neu auswerten' : 'KI-Auswertung')">{{ t("KI-Auswertung") }}</span>
           </button>
           <button hx-post="/api/sessions/{{ session_id }}/segments/{{ seg.marker_id }}/export"
                   hx-target="#segment-review-{{ session_id }}"

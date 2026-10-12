@@ -14,7 +14,7 @@
                 hx-post="/api/checklists/activate/{{ tpl.id }}"
                 hx-swap="none"
                 class="btn min-h-10 px-4 text-sm bg-emerald-600 text-white hover:bg-emerald-500">
-            Aktivieren
+            {{ t("Aktivieren") }}
         </button>
     </div>
 
@@ -31,7 +31,7 @@
                         hx-swap="outerHTML"
                         class="w-10 h-10 flex items-center justify-center rounded-lg text-zinc-500
                                hover:bg-white/[0.06] hover:text-zinc-100 active:scale-95 transition"
-                        title="Nach oben">
+                        title="{{ t('Nach oben') }}">
                     ↑
                 </button>
                 <button type="button"
@@ -41,7 +41,7 @@
                         hx-swap="outerHTML"
                         class="w-10 h-10 flex items-center justify-center rounded-lg text-zinc-500
                                hover:bg-white/[0.06] hover:text-zinc-100 active:scale-95 transition"
-                        title="Nach unten">
+                        title="{{ t('Nach unten') }}">
                     ↓
                 </button>
                 <button type="button"
@@ -51,7 +51,7 @@
                         hx-confirm="Element löschen?"
                         class="w-10 h-10 flex items-center justify-center rounded-lg text-red-400/80
                                hover:bg-red-500/10 hover:text-red-400 active:scale-95 transition"
-                        title="Löschen">
+                        title="{{ t('Löschen') }}">
                     ✕
                 </button>
             </li>
@@ -66,11 +66,11 @@
             <input
                 type="text"
                 name="text"
-                placeholder="Neues Element"
+                placeholder="{{ t('Neues Element') }}"
                 required
                 class="field flex-1 text-sm">
             <button type="submit" class="btn min-h-11 px-4 text-sm bg-white/[0.08] text-zinc-100 hover:bg-white/[0.12]">
-                Hinzufügen
+                {{ t("Hinzufügen") }}
             </button>
         </form>
     </div>

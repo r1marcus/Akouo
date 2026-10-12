@@ -12,7 +12,7 @@
             @click="editing = true; $nextTick(() => $refs.editInput.focus())"
             class="w-10 h-10 flex items-center justify-center rounded-lg text-zinc-500
                    hover:bg-white/[0.06] hover:text-zinc-100 active:scale-95 transition"
-            title="Bearbeiten">
+            title="{{ t('Bearbeiten') }}">
         ✎
     </button>
     <button type="button" x-show="!editing"
@@ -22,7 +22,7 @@
             hx-swap="outerHTML"
             class="w-10 h-10 flex items-center justify-center rounded-lg text-zinc-500
                    hover:bg-white/[0.06] hover:text-zinc-100 active:scale-95 transition"
-            title="Nach oben">
+            title="{{ t('Nach oben') }}">
         ↑
     </button>
     <button type="button"
@@ -32,7 +32,7 @@
             hx-swap="outerHTML"
             class="w-10 h-10 flex items-center justify-center rounded-lg text-zinc-500
                    hover:bg-white/[0.06] hover:text-zinc-100 active:scale-95 transition"
-            title="Nach unten">
+            title="{{ t('Nach unten') }}">
         ↓
     </button>
     <button type="button"
@@ -42,7 +42,7 @@
             hx-confirm="Element löschen?"
             class="w-10 h-10 flex items-center justify-center rounded-lg text-red-400/80
                    hover:bg-red-500/10 hover:text-red-400 active:scale-95 transition"
-            title="Löschen">
+            title="{{ t('Löschen') }}">
         ✕
     </button>
 </li>

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="{{ sprache_aktuell() }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -15,6 +15,13 @@
     <title>Akouo</title>
     <link rel="stylesheet" href="{{ static_url('app.css') }}">
     <script>
+    // Derselbe Katalog wie serverseitig, fuer die Texte, die erst im Browser entstehen
+    // (Fehlermeldungen, Alpine-Beschriftungen). Auf Deutsch ist er leer — die Saetze
+    // stehen dort schon im Quelltext, und ein Woerterbuch, das jeden Satz auf sich selbst
+    // abbildet, waere nur Ballast auf dem Tablet.
+    window.AKOUO_T = {{ sprach_katalog() | tojson }};
+    function t(s) { return (window.AKOUO_T && window.AKOUO_T[s]) || s; }
+
     window.SERVICE_TYPES = {{ service_types | tojson }};
     window.PRIMARY_SERVICE_TYPES = {{ primary_service_types | tojson }};
     window.MARKER_TYPES = {{ marker_types | tojson }};
@@ -52,7 +59,7 @@
             },
             label() {
                 if (!this.loaded) return '…';
-                if (!this.current) return 'Gottesdienst wählen';
+                if (!this.current) return t('Gottesdienst wählen');
                 const c = this.current;
                 const teile = [c.service_type];
                 if (c.wedding_part) teile.push(`Teil ${c.wedding_part}`);
@@ -93,7 +100,7 @@
                     });
                     const d = await r.json().catch(() => ({}));
                     if (!r.ok) {
-                        this.error = typeof d.detail === 'string' ? d.detail : 'Speichern fehlgeschlagen (' + r.status + ')';
+                        this.error = typeof d.detail === 'string' ? d.detail : t('Speichern fehlgeschlagen (') + r.status + ')';
                         return;
                     }
                     this.current = {service_type: d.service_type, couple_name: d.couple_name,
@@ -141,9 +148,9 @@
                 return this.inputOk;
             },
             title() {
-                if (this.playing) return 'Mithören beenden';
-                if (!this.inputOk) return 'Kein Eingangssignal — Audio-Dienst oder Dante prüfen';
-                return 'Stream-Signal mithören (nur mit Kopfhörer)';
+                if (this.playing) return t('Mithören beenden');
+                if (!this.inputOk) return t('Kein Eingangssignal — Audio-Dienst oder Dante prüfen');
+                return t('Stream-Signal mithören (nur mit Kopfhörer)');
             },
             toggle() {
                 if (this.playing) { this.stop(); return; }
@@ -200,7 +207,7 @@
             <button type="button" x-data
                     @click="$store.service.openPicker()"
                     :disabled="$store.service.locked"
-                    :title="$store.service.locked ? 'Während einer Aufnahme nicht änderbar' : 'Gottesdienst ändern'"
+                    :title="$store.service.locked ? t('Während einer Aufnahme nicht änderbar') : t('Gottesdienst ändern')"
                     :class="$store.service.current || !$store.service.loaded
                         ? 'border-white/10 bg-white/[0.06] text-zinc-100 hover:bg-white/10'
                         : 'border-amber-400/30 bg-amber-400/10 text-amber-300 hover:bg-amber-400/15'"
@@ -247,9 +254,23 @@
                        x-show="$store.monitor.playing" x-cloak
                        :value="$store.monitor.volume"
                        @input="$store.monitor.setVolume($event.target.value)"
-                       aria-label="Mithör-Lautstärke"
-                       title="Mithör-Lautstärke"
+                       aria-label="{{ t('Mithör-Lautstärke') }}"
+                       title="{{ t('Mithör-Lautstärke') }}"
                        class="w-20 h-11 accent-emerald-400">
+            </div>
+
+            {# Sprache dieses Geraets. Als Links und nicht als Alpine-Menue: der Umschalter
+               muss auch dann gehen, wenn ein Skript haengt — und wer die Oberflaeche in einer
+               Sprache vorfindet, die er nicht liest, braucht etwas, das ohne Lesen erkennbar
+               ist. Deshalb Kuerzel statt Sprachnamen. #}
+            <div class="shrink-0 inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] p-0.5 text-[11px] font-medium">
+                {% for code in sprachen %}
+                <a href="/sprache/{{ code }}?weiter={{ path | urlencode }}"
+                   hreflang="{{ code }}"
+                   title="{{ {'de': 'Deutsch', 'en': 'English', 'ru': 'Русский'}[code] }}"
+                   class="min-h-8 px-2 inline-flex items-center rounded-full uppercase tracking-wide transition-colors
+                          {% if sprache_aktuell() == code %}bg-white/10 text-zinc-100{% else %}text-zinc-500 hover:text-zinc-200{% endif %}">{{ code }}</a>
+                {% endfor %}
             </div>
 
             <nav class="w-full sm:w-auto sm:ml-auto flex items-center justify-between sm:justify-end gap-0.5 sm:gap-1 text-sm">
@@ -257,7 +278,7 @@
                 <a href="{{ href }}"
                    class="px-2.5 sm:px-3 py-1.5 rounded-lg transition-colors
                           {% if path == href %}bg-white/10 text-zinc-100{% else %}text-zinc-400 hover:text-zinc-100 hover:bg-white/5{% endif %}">
-                    {{ label }}
+                    {{ t(label) }}
                 </a>
                 {% endfor %}
             </nav>
@@ -274,15 +295,15 @@
          @click.self="$store.monitor.warningOpen = false"
          class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
         <div class="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-900 p-6 shadow-2xl">
-            <h2 class="text-lg font-semibold">Nur mit Kopfhörer</h2>
+            <h2 class="text-lg font-semibold">{{ t("Nur mit Kopfhörer") }}</h2>
             <p class="mt-2 text-sm text-zinc-400">
-                Über Lautsprecher koppelt der Ton in die Mikrofone zurück und landet in der Aufnahme.
+                {{ t("Über Lautsprecher koppelt der Ton in die Mikrofone zurück und landet in der Aufnahme.") }}
             </p>
             <div class="mt-6 grid grid-cols-2 gap-3">
                 <button type="button" @click="$store.monitor.warningOpen = false"
-                        class="btn bg-white/[0.06] text-zinc-200 hover:bg-white/10">Abbrechen</button>
+                        class="btn bg-white/[0.06] text-zinc-200 hover:bg-white/10">{{ t("Abbrechen") }}</button>
                 <button type="button" @click="$store.monitor.confirmWarning()"
-                        class="btn bg-zinc-100 text-zinc-900 hover:bg-white">Mithören</button>
+                        class="btn bg-zinc-100 text-zinc-900 hover:bg-white">{{ t("Mithören") }}</button>
             </div>
         </div>
     </div>

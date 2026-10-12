@@ -12,7 +12,7 @@
             }"></span>
       <span class="eyebrow"
             :class="{ 'text-red-400': state === 'recording', 'text-amber-400': state === 'paused' || state === 'offline' }"
-            x-text="stateLabel()">Aufnahme</span>
+            x-text="stateLabel()">{{ t("Aufnahme") }}</span>
     </div>
     <span x-show="serviceType && (state === 'recording' || state === 'paused')" x-cloak
           class="rounded-full bg-white/[0.06] px-3 py-1 text-xs font-medium text-zinc-300"
@@ -24,17 +24,17 @@
        :class="state === 'recording' ? 'text-zinc-50' : (state === 'paused' ? 'text-amber-300' : 'text-zinc-700')"
        x-text="formatTime(elapsed)">00:00</div>
   <div class="mt-2 flex gap-6 text-sm text-zinc-500">
-    <span>Track <span class="ml-1 font-mono tabular-nums text-zinc-300" x-text="formatTime(trackElapsed())">00:00</span></span>
-    <span>Gesamt <span class="ml-1 font-mono tabular-nums text-zinc-300" x-text="formatTime(elapsed)">00:00</span></span>
+    <span>{{ t("Track") }} <span class="ml-1 font-mono tabular-nums text-zinc-300" x-text="formatTime(trackElapsed())">00:00</span></span>
+    <span>{{ t("Gesamt") }} <span class="ml-1 font-mono tabular-nums text-zinc-300" x-text="formatTime(elapsed)">00:00</span></span>
   </div>
 
   <!-- Level meter (dBFS, -60 … 0) — always live while the Focusrite is connected -->
   <div class="mt-6">
     <div class="mb-2 flex items-center justify-between gap-3">
-      <span class="eyebrow">Pegel · Kanal 1+2</span>
+      <span class="eyebrow">{{ t("Pegel · Kanal 1+2") }}</span>
       <span class="flex items-center gap-1.5 text-xs" :class="inputOk ? 'text-zinc-400' : 'text-amber-400'">
         <span class="w-1.5 h-1.5 rounded-full" :class="inputOk ? 'bg-emerald-500' : 'bg-amber-400'"></span>
-        <span x-text="inputOk ? 'Eingang verbunden' : 'Kein Eingang'">Kein Eingang</span>
+        <span x-text="inputOk ? 'Eingang verbunden' : 'Kein Eingang'">{{ t("Kein Eingang") }}</span>
       </span>
     </div>
     <canvas x-ref="meter" class="block w-full h-3"></canvas>
@@ -55,34 +55,34 @@
             :disabled="state === 'offline'"
             class="btn min-h-14 text-base bg-red-600 text-white hover:bg-red-500">
       <span class="w-3 h-3 rounded-full bg-white"></span>
-      Aufnahme starten
+      {{ t("Aufnahme starten") }}
     </button>
     <button x-show="state === 'recording'" x-cloak @click="pause()"
             class="btn min-h-14 text-base bg-white/[0.06] text-zinc-100 hover:bg-white/10">
       <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="2.5" width="3.5" height="11" rx="1"/><rect x="9.5" y="2.5" width="3.5" height="11" rx="1"/></svg>
-      Pause
+      {{ t("Pause") }}
     </button>
     <button x-show="state === 'paused'" x-cloak @click="resume()"
             class="btn min-h-14 text-base bg-amber-400 text-zinc-950 hover:bg-amber-300">
       <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9.5-5.5z"/></svg>
-      Fortsetzen
+      {{ t("Fortsetzen") }}
     </button>
     <button x-show="state === 'recording' || state === 'paused'" x-cloak @click="stop()" :disabled="busy"
             :class="confirmStop ? 'bg-red-600 text-white hover:bg-red-500' : 'bg-white/[0.06] text-zinc-100 hover:bg-white/10'"
             class="btn min-h-14 text-base">
       <span class="w-3 h-3 rounded-sm" :class="confirmStop ? 'bg-white' : 'bg-zinc-300'"></span>
-      <span x-text="busy ? 'Wird gestoppt…' : (confirmStop ? 'Wirklich stoppen?' : 'Stoppen')">Stoppen</span>
+      <span x-text="busy ? 'Wird gestoppt…' : (confirmStop ? 'Wirklich stoppen?' : 'Stoppen')">{{ t("Stoppen") }}</span>
     </button>
   </div>
   <p x-show="state === 'offline'" x-cloak class="mt-3 text-sm text-amber-400/90">
-    Audio-Service nicht erreichbar — läuft der Dienst auf dem Mac?
+    {{ t("Audio-Service nicht erreichbar — läuft der Dienst auf dem Mac?") }}
   </p>
 
   <!-- Automatik: erkennt Beiträge selbst und setzt Marker. Nie von allein an. -->
   <div x-show="state === 'recording' || state === 'paused'" x-cloak
        class="mt-5 flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3 py-2.5">
     <div class="min-w-0">
-      <div class="eyebrow" :class="auto.aktiv && 'text-emerald-400'">Automatik</div>
+      <div class="eyebrow" :class="auto.aktiv && 'text-emerald-400'">{{ t("Automatik") }}</div>
       <div class="mt-0.5 text-xs text-zinc-500"
            x-text="auto.fehler ? auto.fehler
                    : (auto.aktiv ? 'setzt Marker selbständig — Typ jederzeit änderbar'
@@ -191,7 +191,7 @@ function sessionPanel() {
       }
     },
     stateLabel() {
-      return {recording: 'Aufnahme läuft', paused: 'Pausiert', offline: 'Audio-Service offline'}[this.state] || 'Aufnahme';
+      return {recording: t('Aufnahme läuft'), paused: t('Pausiert'), offline: t('Audio-Service offline')}[this.state] || t('Aufnahme');
     },
     syncElapsed(seconds) {
       this.baseElapsed = seconds;
@@ -221,17 +221,17 @@ function sessionPanel() {
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
-        throw new Error(err.detail || ('Fehler ' + r.status));
+        throw new Error(err.detail || (t('Fehler') + ' ' + r.status));
       }
       return r.json();
     },
     async pause() {
       try { await this.post('/api/sessions/pause'); this.state = 'paused'; }
-      catch (e) { this.notifyError('Pause fehlgeschlagen: ' + e.message); }
+      catch (e) { this.notifyError(t('Pause fehlgeschlagen:') + ' ' + e.message); }
     },
     async resume() {
       try { await this.post('/api/sessions/resume'); await this.poll(); }
-      catch (e) { this.notifyError('Fortsetzen fehlgeschlagen: ' + e.message); }
+      catch (e) { this.notifyError(t('Fortsetzen fehlgeschlagen:') + ' ' + e.message); }
     },
     async stop() {
       // First tap arms, second tap within 3s stops — protects against accidental stops mid-service.
@@ -248,7 +248,7 @@ function sessionPanel() {
         await this.post('/api/sessions/stop');
         this.setState('idle');
       } catch (e) {
-        this.notifyError('Stoppen fehlgeschlagen: ' + e.message);
+        this.notifyError(t('Stoppen fehlgeschlagen:') + ' ' + e.message);
       } finally {
         this.busy = false;
       }
@@ -268,12 +268,12 @@ function sessionPanel() {
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({field: field, delta_seconds: delta}),
         });
-        if (!r.ok) throw new Error('Fehler ' + r.status);
+        if (!r.ok) throw new Error(t('Fehler') + ' ' + r.status);
         const body = await r.json();
         if (field === 'start') marker.start_nudge = body.start_nudge;
         else marker.end_nudge = body.end_nudge;
       } catch (e) {
-        this.notifyError('Marker verschieben fehlgeschlagen: ' + e.message);
+        this.notifyError(t('Marker verschieben fehlgeschlagen:') + ' ' + e.message);
       }
     },
     openMarker() {
@@ -288,7 +288,7 @@ function sessionPanel() {
         await this.loadMarkers();
         window.dispatchEvent(new CustomEvent('marker:placed'));
       } catch (e) {
-        this.notifyError('Track starten fehlgeschlagen: ' + e.message);
+        this.notifyError(t('Track starten fehlgeschlagen:') + ' ' + e.message);
       } finally {
         this.busyTrack = false;
       }
@@ -303,12 +303,12 @@ function sessionPanel() {
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({marker_type: trackType}),
         });
-        if (!r.ok) throw new Error('Fehler ' + r.status);
+        if (!r.ok) throw new Error(t('Fehler') + ' ' + r.status);
         const idx = this.pendingTracks.indexOf(trackType);
         if (idx >= 0) this.pendingTracks.splice(idx, 1);
         await this.loadMarkers();
       } catch (e) {
-        this.notifyError('Typ setzen fehlgeschlagen: ' + e.message);
+        this.notifyError(t('Typ setzen fehlgeschlagen:') + ' ' + e.message);
       } finally {
         this.busyTrack = false;
       }
@@ -319,7 +319,7 @@ function sessionPanel() {
         await this.post('/api/sessions/marker/end');
         await this.loadMarkers();
       } catch (e) {
-        this.notifyError('Track beenden fehlgeschlagen: ' + e.message);
+        this.notifyError(t('Track beenden fehlgeschlagen:') + ' ' + e.message);
       } finally {
         this.busyTrack = false;
       }
@@ -371,7 +371,7 @@ function sessionPanel() {
         const r = await fetch(`/api/sessions/automode/${ziel}`, {method: 'POST'});
         if (!r.ok) {
           const d = await r.json().catch(() => ({}));
-          throw new Error(d.detail || 'Fehler ' + r.status);
+          throw new Error(d.detail || t('Fehler') + ' ' + r.status);
         }
         this.auto = await r.json();
       } catch (e) {
@@ -393,11 +393,11 @@ function sessionPanel() {
       // Dialog mitten im Gottesdienst kostet mehr als ein versehentlicher Klick.
       try {
         const r = await fetch(`/api/sessions/markers/${marker.id}`, {method: 'DELETE'});
-        if (!r.ok) throw new Error('Fehler ' + r.status);
+        if (!r.ok) throw new Error(t('Fehler') + ' ' + r.status);
         this.markers = this.markers.filter(m => m.id !== marker.id);
         this.drawCurves();
       } catch (e) {
-        this.notifyError('Marker entfernen fehlgeschlagen: ' + e.message);
+        this.notifyError(t('Marker entfernen fehlgeschlagen:') + ' ' + e.message);
       }
     },
     async setTypeOf(marker, typ) {
@@ -408,10 +408,10 @@ function sessionPanel() {
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({marker_type: typ}),
         });
-        if (!r.ok) throw new Error('Fehler ' + r.status);
+        if (!r.ok) throw new Error(t('Fehler') + ' ' + r.status);
         marker.marker_type = typ;     // sofort sichtbar, der Poll bestätigt gleich
       } catch (e) {
-        this.notifyError('Typ ändern fehlgeschlagen: ' + e.message);
+        this.notifyError(t('Typ ändern fehlgeschlagen:') + ' ' + e.message);
       }
     },
 
