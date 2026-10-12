@@ -1,4 +1,4 @@
-# Projektstand Tontechnik
+# Projektstand Akouo
 
 Stand: 12. Oktober 2026. Was funktioniert, was belegt ist, was fehlt.
 Betriebsanleitung: [betrieb.md](betrieb.md) · Nächste Schritte: [roadmap.md](roadmap.md) · Architektur: [../ARCHITECTURE.md](../ARCHITECTURE.md)
@@ -350,7 +350,7 @@ Namen. Deshalb jetzt zwei getrennte:
 
 | Repository | Was drin ist |
 |---|---|
-| `r1marcus/Akouo` | die veröffentlichte Fassung. Ein Wurzel-Commit, 137 Dateien, keine Vorgeschichte. Der Entwicklungsweg steht in den Dokumenten, nicht in `git log`. |
+| `r1marcus/Akouo` | die veröffentlichte Fassung. Ein Wurzel-Commit, 142 Dateien, keine Vorgeschichte. Der Entwicklungsweg steht in den Dokumenten, nicht in `git log`. |
 | `r1marcus/Akouo-Archiv` | die vollständige Historie März–Oktober 2026 mit allem, was nicht nach draußen darf. **Bleibt privat.** |
 
 Lokal zeigt `main` auf die veröffentlichte Fassung; die alte Historie liegt im Zweig
@@ -417,7 +417,6 @@ Der Ablauf liegt danach als `ablauf.txt` und `marker.json` im Session-Ordner.
 | **Gedicht gegen Gebet** | Über den Text nicht zu trennen — das Erntedank-Gedicht spricht Gott häufiger an als die echten Gebete. |
 | **Export nach dem Stoppen** | Die Schnittkanten werden automatisch nachgezogen, das Schneiden selbst startet noch der Knopf „Alle exportieren“. |
 | **Marker-Drift bei Aussetzern** | Marker-Zeiten kommen von der Uhr, die Datei von den Samples. Fällt der Eingang kurz aus, verschieben sie sich gegeneinander. |
-| **Tests schreiben in den Produktionsordner** | `test.mp3` und Co. landen in `~/Recordings/Tontechnik/exports/`. |
 | **Alte Aufnahme-Endpunkte** | Der Einzelaufnahme-Recorder (`/start`, `/stop`, `/api/recordings/*`) läuft parallel mit und verwirrt. |
 | **„Als Nächstes“-Liste** | Nur auf dem Gerät sichtbar, das die Aufnahme gestartet hat. |
 | **Manuelle Tests der Phasen 4–7** | 15 Punkte stehen noch auf „pending“, obwohl vieles inzwischen an echter Hardware lief. |

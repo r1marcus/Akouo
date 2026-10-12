@@ -102,7 +102,7 @@ be decided in realtime. If the detector works out twenty seconds late that an it
 records the correct start timestamp. Accuracy is not traded against latency.
 
 Memory was the constraint that shaped this. Accumulating raw PCM for a 90-minute service in a
-Python list is roughly 345 MB/hour at 48 kHz stereo int16, in a process that shares memory with a
+Python list is roughly 690 MB/hour at 48 kHz stereo int16, in a process that shares memory with a
 Whisper model. Audio is therefore streamed to disk as it arrives rather than buffered to the end,
 and segments are cut from the finished WAV afterwards.
 
@@ -134,7 +134,7 @@ against the transcript, because the model invents plausible ones.
 
 ## Data
 
-SQLite via SQLAlchemy's async session, schema versioned with Alembic (currently 13 migrations,
+SQLite via SQLAlchemy's async session, schema versioned with Alembic (currently 14 migrations,
 strictly linear). One operator will never hit SQLite's concurrency limits, and a single file is
 exactly the right shape for an offline-first appliance.
 

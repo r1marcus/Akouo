@@ -159,7 +159,7 @@ Log: `~/Library/Logs/Akouo/dashboard.log`
 | `AUDIO_SAMPLE_RATE` | Umgebung des Audio-Service | `48000` | Abtastrate der Aufnahme; muss zur Einstellung der Soundkarte passen (Dante läuft mit 48000). |
 | `AUDIO_RECORD_CHANNELS` | `audio-service/.env` | `1,2` (hier: `44,45`) | Kanalpaar für die Aufnahme, 1-basiert wie in Dante Controller. |
 | `STREAM_URL` | `audio-service/.env` | leer | Icecast-Ziel **mit Zugangsdaten**, aktuell `icecast://…@<icecast-host>:8000/<mount>`. Gehört nicht ins Repo. Fehlt in den Einstellungen ein Ziel, nutzt die API dieses hier. |
-| `AUDIO_STREAM_CHANNELS` | `audio-service/.env` | `3,4` (hier: `46,47`) | Kanalpaar für den Livestream. Darf dasselbe Paar wie die Aufnahme sein. |
+| `AUDIO_STREAM_CHANNELS` | `audio-service/.env` | `1,2` (hier: `46,47`) | Kanalpaar für den Livestream. Darf dasselbe Paar wie die Aufnahme sein. |
 | `NAS_*` | `audio-service/.env` | auskommentiert | NAS über SMB. Zugang geprüft, aber die Freigabe `Aufnahmen` verweigert dem Dienstkonto noch den Zutritt — das muss die NAS-Verwaltung freischalten. Bis dahin bleiben die Zeilen auskommentiert: schon ein gesetztes `NAS_SERVER` löst den Upload aus, und jede Datei bekäme *fehlgeschlagen* statt *übersprungen*. Prüfen mit `audio-service/scripts/check_nas.py`. |
 | `auto_refine_boundaries` | Einstellungsseite (DB) | an | Schnittkanten beim Stoppen automatisch korrigieren |
 
@@ -253,7 +253,7 @@ Oben neben „Tontechnik" steht der **aktuelle Gottesdienst** (z. B. „Sonntagm
   platziert den Marker zum aktuellen Zeitpunkt.
 - **Marker:** Liste mit ±1 s für Start und Ende.
 
-Fehler (z. B. „Focusrite with >=4 channels not detected") erscheinen als rote Meldung unten.
+Fehler (z. B. „Kein Audio-Eingang mit >=47 Kanälen gefunden") erscheinen als rote Meldung unten.
 
 ### Stream-Karte
 
@@ -305,20 +305,23 @@ Spalten herausgeschnitten. Kanäle ändern: Zeile in `.env` anpassen, dann
 Welche Geräte gesucht werden, steht in `AUDIO_DEVICE_NAMES` (siehe Abschnitt 3) — ein Focusrite
 wird weiterhin gefunden, wenn keine Dante-Soundkarte da ist.
 
-Die Anzeige zeigt den Pegel von **Kanal 1+2** (Aufnahme-Signal) als LED-Kette in dBFS
-(−60 … 0 dB; grün bis −12, gelb bis −3, rot darüber, mit Spitzenwert-Haltung).
-Sie läuft **immer**, nicht nur während einer Aufnahme. Rechts steht
-„Focusrite verbunden" oder „Kein Eingang".
+Die Anzeige zeigt den Pegel des **Aufnahmepaars** (`AUDIO_RECORD_CHANNELS`, hier 44+45) als
+LED-Kette in dBFS (−60 … 0 dB; grün bis −12, gelb bis −3, rot darüber, mit
+Spitzenwert-Haltung). Sie läuft **immer**, nicht nur während einer Aufnahme. Rechts steht
+„Eingang verbunden" oder „Kein Eingang".
 
 ### So funktioniert es
 
-- Der Audio-Service öffnet beim Start **einen einzigen 4-Kanal-Stream** auf das Gerät und
-  lässt ihn offen (`ContinuousRecorder.ensure_input()`). Zwei parallele Streams auf dasselbe
-  Gerät würden sich stören — deshalb nutzen Pegel, Aufnahme und Livestream denselben Stream.
-- Der Audio-Callback berechnet bei jedem Block den RMS-Wert von Kanal 1+2.
-- Eine Aufnahme **schreibt nur mit** (Kanal 1+2 in die WAV-Datei). Beim Stoppen bleibt der
-  Eingang offen; die nächste Aufnahme nutzt ihn weiter.
-- Kanal 3+4 werden nur in die Stream-Warteschlange gelegt, **solange tatsächlich gestreamt wird**
+- Der Audio-Service öffnet beim Start **einen einzigen Stream** auf das Gerät und lässt ihn
+  offen (`ContinuousRecorder.ensure_input()`). PortAudio öffnet immer ab Kanal 1, der Stream ist
+  also so breit wie das höchste benutzte Kanal — bei 46+47 sind das **47 Kanäle**, nicht vier.
+  Zwei parallele Streams auf dasselbe Gerät würden sich stören; deshalb nutzen Pegel, Aufnahme
+  und Livestream denselben.
+- Der Audio-Callback berechnet bei jedem Block den RMS-Wert des **Aufnahmepaars**.
+- Eine Aufnahme **schreibt nur mit** (das Aufnahmepaar in die WAV-Datei). Beim Stoppen bleibt
+  der Eingang offen; die nächste Aufnahme nutzt ihn weiter.
+- Das **Streampaar** (hier 46+47) wird nur in die Stream-Warteschlange gelegt, **solange
+  tatsächlich gestreamt wird**
   (`stream_enabled`, gesetzt vom `StreamAdapter`). Vorher lief diese Warteschlange während jeder
   Aufnahme auch ohne Stream voll (~1,3 GB in 2 Stunden).
 - Ein Hintergrund-Task (`monitor_input`, alle 3 s) öffnet den Eingang, sobald das Gerät
@@ -333,8 +336,9 @@ Sie läuft **immer**, nicht nur während einer Aufnahme. Rechts steht
 - Solange ein Eingang offen ist, zeigt macOS den **orangen Mikrofon-Punkt** in der Menüleiste
   dauerhaft an. Das ist gewollt.
 - **Pegel bleibt bei Stille, obwohl „verbunden" steht:** Dann läuft der Stream, es ist nur nichts
-  auf die Dante-Kanäle 1–4 geroutet. In **Dante Controller** unter *Routing* die Sender-Kanäle des
-  Pults auf die Empfangskanäle 1–4 der *Dante Virtual Soundcard* setzen.
+  auf die benutzten Dante-Kanäle geroutet. In **Dante Controller** unter *Routing* die
+  Sender-Kanäle des Pults auf die Empfangskanäle **44–47** der *Dante Virtual Soundcard* setzen —
+  44+45 für die Aufnahme, 46+47 für den Stream. Welche es sind, steht in `audio-service/.env`.
 - Beim ersten Öffnen fragt macOS nach dem Mikrofonzugriff für
   `~/tontechnik-audio-venv/bin/python` — erlauben (Systemeinstellungen → Datenschutz & Sicherheit →
   Mikrofon).
@@ -734,9 +738,9 @@ doch: Schalter aus und wieder an.
 
 | Symptom | Ursache / Lösung |
 |---|---|
-| „Kein Audio-Eingang mit >=4 Kanälen gefunden" | Dante Virtual Soundcard läuft nicht oder heißt anders. Prüfen: `~/tontechnik-audio-venv/bin/python -c "import sounddevice; print(sounddevice.query_devices())"`; Name ggf. in `AUDIO_DEVICE_NAMES` ergänzen. |
+| „Kein Audio-Eingang mit >=N Kanälen gefunden" (N ist das höchste benutzte Kanal, hier 47) | Dante Virtual Soundcard läuft nicht oder heißt anders. Prüfen: `~/tontechnik-audio-venv/bin/python -c "import sounddevice; print(sounddevice.query_devices())"`; Name ggf. in `AUDIO_DEVICE_NAMES` ergänzen. |
 | Pegel zeigt „Kein Eingang", obwohl Dante läuft | Bis zu 3 s warten (Geräte-Scan). Sonst Mikrofonzugriff prüfen und `~/Library/Logs/Akouo/audio.log` auf `[input]`-Meldungen ansehen; Audio-Service neu starten. |
-| Pegel bleibt still, „Focusrite verbunden" steht aber da | Routing in Dante Controller fehlt (siehe Abschnitt 5). |
+| Pegel bleibt still, „Eingang verbunden" steht aber da | Routing in Dante Controller fehlt (siehe Abschnitt 5). |
 | Dashboard zeigt „Audio-Service offline" | `launchctl list \| grep akouo`, Fehlerlog `~/Library/Logs/Akouo/audio-error.log`, neu starten (Abschnitt 2). |
 | Dashboard sieht kaputt aus (schwarze Schrift, riesige Symbole) | CSS neu bauen (Abschnitt 6); Seite neu laden. |
 | Klick auf einen Knopf bewirkt nichts | Seite neu laden (⌘R) — nach Updates kann eine alte Version im Tab laufen. `~/Library/Logs/Akouo/api.log` zeigt, ob die Anfrage ankommt. |

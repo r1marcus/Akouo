@@ -9,7 +9,7 @@ Soundcard licence or a multi-channel USB interface. That is a real wall, and it 
 
 **What you can work on without any of that:**
 
-- **The test suite.** 112 tests, all hardware mocked. No audio interface, no NAS, no Whisper, no
+- **The test suite.** 164 tests, all hardware mocked. No audio interface, no NAS, no Whisper, no
   Ollama needed.
 - **The dashboard, API and templates.** The API starts on its own — see the Quickstart in the
   README. You get a working dashboard with the audio service reported as offline, which is the
