@@ -7,13 +7,16 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Festgenagelt, nicht ubuntu-latest: das Label wandert am 19.10.2026 auf Ubuntu 26,
+    # und ein Lauf, der nur wegen eines neuen Bildes bricht, kostet am Samstag Zeit, die
+    # niemand hat. Bewusst hochziehen, wenn es passt.
+    runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Python 3.12 einrichten
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           # Nicht neuer: pydub importiert audioop, das in Python 3.13 aus der
           # Standardbibliothek entfernt wurde.
