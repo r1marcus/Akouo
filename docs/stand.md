@@ -336,6 +336,38 @@ Repositorys.
 
 ---
 
+## 2f. Zwei Repositories (12. Oktober 2026)
+
+Die Veröffentlichung scheiterte zunächst an etwas, das in keiner Prüfung vom 11. Oktober stand:
+**der Historie.** Die fünf Aufräum-Commits haben die Betriebsdaten aus dem Arbeitsbaum genommen,
+nicht aus den Commits davor. In den 200 Commits ab März lagen weiter vier Fassungen von
+`data/tontechnik.db` — die letzte mit 16 Aufnahmen, 59 Markern und Insight-Texten —, die 87
+Planungsdateien und die internen Adressen des Gemeindenetzes. Letztere auch in
+**Commit-Botschaften**, wo keine `.gitignore` und kein CI-Wächter sie erwischt.
+
+Ein neues Remote allein löst das nicht: das Repository hatte dieselbe Historie, nur unter neuem
+Namen. Deshalb jetzt zwei getrennte:
+
+| Repository | Was drin ist |
+|---|---|
+| `r1marcus/Akouo` | die veröffentlichte Fassung. Ein Wurzel-Commit, 137 Dateien, keine Vorgeschichte. Der Entwicklungsweg steht in den Dokumenten, nicht in `git log`. |
+| `r1marcus/Akouo-Archiv` | die vollständige Historie März–Oktober 2026 mit allem, was nicht nach draußen darf. **Bleibt privat.** |
+
+Lokal zeigt `main` auf die veröffentlichte Fassung; die alte Historie liegt im Zweig
+`archiv/historie-tontechnik` und als Bündel in `~/Code/akouo-historie-vor-veroeffentlichung.bundle`.
+
+Ein Force-Push ins alte Repository hätte nicht gereicht: die acht `worktree-agent-*`-Zweige
+hielten dieselben Objekte, und selbst nach deren Löschung bleiben unreferenzierte Objekte
+serverseitig über ihre SHA abrufbar, bis GitHub aufräumt. Ein frisch angelegtes, leeres
+Repository ist die einzige Variante, bei der die Daten das veröffentlichte Repository nie
+berühren.
+
+**Noch offen vor dem Öffentlichmachen:** der Zugriffsschutz (roadmap.md, Punkt 5) — das
+Dashboard hat keine Anmeldung, und `SECURITY.md` sagt das auch. Das ist eine Eigenschaft des
+Betriebs, kein Hindernis für die Veröffentlichung des Codes.
+
+---
+
 ## 3. Ablauf im Gottesdienst
 
 1. Oben den Gottesdienst wählen — die Seite springt auf die Checkliste.
@@ -388,8 +420,9 @@ Der Ablauf liegt danach als `ablauf.txt` und `marker.json` im Session-Ordner.
 - **Phase 8 (AI-01, AI-02) ist im Kern erfüllt:** Transkription läuft live statt nachgelagert,
   Metadaten werden je Segment erzeugt. Offen bleibt die Veröffentlichung dieser Daten
   (Webseite, NAS, Suche) und ein größeres Sprachmodell für bessere Zusammenfassungen.
-- `data/tontechnik.db` liegt im Git; `.venv`, `__pycache__` und das Tailwind-Binary fehlen in der
-  `.gitignore`.
+- Erledigt am 11.10.2026: `data/tontechnik.db` ist nicht mehr verfolgt, und `.gitignore` deckt
+  `.venv`, `__pycache__`, das Tailwind-Binary, Aufnahmen und `.env` ab. Zwei CI-Wächter halten
+  es so — einer gegen versionierte Audio- und Datenbankdateien, einer gegen interne Adressen.
 - Die früheren Planungsdateien unter `.planning/` sind beim Öffentlichmachen entfernt worden:
   sie beschrieben einen Mac Mini mit Docker und führten die KI-Funktionen als „out of scope“.
   Die Entscheidungsbegründungen daraus stehen jetzt in [../ARCHITECTURE.md](../ARCHITECTURE.md).
@@ -408,11 +441,12 @@ Der Ablauf liegt danach als `ablauf.txt` und `marker.json` im Session-Ordner.
 | Export | MP3 192 kbit/s, 48 kHz, −3 dBFS, je 1 s Blende |
 | Web | `http://<rechner>.local:8000` — immer über den Namen, die IP wechselt per DHCP. Von unterwegs über Tailscale: `http://<tailscale-adresse>:8000` |
 | Stream | Icecast `<icecast-host>:8000/<mount>`, Quelle = Dante 46+47 |
-| Datenbank | SQLite, Alembic-Stand 010 |
-| Tests | 112 Tests in zwei Umgebungen (56 API, 56 Audio-Dienst) |
+| Datenbank | SQLite, Alembic-Stand **013** — Ziel 014, siehe Abschnitt 1a |
+| Tests | **164 Tests** in zwei Umgebungen (102 API, 62 Audio-Dienst), dazu CI auf ubuntu-24.04 |
 
-**Committet und gepusht:** alles. Nicht im Repo: die laufende Datenbank `data/tontechnik.db`,
-die Aufnahmen selbst und `audio-service/.env` (enthält das Icecast-Passwort).
+**Committet und gepusht:** alles — siehe Abschnitt 2f zu den beiden Repositories. Nicht im Repo:
+die laufende Datenbank `data/tontechnik.db`, die Aufnahmen selbst und `audio-service/.env`
+(enthält das Icecast-Passwort).
 
 ---
 
