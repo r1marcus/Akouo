@@ -152,7 +152,22 @@
                            @keydown.enter="$event.target.blur()"
                            class="field flex-1 min-w-40"
                            :class="a.geschuetzt ? 'opacity-60 cursor-not-allowed' : ''"
-                           :title="a.geschuetzt ? t('Geschützt: an diesem Namen hängt Logik') : ''">
+                           :title="a.geschuetzt ? tr('Geschützt: an diesem Namen hängt Logik') : ''">
+
+                    {# Anzeigenamen. Der Name links traegt die Logik und bleibt
+                       deutsch; hier steht nur, wie er auf Englisch und Russisch
+                       beschriftet wird. Deshalb auch bei geschuetzten Arten
+                       aenderbar. Leer heisst: den deutschen Namen zeigen. #}
+                    <input type="text" :value="a.anzeige_en"
+                           @blur="artAendern(a, {anzeige_en: $event.target.value})"
+                           @keydown.enter="$event.target.blur()"
+                           class="field w-28 shrink-0 text-zinc-400"
+                           placeholder="EN" title="{{ t('Anzeigename auf Englisch') }}">
+                    <input type="text" :value="a.anzeige_ru"
+                           @blur="artAendern(a, {anzeige_ru: $event.target.value})"
+                           @keydown.enter="$event.target.blur()"
+                           class="field w-28 shrink-0 text-zinc-400"
+                           placeholder="RU" title="{{ t('Anzeigename auf Russisch') }}">
 
                     <label class="flex items-center gap-1.5 text-sm text-zinc-400 shrink-0">
                         <input type="checkbox" :checked="a.is_primary"
@@ -163,9 +178,7 @@
                     <label class="flex items-center gap-1.5 text-sm text-zinc-400 shrink-0">
                         <input type="checkbox" :checked="a.active"
                                @change="artAendern(a, {active: $event.target.checked})"
-                               class="accent-emerald-600">
-                        sichtbar
-                    </label>
+                               class="accent-emerald-600">{{ t("sichtbar") }}</label>
                     <button type="button" @click="sortieren('arten', a, -1)"
                             class="btn bg-white/[0.06] text-zinc-300 hover:bg-white/10 shrink-0" title="{{ t('nach oben') }}">↑</button>
                     <button type="button" @click="sortieren('arten', a, 1)"
@@ -201,7 +214,22 @@
                                @keydown.enter="$event.target.blur()"
                                class="field flex-1 min-w-40"
                                :class="b.geschuetzt ? 'opacity-60 cursor-not-allowed' : ''"
-                               :title="b.geschuetzt ? t('Geschützt: der Name steht in den Ansage-Regeln oder dient als Anker') : ''">
+                               :title="b.geschuetzt ? tr('Geschützt: der Name steht in den Ansage-Regeln oder dient als Anker') : ''">
+
+                    {# Anzeigenamen. Der Name links traegt die Logik und bleibt
+                       deutsch; hier steht nur, wie er auf Englisch und Russisch
+                       beschriftet wird. Deshalb auch bei geschuetzten Arten
+                       aenderbar. Leer heisst: den deutschen Namen zeigen. #}
+                    <input type="text" :value="b.anzeige_en"
+                           @blur="beitragAendern(b, {anzeige_en: $event.target.value})"
+                           @keydown.enter="$event.target.blur()"
+                           class="field w-28 shrink-0 text-zinc-400"
+                           placeholder="EN" title="{{ t('Anzeigename auf Englisch') }}">
+                    <input type="text" :value="b.anzeige_ru"
+                           @blur="beitragAendern(b, {anzeige_ru: $event.target.value})"
+                           @keydown.enter="$event.target.blur()"
+                           class="field w-28 shrink-0 text-zinc-400"
+                           placeholder="RU" title="{{ t('Anzeigename auf Russisch') }}">
 
                         <select class="field w-36 shrink-0" @change="beitragAendern(b, {klang_klasse: $event.target.value})">
                             <option value="" :selected="!b.klang_klasse">{{ t("nur auf Ansage") }}</option>
@@ -282,8 +310,7 @@
                     </select>
                     <label class="flex items-center gap-1.5 text-sm text-zinc-400 shrink-0">
                         <input type="checkbox" :checked="r.active" class="accent-emerald-600"
-                               @change="regelAendern(r, {active: $event.target.checked})"> aktiv
-                    </label>
+                               @change="regelAendern(r, {active: $event.target.checked})">{{ t("aktiv") }}</label>
                     <button type="button" @click="sortieren('regeln', r, -1)"
                             class="btn bg-white/[0.06] text-zinc-300 hover:bg-white/10 shrink-0">↑</button>
                     <button type="button" @click="sortieren('regeln', r, 1)"
@@ -378,7 +405,7 @@ function einstellungen() {
            soll — die Schutzregeln erklären dort, warum etwas nicht geht. */
         async pruefen(r, erfolg = 'Gespeichert') {
             if (r.ok) { this.sagen(erfolg); return true; }
-            let text = t('Fehler') + ' ' + r.status;
+            let text = tr('Fehler') + ' ' + r.status;
             try { const d = await r.json(); if (d.detail) text = d.detail; } catch (_) {}
             this.sagen(text, 'fehler');
             return false;
@@ -405,7 +432,7 @@ function einstellungen() {
                 body: JSON.stringify({vorlage}),
             });
             this.vorschauen[schluessel] = r.ok ? await r.json()
-                : {gueltig: false, fehler: t('Vorschau nicht möglich')};
+                : {gueltig: false, fehler: tr('Vorschau nicht möglich')};
         },
 
         /* ─── Gottesdienstarten ─── */
@@ -415,7 +442,7 @@ function einstellungen() {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({name: this.neueArt.trim()}),
             });
-            if (await this.pruefen(r, t('Angelegt'))) { this.neueArt = ''; await this.laden(); }
+            if (await this.pruefen(r, tr('Angelegt'))) { this.neueArt = ''; await this.laden(); }
         },
         async artAendern(a, felder) {
             if (felder.name !== undefined && felder.name === a.name) return;
@@ -428,7 +455,7 @@ function einstellungen() {
         async artLoeschen(a) {
             if (!confirm('„' + a.name + '“ löschen?')) return;
             const r = await fetch('/api/konfiguration/gottesdienstarten/' + a.id, {method: 'DELETE'});
-            await this.pruefen(r, t('Gelöscht')); await this.laden();
+            await this.pruefen(r, tr('Gelöscht')); await this.laden();
         },
 
         /* ─── Beitragsarten ─── */
@@ -441,7 +468,7 @@ function einstellungen() {
                     klang_klasse: this.neuerBeitrag.klang_klasse,
                 }),
             });
-            if (await this.pruefen(r, t('Angelegt'))) {
+            if (await this.pruefen(r, tr('Angelegt'))) {
                 this.neuerBeitrag = {name: '', klang_klasse: ''};
                 await this.laden();
             }
@@ -457,7 +484,7 @@ function einstellungen() {
         async beitragLoeschen(b) {
             if (!confirm('„' + b.name + '“ löschen?')) return;
             const r = await fetch('/api/konfiguration/beitragsarten/' + b.id, {method: 'DELETE'});
-            await this.pruefen(r, t('Gelöscht')); await this.laden();
+            await this.pruefen(r, tr('Gelöscht')); await this.laden();
         },
 
         /* ─── Ansage-Regeln ─── */
@@ -467,7 +494,7 @@ function einstellungen() {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(this.neueRegel),
             });
-            if (await this.pruefen(r, t('Angelegt'))) {
+            if (await this.pruefen(r, tr('Angelegt'))) {
                 this.neueRegel = {muster: '', marker_type: ''};
                 await this.laden();
             }
@@ -482,16 +509,16 @@ function einstellungen() {
         },
         async regelLoeschen(r0) {
             const r = await fetch('/api/konfiguration/ansage-regeln/' + r0.id, {method: 'DELETE'});
-            await this.pruefen(r, t('Gelöscht')); await this.laden();
+            await this.pruefen(r, tr('Gelöscht')); await this.laden();
         },
         async probieren() {
             const muster = this.neueRegel.muster.trim();
-            if (!muster) { this.sagen(t('Erst ein Muster eintragen'), 'fehler'); return; }
+            if (!muster) { this.sagen(tr('Erst ein Muster eintragen'), 'fehler'); return; }
             const r = await fetch('/api/konfiguration/ansage-regeln/probe', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({muster, text: this.probeText}),
             });
-            this.probe = r.ok ? await r.json() : {gueltig: false, fehler: t('Probe nicht möglich')};
+            this.probe = r.ok ? await r.json() : {gueltig: false, fehler: tr('Probe nicht möglich')};
         },
 
         /* Umsortieren: Nachbarn tauschen die sort_order. Einfacher als Drag-and-drop und

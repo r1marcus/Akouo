@@ -68,7 +68,8 @@ async def alles_lesen(db: AsyncSession = Depends(get_db)):
         "gottesdienstarten": [
             {"id": a.id, "name": a.name, "sort_order": a.sort_order,
              "is_primary": a.is_primary, "active": a.active,
-             "geschuetzt": a.geschuetzt, "nas_vorlage": a.nas_vorlage}
+             "geschuetzt": a.geschuetzt, "nas_vorlage": a.nas_vorlage,
+             "anzeige_en": a.anzeige_en, "anzeige_ru": a.anzeige_ru}
             for a in arten
         ],
         "beitragsarten": [
@@ -76,7 +77,8 @@ async def alles_lesen(db: AsyncSession = Depends(get_db)):
              "exportieren": b.exportieren, "klang_klasse": b.klang_klasse,
              "anker": b.anker, "auto_marker": b.auto_marker,
              "dauer_min": b.dauer_min, "dauer_max": b.dauer_max,
-             "geschuetzt": b.geschuetzt}
+             "geschuetzt": b.geschuetzt,
+             "anzeige_en": b.anzeige_en, "anzeige_ru": b.anzeige_ru}
             for b in beitraege
         ],
         "ansage_regeln": [
@@ -118,13 +120,17 @@ class ArtEingabe(BaseModel):
     active: Optional[bool] = None
     sort_order: Optional[int] = None
     nas_vorlage: Optional[str] = None
+    # Anzeigenamen sind frei aenderbar — auch bei geschuetzten Arten. Geschuetzt ist
+    # der Name, an dem Logik haengt, nicht die Beschriftung daneben.
+    anzeige_en: Optional[str] = None
+    anzeige_ru: Optional[str] = None
 
 
 @router.post("/gottesdienstarten")
 async def art_anlegen(eingabe: ArtEingabe, db: AsyncSession = Depends(get_db)):
     name = (eingabe.name or "").strip()
     if not name:
-        raise HTTPException(status_code=422, detail="Die Gottesdienstart braucht einen Namen")
+        raise HTTPException(status_code=422, detail=uebersetze("Die Gottesdienstart braucht einen Namen"))
     vorhanden = (await db.execute(
         select(ServiceType).where(ServiceType.name == name)
     )).scalar_one_or_none()
@@ -148,7 +154,7 @@ async def art_anlegen(eingabe: ArtEingabe, db: AsyncSession = Depends(get_db)):
 async def art_aendern(art_id: int, eingabe: ArtEingabe, db: AsyncSession = Depends(get_db)):
     art = await db.get(ServiceType, art_id)
     if art is None:
-        raise HTTPException(status_code=404, detail="Gottesdienstart nicht gefunden")
+        raise HTTPException(status_code=404, detail=uebersetze("Gottesdienstart nicht gefunden"))
 
     if eingabe.name is not None and eingabe.name.strip() != art.name:
         if art.geschuetzt:
@@ -158,7 +164,7 @@ async def art_aendern(art_id: int, eingabe: ArtEingabe, db: AsyncSession = Depen
                        f"(Brautpaar-Felder bzw. die NAS-Ablage). Ausblenden ist möglich.")
         neuer = eingabe.name.strip()
         if not neuer:
-            raise HTTPException(status_code=422, detail="Der Name darf nicht leer sein")
+            raise HTTPException(status_code=422, detail=uebersetze("Der Name darf nicht leer sein"))
         kollision = (await db.execute(
             select(ServiceType).where(ServiceType.name == neuer, ServiceType.id != art_id)
         )).scalar_one_or_none()
@@ -179,6 +185,13 @@ async def art_aendern(art_id: int, eingabe: ArtEingabe, db: AsyncSession = Depen
     if eingabe.nas_vorlage is not None:
         art.nas_vorlage = eingabe.nas_vorlage.strip() or None
 
+    # Anzeigenamen: leer eingegeben heisst "wieder den deutschen Namen zeigen",
+    # deshalb None und nicht der leere String — der wuerde eine leere Beschriftung geben.
+    for feld in ("anzeige_en", "anzeige_ru"):
+        wert = getattr(eingabe, feld)
+        if wert is not None:
+            setattr(art, feld, wert.strip() or None)
+
     await db.commit()
     await _neu_laden_und_schieben(db)
     return {"id": art.id, "name": art.name}
@@ -188,7 +201,7 @@ async def art_aendern(art_id: int, eingabe: ArtEingabe, db: AsyncSession = Depen
 async def art_loeschen(art_id: int, db: AsyncSession = Depends(get_db)):
     art = await db.get(ServiceType, art_id)
     if art is None:
-        raise HTTPException(status_code=404, detail="Gottesdienstart nicht gefunden")
+        raise HTTPException(status_code=404, detail=uebersetze("Gottesdienstart nicht gefunden"))
     if art.geschuetzt:
         raise HTTPException(
             status_code=409,
@@ -221,6 +234,10 @@ class BeitragEingabe(BaseModel):
     dauer_min: Optional[int] = None
     dauer_max: Optional[int] = None
     sort_order: Optional[int] = None
+    # Anzeigenamen sind frei aenderbar — auch bei geschuetzten Arten. Geschuetzt ist
+    # der Name, an dem Logik haengt, nicht die Beschriftung daneben.
+    anzeige_en: Optional[str] = None
+    anzeige_ru: Optional[str] = None
 
 
 def _klang_klasse_pruefen(wert: Optional[str]) -> Optional[str]:
@@ -240,7 +257,7 @@ def _klang_klasse_pruefen(wert: Optional[str]) -> Optional[str]:
 def _dauer_pruefen(von: Optional[int], bis: Optional[int]) -> None:
     if von is not None and bis is not None and von >= bis:
         raise HTTPException(status_code=422,
-                            detail="Die Mindestdauer muss kleiner als die Höchstdauer sein")
+                            detail=uebersetze("Die Mindestdauer muss kleiner als die Höchstdauer sein"))
     for wert, name in ((von, "Mindestdauer"), (bis, "Höchstdauer")):
         if wert is not None and (wert < 1 or wert > 36000):
             raise HTTPException(status_code=422,
@@ -251,7 +268,7 @@ def _dauer_pruefen(von: Optional[int], bis: Optional[int]) -> None:
 async def beitrag_anlegen(eingabe: BeitragEingabe, db: AsyncSession = Depends(get_db)):
     name = (eingabe.name or "").strip()
     if not name:
-        raise HTTPException(status_code=422, detail="Die Beitragsart braucht einen Namen")
+        raise HTTPException(status_code=422, detail=uebersetze("Die Beitragsart braucht einen Namen"))
     vorhanden = (await db.execute(
         select(MarkerType).where(MarkerType.name == name)
     )).scalar_one_or_none()
@@ -282,7 +299,7 @@ async def beitrag_aendern(art_id: int, eingabe: BeitragEingabe,
                           db: AsyncSession = Depends(get_db)):
     art = await db.get(MarkerType, art_id)
     if art is None:
-        raise HTTPException(status_code=404, detail="Beitragsart nicht gefunden")
+        raise HTTPException(status_code=404, detail=uebersetze("Beitragsart nicht gefunden"))
 
     if eingabe.name is not None and eingabe.name.strip() != art.name:
         if art.geschuetzt:
@@ -293,7 +310,7 @@ async def beitrag_aendern(art_id: int, eingabe: BeitragEingabe,
                        f"Erkennung würde still aufhören zu funktionieren.")
         neuer = eingabe.name.strip()
         if not neuer:
-            raise HTTPException(status_code=422, detail="Der Name darf nicht leer sein")
+            raise HTTPException(status_code=422, detail=uebersetze("Der Name darf nicht leer sein"))
         kollision = (await db.execute(
             select(MarkerType).where(MarkerType.name == neuer, MarkerType.id != art_id)
         )).scalar_one_or_none()
@@ -322,6 +339,13 @@ async def beitrag_aendern(art_id: int, eingabe: BeitragEingabe,
         if wert is not None:
             setattr(art, feld, wert)
 
+    # Anzeigenamen: leer eingegeben heisst "wieder den deutschen Namen zeigen",
+    # deshalb None und nicht der leere String — der wuerde eine leere Beschriftung geben.
+    for feld in ("anzeige_en", "anzeige_ru"):
+        wert = getattr(eingabe, feld)
+        if wert is not None:
+            setattr(art, feld, wert.strip() or None)
+
     await db.commit()
     await _neu_laden_und_schieben(db)
     return {"id": art.id, "name": art.name}
@@ -331,7 +355,7 @@ async def beitrag_aendern(art_id: int, eingabe: BeitragEingabe,
 async def beitrag_loeschen(art_id: int, db: AsyncSession = Depends(get_db)):
     art = await db.get(MarkerType, art_id)
     if art is None:
-        raise HTTPException(status_code=404, detail="Beitragsart nicht gefunden")
+        raise HTTPException(status_code=404, detail=uebersetze("Beitragsart nicht gefunden"))
     if art.geschuetzt:
         raise HTTPException(
             status_code=409,
@@ -365,7 +389,7 @@ async def _regel_pruefen(db: AsyncSession, muster: Optional[str],
                          marker_type: Optional[str]) -> None:
     if muster is not None:
         if not muster.strip():
-            raise HTTPException(status_code=422, detail="Das Muster darf nicht leer sein")
+            raise HTTPException(status_code=422, detail=uebersetze("Das Muster darf nicht leer sein"))
         try:
             re.compile(muster)
         except re.error as fehler:
@@ -386,7 +410,7 @@ async def _regel_pruefen(db: AsyncSession, muster: Optional[str],
 async def regel_anlegen(eingabe: RegelEingabe, db: AsyncSession = Depends(get_db)):
     if not eingabe.muster or not eingabe.marker_type:
         raise HTTPException(status_code=422,
-                            detail="Eine Regel braucht ein Muster und eine Beitragsart")
+                            detail=uebersetze("Eine Regel braucht ein Muster und eine Beitragsart"))
     await _regel_pruefen(db, eingabe.muster, eingabe.marker_type)
     letzte = (await db.execute(select(func.max(AnsageRegel.sort_order)))).scalar() or 0
     regel = AnsageRegel(
@@ -406,7 +430,7 @@ async def regel_aendern(regel_id: int, eingabe: RegelEingabe,
                         db: AsyncSession = Depends(get_db)):
     regel = await db.get(AnsageRegel, regel_id)
     if regel is None:
-        raise HTTPException(status_code=404, detail="Regel nicht gefunden")
+        raise HTTPException(status_code=404, detail=uebersetze("Regel nicht gefunden"))
     await _regel_pruefen(db, eingabe.muster, eingabe.marker_type)
     if eingabe.muster is not None:
         regel.muster = eingabe.muster.strip()
@@ -423,7 +447,7 @@ async def regel_aendern(regel_id: int, eingabe: RegelEingabe,
 async def regel_loeschen(regel_id: int, db: AsyncSession = Depends(get_db)):
     regel = await db.get(AnsageRegel, regel_id)
     if regel is None:
-        raise HTTPException(status_code=404, detail="Regel nicht gefunden")
+        raise HTTPException(status_code=404, detail=uebersetze("Regel nicht gefunden"))
     await db.delete(regel)
     await db.commit()
     await _neu_laden_und_schieben(db)
@@ -441,7 +465,7 @@ async def regel_proben(request: Request, db: AsyncSession = Depends(get_db)):
     muster = (payload.get("muster") or "").strip()
     text = payload.get("text") or ""
     if not muster:
-        raise HTTPException(status_code=422, detail="Kein Muster angegeben")
+        raise HTTPException(status_code=422, detail=uebersetze("Kein Muster angegeben"))
     try:
         rx = re.compile(muster, re.I)
     except re.error as fehler:
@@ -478,5 +502,5 @@ async def nas_vorschau(request: Request):
     payload = await request.json()
     vorlage = (payload.get("vorlage") or "").strip()
     if not vorlage:
-        raise HTTPException(status_code=422, detail="Keine Vorlage angegeben")
+        raise HTTPException(status_code=422, detail=uebersetze("Keine Vorlage angegeben"))
     return nas_pfad.vorschau(vorlage)

@@ -149,6 +149,56 @@ Log: `~/Library/Logs/Akouo/dashboard.log`
 
 ---
 
+## 2a. Sprache der Oberfläche
+
+Das Dashboard spricht **Deutsch, Englisch und Russisch**. Umgeschaltet wird oben in der
+Kopfzeile über die drei Kürzel `DE EN RU`.
+
+**Die Wahl gilt pro Gerät, nicht für die Anlage.** Das ist der Unterschied zur
+Gottesdienst-Auswahl: Die gilt überall gleich, weil alle denselben Gottesdienst aufnehmen.
+Die Sprache ist persönlich — zwei Leute können dieselbe Aufnahme bedienen, einer auf
+Deutsch, einer auf Russisch. Gespeichert wird sie in einem Cookie, ein Jahr lang; ein neues
+Tablet beginnt auf Deutsch.
+
+Die Browsersprache wird bewusst **nicht** ausgewertet. Ein Tablet, das auf Englisch steht,
+würde die Oberfläche beim ersten Aufruf englisch machen — und wer dann Deutsch sucht, sucht
+es in einer Sprache, die er nicht erwartet hat.
+
+**Was nicht übersetzt wird**, und warum:
+
+| | |
+|---|---|
+| Transkript, Themen, KI-Zusammenfassungen | Die stehen in der Sprache, in der gesprochen wurde. Eine Übersetzung wäre eine Behauptung über den Inhalt. |
+| Namen der Gottesdienst- und Beitragsarten | An ihnen hängt Logik — Anker der Zuordnung, Ansage-Regeln, NAS-Vorlagen. Übersetzt wird nur der **Anzeigename**, siehe unten. |
+| Checklistenpunkte | Selbst eingegebener Text. Er steht so da, wie er eingetippt wurde. |
+| Meldungen des Audio-Dienstes | Der Dienst kennt die Sprache des Geräts nicht. Was über die API kommt, ist deutsch. |
+
+### Anzeigenamen der Arten
+
+Auf der Einstellungsseite hat jede Gottesdienst- und Beitragsart neben ihrem Namen zwei
+kleine Felder, `EN` und `RU`. Dort steht nur die Beschriftung; der Name links bleibt
+deutsch und trägt die Logik. Deshalb sind die beiden Felder auch bei **geschützten** Arten
+änderbar — geschützt ist der Name, nicht die Beschriftung daneben.
+
+Leer heißt: den deutschen Namen anzeigen. Eine selbst angelegte Art beginnt leer und zeigt
+überall ihren deutschen Namen, bis jemand eine Übersetzung einträgt.
+
+### Eine Übersetzung ändern
+
+Die Texte stehen in `api/sprachen/de.json`, `en.json` und `ru.json`. Deutsch ist die
+Ausgangssprache **und zugleich der Schlüssel**: Links steht der deutsche Satz, rechts die
+Übersetzung. Fehlt ein Eintrag, erscheint Deutsch — nie ein Platzhalter.
+
+Die Dateien werden bei jeder Änderung neu gelesen, ein Dienst-Neustart ist nicht nötig.
+Ein Tippfehler in der Sprachdatei macht die Oberfläche nicht kaputt: Lässt sich die Datei
+nicht lesen, gilt Deutsch.
+
+> **Die russische Fassung stammt nicht von einem Muttersprachler** und ist noch nicht
+> gegengelesen. Wer sie prüft, ändert die Werte in `ru.json` — die Schlüssel links bleiben
+> unangetastet, sonst findet die Oberfläche den Satz nicht mehr.
+
+---
+
 ## 3. Konfiguration
 
 | Variable | Wo | Standard | Zweck |

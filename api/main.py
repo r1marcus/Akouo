@@ -81,6 +81,11 @@ templates.env.globals["t"] = sprache.uebersetze
 templates.env.globals["sprache_aktuell"] = sprache.aktuelle
 templates.env.globals["sprachen"] = sprache.SPRACHEN
 templates.env.globals["sprach_katalog"] = sprache.katalog
+# Anzeigenamen der Arten. Als Funktion und nicht als Liste: der Wert, der an die API
+# geht, bleibt der deutsche Name — uebersetzt wird nur, was danebensteht.
+templates.env.globals["anzeige_gottesdienstart"] = typen.anzeige_gottesdienstart
+templates.env.globals["anzeige_beitragsart"] = typen.anzeige_beitragsart
+templates.env.globals["anzeige_katalog"] = typen.anzeige_katalog
 
 
 @app.get("/sprache/{code}", include_in_schema=False)

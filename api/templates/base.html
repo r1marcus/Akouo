@@ -20,7 +20,17 @@
     // stehen dort schon im Quelltext, und ein Woerterbuch, das jeden Satz auf sich selbst
     // abbildet, waere nur Ballast auf dem Tablet.
     window.AKOUO_T = {{ sprach_katalog() | tojson }};
-    function t(s) { return (window.AKOUO_T && window.AKOUO_T[s]) || s; }
+    // Heisst tr() und nicht t(): die Templates nutzen x-for="t in …", und der
+    // Schleifenname ueberdeckt im Alpine-Bereich jede gleichnamige Funktion. Ein
+    // t('…') innerhalb einer solchen Schleife wuerde versuchen, eine Zeichenkette
+    // aufzurufen — und zwar genau dort, wo die Track-Knoepfe entstehen.
+    function tr(s) { return (window.AKOUO_T && window.AKOUO_T[s]) || s; }
+
+    // Anzeigenamen der Arten in der aktiven Sprache. Der Wert, der an die API geht,
+    // bleibt ueberall der deutsche Name — das hier ist nur die Beschriftung.
+    window.AKOUO_ANZEIGE = {{ anzeige_katalog() | tojson }};
+    function anzGottesdienst(name) { return (window.AKOUO_ANZEIGE.gottesdienst || {})[name] || name; }
+    function anzBeitrag(name) { return (window.AKOUO_ANZEIGE.beitrag || {})[name] || name; }
 
     window.SERVICE_TYPES = {{ service_types | tojson }};
     window.PRIMARY_SERVICE_TYPES = {{ primary_service_types | tojson }};
@@ -59,10 +69,12 @@
             },
             label() {
                 if (!this.loaded) return '…';
-                if (!this.current) return t('Gottesdienst wählen');
+                if (!this.current) return tr('Gottesdienst wählen');
                 const c = this.current;
-                const teile = [c.service_type];
-                if (c.wedding_part) teile.push(`Teil ${c.wedding_part}`);
+                // Der Name in der Kopfzeile ist Anzeige; gespeichert und an die API
+                // geschickt wird weiterhin c.service_type, der deutsche Name.
+                const teile = [anzGottesdienst(c.service_type)];
+                if (c.wedding_part) teile.push(`${tr('Teil')} ${c.wedding_part}`);
                 if (c.thema) teile.push(c.thema);
                 return teile.join(' · ');
             },
@@ -100,7 +112,7 @@
                     });
                     const d = await r.json().catch(() => ({}));
                     if (!r.ok) {
-                        this.error = typeof d.detail === 'string' ? d.detail : t('Speichern fehlgeschlagen (') + r.status + ')';
+                        this.error = typeof d.detail === 'string' ? d.detail : tr('Speichern fehlgeschlagen (') + r.status + ')';
                         return;
                     }
                     this.current = {service_type: d.service_type, couple_name: d.couple_name,
@@ -148,9 +160,9 @@
                 return this.inputOk;
             },
             title() {
-                if (this.playing) return t('Mithören beenden');
-                if (!this.inputOk) return t('Kein Eingangssignal — Audio-Dienst oder Dante prüfen');
-                return t('Stream-Signal mithören (nur mit Kopfhörer)');
+                if (this.playing) return tr('Mithören beenden');
+                if (!this.inputOk) return tr('Kein Eingangssignal — Audio-Dienst oder Dante prüfen');
+                return tr('Stream-Signal mithören (nur mit Kopfhörer)');
             },
             toggle() {
                 if (this.playing) { this.stop(); return; }
@@ -207,7 +219,7 @@
             <button type="button" x-data
                     @click="$store.service.openPicker()"
                     :disabled="$store.service.locked"
-                    :title="$store.service.locked ? t('Während einer Aufnahme nicht änderbar') : t('Gottesdienst ändern')"
+                    :title="$store.service.locked ? tr('Während einer Aufnahme nicht änderbar') : tr('Gottesdienst ändern')"
                     :class="$store.service.current || !$store.service.loaded
                         ? 'border-white/10 bg-white/[0.06] text-zinc-100 hover:bg-white/10'
                         : 'border-amber-400/30 bg-amber-400/10 text-amber-300 hover:bg-amber-400/15'"

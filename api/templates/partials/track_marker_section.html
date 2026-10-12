@@ -21,7 +21,7 @@
       <button @click="startTrack()" :disabled="busyTrack"
               class="btn w-full min-h-16 text-lg bg-sky-500 text-zinc-950 hover:bg-sky-400">
         <span class="w-3.5 h-3.5 rounded-full bg-zinc-900"></span>
-        <span x-text="busyTrack ? 'Moment…' : 'Track starten'">{{ t("Track starten") }}</span>
+        <span x-text="busyTrack ? 'Moment…' : tr('Track starten')">{{ t("Track starten") }}</span>
       </button>
     </template>
 
@@ -42,7 +42,7 @@
                     :class="pendingTracks[0] === t
                         ? 'bg-sky-500 text-zinc-950 hover:bg-sky-400 border-transparent'
                         : 'bg-white/[0.06] text-zinc-100 border-white/10 hover:bg-white/[0.12]'"
-                    class="btn min-h-12 px-3 text-sm border" x-text="t"></button>
+                    class="btn min-h-12 px-3 text-sm border" x-text="anzBeitrag(t)"></button>
           </template>
         </div>
         <button @click="endTrack()" :disabled="busyTrack"
@@ -66,7 +66,7 @@
         <button @click="endTrack()" :disabled="busyTrack"
                 class="btn min-h-14 px-6 text-base bg-sky-500 text-zinc-950 hover:bg-sky-400">
           <span class="w-3 h-3 rounded-sm bg-zinc-900"></span>
-          <span x-text="busyTrack ? 'Moment…' : 'Track beenden'">{{ t("Track beenden") }}</span>
+          <span x-text="busyTrack ? 'Moment…' : tr('Track beenden')">{{ t("Track beenden") }}</span>
         </button>
       </div>
     </template>
@@ -82,7 +82,7 @@
               x-text="autoOffen().klasse + ' · ' + Math.round(autoOffen().sicherheit * 100) + '% sicher'
                       + (autoOffen().quelle === 'ansage' ? ' · laut Ansage' : '')"></span>
         <span x-show="autoOffen().liednummer" x-cloak class="text-sm text-zinc-400"
-              x-text="'Lied ' + autoOffen().liednummer"></span>
+              x-text="tr('Lied') + ' ' + autoOffen().liednummer"></span>
         <span x-show="autoOffen().alternativen.length" x-cloak class="text-xs text-zinc-500"
               x-text="'sonst: ' + autoOffen().alternativen.join(', ')"></span>
       </div>
@@ -128,19 +128,19 @@
             <select class="field h-8 min-h-8 py-0 pr-7 text-sm font-medium max-w-[10.5rem]"
                     @change="setTypeOf(m, $event.target.value)">
               <template x-for="t in markerTypes" :key="t">
-                <option :value="t" :selected="t === m.marker_type" x-text="t"></option>
+                <option :value="t" :selected="t === m.marker_type" x-text="anzBeitrag(t)"></option>
               </template>
             </select>
             <span class="font-mono text-xs"
                   :class="m.ended_at_ts === null || m.ended_at_ts === undefined ? 'text-sky-300' : 'text-zinc-500'"
                   x-text="(m.ended_at_ts === null || m.ended_at_ts === undefined)
-                      ? 'läuft'
+                      ? tr('läuft')
                       : '→ ' + formatTime(Math.floor(m.ended_at_ts + (m.end_nudge || 0)))
                         + ' · ' + formatTime(Math.floor((m.ended_at_ts + (m.end_nudge || 0)) - (m.placed_at_ts + (m.start_nudge || 0)))) + ' lang'"></span>
             <span class="font-mono text-xs text-amber-400" x-show="m.start_nudge"
-                  x-text="'Start ' + (m.start_nudge > 0 ? '+' : '') + m.start_nudge + 's'"></span>
+                  x-text="tr('Start') + ' ' + (m.start_nudge > 0 ? '+' : '') + m.start_nudge + 's'"></span>
             <span class="font-mono text-xs text-amber-400" x-show="m.end_nudge"
-                  x-text="'Ende ' + (m.end_nudge > 0 ? '+' : '') + m.end_nudge + 's'"></span>
+                  x-text="tr('Ende') + ' ' + (m.end_nudge > 0 ? '+' : '') + m.end_nudge + 's'"></span>
           </div>
           <canvas x-show="levels.length > 0" x-cloak :data-marker-id="m.id"
                   x-init="$nextTick(() => drawSparklines())"
@@ -152,7 +152,7 @@
             <span class="pl-2 pr-1 text-zinc-600">{{ t("Ende") }}</span>
             <button @click="nudge(m, 'end', -1)" class="h-9 min-w-9 px-2 rounded-lg bg-white/[0.05] font-mono text-zinc-300 hover:bg-white/10 active:scale-95">−1</button>
             <button @click="nudge(m, 'end', 1)" class="h-9 min-w-9 px-2 rounded-lg bg-white/[0.05] font-mono text-zinc-300 hover:bg-white/10 active:scale-95">+1</button>
-            <button @click="deleteMarker(m)" :title="'Marker ' + m.marker_type + ' entfernen'"
+            <button @click="deleteMarker(m)" :title="tr('Marker') + ' ' + m.marker_type + ' entfernen'"
                     class="ml-1 h-9 w-9 shrink-0 grid place-items-center rounded-lg text-zinc-600
                            hover:bg-red-500/15 hover:text-red-400 active:scale-95">
               <svg class="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">

@@ -49,7 +49,7 @@ function transcriptPanel() {
         if (!r.ok) return;
         const d = await r.json();
         this.running = Boolean(d.running);
-        this.error = d.enabled === false ? t('Transkription ausgeschaltet') : (d.error || null);
+        this.error = d.enabled === false ? tr('Transkription ausgeschaltet') : (d.error || null);
         if (typeof d.next === 'number' && d.next < this.next) {   // service restarted or new session
           this.lines = [];
           this.next = 0;

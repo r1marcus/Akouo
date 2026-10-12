@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from models import SegmentExport
+from sprache import uebersetze
 
 router = APIRouter(prefix="/api/uploads", tags=["uploads"])
 
@@ -143,7 +144,7 @@ async def get_upload(segment_export_id: int, db: AsyncSession = Depends(get_db))
         raise HTTPException(status_code=404, detail=f"export {segment_export_id} not found")
     p = pathlib.Path(row.mp3_path)
     if not p.exists() or not p.is_file():
-        raise HTTPException(status_code=404, detail="local MP3 missing")
+        raise HTTPException(status_code=404, detail=uebersetze("local MP3 missing"))
     return FileResponse(
         path=str(p),
         media_type="audio/mpeg",

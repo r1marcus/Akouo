@@ -145,7 +145,7 @@ function checklistRun() {
         this.items = c.items || [];
         this.serviceType = s.service_type || null;
       } catch (e) {
-        this.error = t('Checkliste laden fehlgeschlagen:') + ' ' + e.message;
+        this.error = tr('Checkliste laden fehlgeschlagen:') + ' ' + e.message;
       } finally {
         this.loaded = true;
       }
@@ -159,12 +159,12 @@ function checklistRun() {
       try {
         const r = await fetch(`/api/checklists/items/${item.id}/toggle?instance_id=${this.instance.id}`,
                               {method: 'PATCH'});
-        if (!r.ok) throw new Error(t('Fehler') + ' ' + r.status);
+        if (!r.ok) throw new Error(tr('Fehler') + ' ' + r.status);
         const d = await r.json();
         item.checked = d.checked;
       } catch (e) {
         item.checked = before;             // server did not take it — show the truth again
-        this.error = t('Haken konnte nicht gespeichert werden:') + ' ' + e.message;
+        this.error = tr('Haken konnte nicht gespeichert werden:') + ' ' + e.message;
       } finally {
         this.busy = this.busy.filter(id => id !== item.id);
       }

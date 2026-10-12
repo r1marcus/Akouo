@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 from models import Marker, RecordingSession, SegmentInsight
 from routers.segments import _build_segments
+from sprache import uebersetze
 
 router = APIRouter(prefix="/api/sessions", tags=["insights"])
 
@@ -56,7 +57,7 @@ async def create_insight(
     segments = await _build_segments(session, db)
     segment = next((s for s in segments if s["marker_id"] == marker_id), None)
     if segment is None:
-        raise HTTPException(status_code=404, detail="Segment for marker not found")
+        raise HTTPException(status_code=404, detail=uebersetze("Segment for marker not found"))
 
     async with httpx.AsyncClient(timeout=420.0) as client:
         try:
@@ -70,7 +71,7 @@ async def create_insight(
                 },
             )
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail="Audio service unreachable")
+            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
     if response.status_code != 200:
         raise HTTPException(status_code=response.status_code, detail=response.json().get("detail"))
     data = response.json()

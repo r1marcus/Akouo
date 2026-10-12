@@ -50,7 +50,7 @@
                             </div>
                             <div class="mt-0.5 text-xs text-zinc-500">
                                 <span x-text="dauer(a.dauer_s)"></span>
-                                <span x-text="' · ' + a.beitraege + ' Beiträge'"></span>
+                                <span x-text="' · ' + a.beitraege + ' ' + tr('Beiträge')"></span>
                                 <span x-show="a.exporte" x-cloak x-text="' · ' + a.exporte + ' MP3s'"></span>
                                 <span x-show="!a.aufnahme_da" x-cloak class="text-amber-400">
                                     {{ t("· Aufnahmedatei fehlt, kein Export möglich") }}
@@ -79,10 +79,10 @@ function archiv() {
     async load() {
       try {
         const r = await fetch('/api/sessions/archiv');
-        if (!r.ok) throw new Error(t('Fehler') + ' ' + r.status);
+        if (!r.ok) throw new Error(tr('Fehler') + ' ' + r.status);
         this.aufnahmen = (await r.json()).aufnahmen || [];
       } catch (e) {
-        this.fehler = t('Archiv laden fehlgeschlagen:') + ' ' + e.message;
+        this.fehler = tr('Archiv laden fehlgeschlagen:') + ' ' + e.message;
       } finally {
         this.geladen = true;
       }

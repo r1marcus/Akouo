@@ -34,7 +34,7 @@
       <span class="eyebrow">{{ t("Pegel · Kanal 1+2") }}</span>
       <span class="flex items-center gap-1.5 text-xs" :class="inputOk ? 'text-zinc-400' : 'text-amber-400'">
         <span class="w-1.5 h-1.5 rounded-full" :class="inputOk ? 'bg-emerald-500' : 'bg-amber-400'"></span>
-        <span x-text="inputOk ? 'Eingang verbunden' : 'Kein Eingang'">{{ t("Kein Eingang") }}</span>
+        <span x-text="inputOk ? tr('Eingang verbunden') : tr('Kein Eingang')">{{ t("Kein Eingang") }}</span>
       </span>
     </div>
     <canvas x-ref="meter" class="block w-full h-3"></canvas>
@@ -71,7 +71,7 @@
             :class="confirmStop ? 'bg-red-600 text-white hover:bg-red-500' : 'bg-white/[0.06] text-zinc-100 hover:bg-white/10'"
             class="btn min-h-14 text-base">
       <span class="w-3 h-3 rounded-sm" :class="confirmStop ? 'bg-white' : 'bg-zinc-300'"></span>
-      <span x-text="busy ? 'Wird gestoppt…' : (confirmStop ? 'Wirklich stoppen?' : 'Stoppen')">{{ t("Stoppen") }}</span>
+      <span x-text="busy ? tr('Wird gestoppt…') : (confirmStop ? tr('Wirklich stoppen?') : 'Stoppen')">{{ t("Stoppen") }}</span>
     </button>
   </div>
   <p x-show="state === 'offline'" x-cloak class="mt-3 text-sm text-amber-400/90">
@@ -85,7 +85,7 @@
       <div class="eyebrow" :class="auto.aktiv && 'text-emerald-400'">{{ t("Automatik") }}</div>
       <div class="mt-0.5 text-xs text-zinc-500"
            x-text="auto.fehler ? auto.fehler
-                   : (auto.aktiv ? 'setzt Marker selbständig — Typ jederzeit änderbar'
+                   : (auto.aktiv ? tr('setzt Marker selbständig — Typ jederzeit änderbar')
                                  : 'aus — Tracks von Hand markieren')"></div>
     </div>
     <button type="button" @click="toggleAuto()" :disabled="autoBusy"
@@ -191,7 +191,7 @@ function sessionPanel() {
       }
     },
     stateLabel() {
-      return {recording: t('Aufnahme läuft'), paused: t('Pausiert'), offline: t('Audio-Service offline')}[this.state] || t('Aufnahme');
+      return {recording: tr('Aufnahme läuft'), paused: tr('Pausiert'), offline: tr('Audio-Service offline')}[this.state] || tr('Aufnahme');
     },
     syncElapsed(seconds) {
       this.baseElapsed = seconds;
@@ -221,17 +221,17 @@ function sessionPanel() {
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
-        throw new Error(err.detail || (t('Fehler') + ' ' + r.status));
+        throw new Error(err.detail || (tr('Fehler') + ' ' + r.status));
       }
       return r.json();
     },
     async pause() {
       try { await this.post('/api/sessions/pause'); this.state = 'paused'; }
-      catch (e) { this.notifyError(t('Pause fehlgeschlagen:') + ' ' + e.message); }
+      catch (e) { this.notifyError(tr('Pause fehlgeschlagen:') + ' ' + e.message); }
     },
     async resume() {
       try { await this.post('/api/sessions/resume'); await this.poll(); }
-      catch (e) { this.notifyError(t('Fortsetzen fehlgeschlagen:') + ' ' + e.message); }
+      catch (e) { this.notifyError(tr('Fortsetzen fehlgeschlagen:') + ' ' + e.message); }
     },
     async stop() {
       // First tap arms, second tap within 3s stops — protects against accidental stops mid-service.
@@ -248,7 +248,7 @@ function sessionPanel() {
         await this.post('/api/sessions/stop');
         this.setState('idle');
       } catch (e) {
-        this.notifyError(t('Stoppen fehlgeschlagen:') + ' ' + e.message);
+        this.notifyError(tr('Stoppen fehlgeschlagen:') + ' ' + e.message);
       } finally {
         this.busy = false;
       }
@@ -268,12 +268,12 @@ function sessionPanel() {
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({field: field, delta_seconds: delta}),
         });
-        if (!r.ok) throw new Error(t('Fehler') + ' ' + r.status);
+        if (!r.ok) throw new Error(tr('Fehler') + ' ' + r.status);
         const body = await r.json();
         if (field === 'start') marker.start_nudge = body.start_nudge;
         else marker.end_nudge = body.end_nudge;
       } catch (e) {
-        this.notifyError(t('Marker verschieben fehlgeschlagen:') + ' ' + e.message);
+        this.notifyError(tr('Marker verschieben fehlgeschlagen:') + ' ' + e.message);
       }
     },
     openMarker() {
@@ -288,7 +288,7 @@ function sessionPanel() {
         await this.loadMarkers();
         window.dispatchEvent(new CustomEvent('marker:placed'));
       } catch (e) {
-        this.notifyError(t('Track starten fehlgeschlagen:') + ' ' + e.message);
+        this.notifyError(tr('Track starten fehlgeschlagen:') + ' ' + e.message);
       } finally {
         this.busyTrack = false;
       }
@@ -303,12 +303,12 @@ function sessionPanel() {
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({marker_type: trackType}),
         });
-        if (!r.ok) throw new Error(t('Fehler') + ' ' + r.status);
+        if (!r.ok) throw new Error(tr('Fehler') + ' ' + r.status);
         const idx = this.pendingTracks.indexOf(trackType);
         if (idx >= 0) this.pendingTracks.splice(idx, 1);
         await this.loadMarkers();
       } catch (e) {
-        this.notifyError(t('Typ setzen fehlgeschlagen:') + ' ' + e.message);
+        this.notifyError(tr('Typ setzen fehlgeschlagen:') + ' ' + e.message);
       } finally {
         this.busyTrack = false;
       }
@@ -319,7 +319,7 @@ function sessionPanel() {
         await this.post('/api/sessions/marker/end');
         await this.loadMarkers();
       } catch (e) {
-        this.notifyError(t('Track beenden fehlgeschlagen:') + ' ' + e.message);
+        this.notifyError(tr('Track beenden fehlgeschlagen:') + ' ' + e.message);
       } finally {
         this.busyTrack = false;
       }
@@ -371,7 +371,7 @@ function sessionPanel() {
         const r = await fetch(`/api/sessions/automode/${ziel}`, {method: 'POST'});
         if (!r.ok) {
           const d = await r.json().catch(() => ({}));
-          throw new Error(d.detail || t('Fehler') + ' ' + r.status);
+          throw new Error(d.detail || tr('Fehler') + ' ' + r.status);
         }
         this.auto = await r.json();
       } catch (e) {
@@ -393,11 +393,11 @@ function sessionPanel() {
       // Dialog mitten im Gottesdienst kostet mehr als ein versehentlicher Klick.
       try {
         const r = await fetch(`/api/sessions/markers/${marker.id}`, {method: 'DELETE'});
-        if (!r.ok) throw new Error(t('Fehler') + ' ' + r.status);
+        if (!r.ok) throw new Error(tr('Fehler') + ' ' + r.status);
         this.markers = this.markers.filter(m => m.id !== marker.id);
         this.drawCurves();
       } catch (e) {
-        this.notifyError(t('Marker entfernen fehlgeschlagen:') + ' ' + e.message);
+        this.notifyError(tr('Marker entfernen fehlgeschlagen:') + ' ' + e.message);
       }
     },
     async setTypeOf(marker, typ) {
@@ -408,10 +408,10 @@ function sessionPanel() {
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({marker_type: typ}),
         });
-        if (!r.ok) throw new Error(t('Fehler') + ' ' + r.status);
+        if (!r.ok) throw new Error(tr('Fehler') + ' ' + r.status);
         marker.marker_type = typ;     // sofort sichtbar, der Poll bestätigt gleich
       } catch (e) {
-        this.notifyError(t('Typ ändern fehlgeschlagen:') + ' ' + e.message);
+        this.notifyError(tr('Typ ändern fehlgeschlagen:') + ' ' + e.message);
       }
     },
 

@@ -65,7 +65,7 @@
     <button @click="exportAll()" :disabled="running"
             class="btn min-h-9 px-4 text-sm bg-zinc-100 text-zinc-900 hover:bg-white">
       <span x-text="running ? `Schneide ${done}/${ids.length}…`
-                            : ('Alle exportieren' + ({{ nicht_export }} ? ' ({{ nicht_export }} übersprungen)' : ''))">{{ t("Alle exportieren") }}</span>
+                            : (tr('Alle exportieren') + ({{ nicht_export }} ? ' ({{ nicht_export }} übersprungen)' : ''))">{{ t("Alle exportieren") }}</span>
     </button>
     {% endif %}
     <button hx-get="/api/sessions/{{ session_id }}/segments"
@@ -104,11 +104,11 @@
                 <span class="font-mono">{{ seg.export.mp3_filename }}</span>
                 — NAS:
                 {% if seg.export.nas_status == 'uploaded' %}
-                  hochgeladen{% if seg.export.uploaded_at %} ({{ seg.export.uploaded_at }}){% endif %}
+                  {{ t("hochgeladen") }}{% if seg.export.uploaded_at %} ({{ seg.export.uploaded_at }}){% endif %}
                 {% elif seg.export.nas_status == 'failed' %}
                   Fehler: {{ seg.export.nas_error }}
                 {% elif seg.export.nas_status == 'skipped' %}
-                  übersprungen (nicht konfiguriert)
+                  {{ t("übersprungen (nicht konfiguriert)") }}
                 {% else %}
                   {{ seg.export.nas_status }}
                 {% endif %}
@@ -134,7 +134,7 @@
           <div class="flex items-center gap-2 shrink-0">
           <button @click="analyse({{ seg.marker_id }})" :disabled="busyInsight !== null"
                   class="btn min-h-10 px-3 text-sm bg-white/[0.06] text-zinc-300 hover:bg-white/10">
-            <span x-text="busyInsight === {{ seg.marker_id }} ? 'Denkt…' : (insights[{{ seg.marker_id }}] ? 'Neu auswerten' : 'KI-Auswertung')">{{ t("KI-Auswertung") }}</span>
+            <span x-text="busyInsight === {{ seg.marker_id }} ? 'Denkt…' : (insights[{{ seg.marker_id }}] ? tr('Neu auswerten') : 'KI-Auswertung')">{{ t("KI-Auswertung") }}</span>
           </button>
           <button hx-post="/api/sessions/{{ session_id }}/segments/{{ seg.marker_id }}/export"
                   hx-target="#segment-review-{{ session_id }}"
@@ -143,7 +143,7 @@
                   class="btn shrink-0 min-h-10 px-4 text-sm
                          {% if seg.export %}bg-white/[0.06] text-zinc-200 hover:bg-white/10{% else %}bg-zinc-100 text-zinc-900 hover:bg-white{% endif %}">
             <span class="htmx-indicator inline-block" id="seg-spin-{{ seg.marker_id }}">…</span>
-            {% if seg.export %}Erneut exportieren{% else %}Exportieren{% endif %}
+            {% if seg.export %}{{ t("Erneut exportieren") }}{% else %}{{ t("Exportieren") }}{% endif %}
           </button>
           </div>
         </li>

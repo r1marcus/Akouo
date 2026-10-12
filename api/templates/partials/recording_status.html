@@ -7,11 +7,11 @@
     </span>
     <span class="text-zinc-300 font-medium">
         {% if status == 'recording' %}
-            Aufnahme läuft{% if elapsed_seconds %} &mdash; {{ elapsed_seconds }}s{% endif %}
+            {{ t("Aufnahme läuft") }}{% if elapsed_seconds %} &mdash; {{ elapsed_seconds }}s{% endif %}
         {% elif status == 'error' %}
-            Fehler{% if error_message %}: {{ error_message }}{% endif %}
+            {{ t("Fehler") }}{% if error_message %}: {{ error_message }}{% endif %}
         {% else %}
-            Bereit
+            {{ t("Bereit") }}
         {% endif %}
     </span>
 </div>

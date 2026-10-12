@@ -18,6 +18,7 @@ import einstellungen
 import nas_pfad
 import typen
 from routers.service import _stored_current
+from sprache import uebersetze
 
 router = APIRouter(prefix="/api/sessions", tags=["segments"])
 
@@ -305,7 +306,7 @@ async def refine_session(session: RecordingSession, db: AsyncSession) -> RefineR
                     },
                 )
             except httpx.ConnectError:
-                raise HTTPException(status_code=503, detail="Audio service unreachable")
+                raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
             if r.status_code != 200:
                 continue
             data = r.json()
@@ -324,7 +325,7 @@ async def refine_segments(session_id: int, request: Request, db: AsyncSession = 
     if session is None:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
     if not session.wav_path:
-        raise HTTPException(status_code=409, detail="Session has no wav_path")
+        raise HTTPException(status_code=409, detail=uebersetze("Session has no wav_path"))
     await refine_session(session, db)
     return await list_segments(session_id, request, db)
 
@@ -340,7 +341,7 @@ async def export_segment(
     if session is None:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
     if not session.wav_path:
-        raise HTTPException(status_code=409, detail="Session has no wav_path")
+        raise HTTPException(status_code=409, detail=uebersetze("Session has no wav_path"))
 
     marker = await db.get(Marker, marker_id)
     if marker is None or marker.session_id != session_id:
@@ -350,7 +351,7 @@ async def export_segment(
     segments = await _build_segments(session, db)
     seg = next((s for s in segments if s["marker_id"] == marker_id), None)
     if seg is None:
-        raise HTTPException(status_code=404, detail="Segment for marker not found")
+        raise HTTPException(status_code=404, detail=uebersetze("Segment for marker not found"))
 
     # Filename: YYYY-MM-DD_ServiceType_NN_MarkerType.mp3
     date_part = (session.started_at.strftime("%Y-%m-%d")
@@ -419,7 +420,7 @@ async def export_segment(
         try:
             r = await client.post(f"{AUDIO_SERVICE_URL}/api/session/segment-export", json=payload)
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail="Audio service unreachable")
+            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
     if r.status_code != 200:
         raise HTTPException(status_code=r.status_code, detail=r.json().get("detail"))
     data = r.json()

@@ -381,6 +381,47 @@ Commits nur auf dieser Platte.
 
 ---
 
+## 2g. Dreisprachige Oberfläche (12. Oktober 2026)
+
+Das Repository war englisch, das Werkzeug deutsch — und wer am Pult sitzt, liest nicht
+unbedingt beides. Die Oberfläche spricht jetzt **Deutsch, Englisch und Russisch**, wählbar
+pro Gerät über einen Umschalter in der Kopfzeile. Bedienung: [betrieb.md, Abschnitt
+2a](betrieb.md).
+
+**Deutsch ist die Ausgangssprache und zugleich der Schlüssel.** Im Template steht der
+deutsche Satz, nicht ein Kürzel wie `dashboard.aufnahme.start`. Fehlt eine Übersetzung,
+steht dort Deutsch — nie ein nackter Schlüssel, der im Betrieb wie ein Fehler aussieht.
+255 Sätze je Sprache in `api/sprachen/{de,en,ru}.json`.
+
+**Die Namen der Arten bleiben deutsch**, weil an ihnen Logik hängt: Anker der
+Programmzuordnung, Ansage-Regeln, NAS-Vorlagen. Migration 015 legt daneben zwei Spalten für
+Anzeigenamen je Sprache an, mit Übersetzungen für alle mitgelieferten Arten — und die sind
+auf der Einstellungsseite editierbar, auch bei geschützten Arten.
+
+### Was dabei schiefging und deshalb festgehalten ist
+
+- **`@app.middleware("http")` reicht ContextVars nicht durch.** Das ist eine
+  BaseHTTPMiddleware, und die ruft den nachgelagerten Teil in einer eigenen Task auf. Das
+  Cookie stand richtig, die Oberfläche blieb deutsch. Jetzt eine reine ASGI-Middleware.
+- **Jinja deutet `\b` im Zeichenkettenliteral als Steuerzeichen.** Der Platzhalter der
+  Ansage-Regeln (`\bposaunenchor\b`) kam leer an.
+- **Beim Normieren mehrzeiliger Schlüssel fielen abschließende Leerzeichen weg**, und aus
+  `"Fehler " + status` wurde „Fehler404". Das Trennzeichen steht jetzt im Code statt im
+  Übersetzungsschlüssel — dort sieht es niemand und jeder verliert es.
+- **Der JavaScript-Helfer heißt `tr()`, nicht `t()`.** Die Templates nutzen
+  `x-for="t in …"`, und der Schleifenname überdeckt im Alpine-Bereich jede gleichnamige
+  Funktion — ausgerechnet dort, wo die Track-Knöpfe entstehen.
+
+Geprüft wurde die Umstellung damit, dass **jedes Template auf Deutsch zeichengenau dasselbe
+liefert wie vorher**. Dazu 16 Tests, darunter zwei, die eine vergessene oder verwaiste
+Übersetzung in der CI auffallen lassen statt im Gottesdienst.
+
+**Noch deutsch:** Meldungen, die aus dem Audio-Dienst kommen (er kennt die Sprache des
+Geräts nicht), und rein technische 4xx-Texte wie `invalid filename`. Die russische Fassung
+ist nicht von einem Muttersprachler gegengelesen.
+
+---
+
 ## 3. Ablauf im Gottesdienst
 
 1. Oben den Gottesdienst wählen — die Seite springt auf die Checkliste.

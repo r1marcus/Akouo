@@ -159,3 +159,34 @@ async def test_einstellungen_kommen_uebersetzt(db_client):
     daten = (await db_client.get("/api/konfiguration")).json()
     namen = [f["name"] for f in daten["felder"]]
     assert any("Битрейт" in n for n in namen), namen[:5]
+
+
+@pytest.mark.anyio
+async def test_anzeigenamen_kommen_mit(db_client):
+    """Die Arten tragen ihren deutschen Namen plus Anzeigenamen je Sprache."""
+    from models import MarkerType, ServiceType
+    daten = (await db_client.get("/api/konfiguration")).json()
+    for schluessel in ("gottesdienstarten", "beitragsarten"):
+        for eintrag in daten[schluessel]:
+            assert "anzeige_en" in eintrag and "anzeige_ru" in eintrag
+    assert ServiceType and MarkerType
+
+
+def test_anzeigename_faellt_auf_den_deutschen_namen_zurueck():
+    """Ein selbst angelegter Typ hat keine Übersetzung — dann steht dort der deutsche
+    Name. Das ist richtig so: niemand soll raten müssen, wie ein Typ auf Russisch heißt."""
+    import typen
+    assert typen.anzeige_beitragsart("Posaunenchor", "ru") == "Posaunenchor"
+    assert typen.anzeige_gottesdienstart("Jugendstunde", "en") == "Jugendstunde"
+
+
+def test_der_name_bleibt_der_schluessel():
+    """Anzeigenamen dürfen nie dort landen, wo der Name gebraucht wird — an ihm hängen
+    Anker, Ansage-Regeln und NAS-Vorlagen."""
+    import typen
+    t = typen.Typen()
+    t.anzeige_beitrag = {"ru": {"Predigt": "Проповедь"}}
+    typen.aktuell = t
+    assert typen.anzeige_beitragsart("Predigt", "ru") == "Проповедь"
+    # … der Name selbst bleibt unangetastet
+    assert "Predigt" in t.beitragsarten_gueltig

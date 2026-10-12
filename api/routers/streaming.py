@@ -12,6 +12,7 @@ import httpx
 
 from database import get_db
 from models import Setting
+from sprache import uebersetze
 
 router = APIRouter(prefix="/api/streaming", tags=["streaming"])
 
@@ -57,7 +58,7 @@ async def streaming_status(request: Request, db: AsyncSession = Depends(get_db))
             response = await client.get(f"{STREAMING_SERVICE_URL}/api/streaming/status")
             data = response.json()
         except httpx.ConnectError:
-            data = {"status": "error", "message": "Streaming service unreachable"}
+            data = {"status": "error", "message": uebersetze("Streaming service unreachable")}
 
     # Same precedence as /start: settings override the audio service's own STREAM_URL.
     listen_url = _listen_url(await _get_stream_target(db) or data.get("target"))
@@ -99,7 +100,7 @@ async def start_streaming(request: Request, db: AsyncSession = Depends(get_db)):
                 )
             data = response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail="Streaming service unreachable")
+            raise HTTPException(status_code=503, detail=uebersetze("Streaming service unreachable"))
 
     if request.headers.get("HX-Request"):
         return templates.TemplateResponse(
@@ -122,7 +123,7 @@ async def stop_streaming(request: Request):
                 )
             data = response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail="Streaming service unreachable")
+            raise HTTPException(status_code=503, detail=uebersetze("Streaming service unreachable"))
 
     if request.headers.get("HX-Request"):
         return templates.TemplateResponse(

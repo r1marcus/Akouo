@@ -11,6 +11,7 @@ import httpx
 
 from database import get_db
 from models import Recording
+from sprache import uebersetze
 
 router = APIRouter(prefix="/api/recordings", tags=["recordings"])
 
@@ -32,7 +33,7 @@ async def recording_status(request: Request):
             response = await client.get(f"{AUDIO_SERVICE_URL}/status")
             data = response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail="Audio service unreachable")
+            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
 
     if request.headers.get("HX-Request"):
         return templates.TemplateResponse(
@@ -59,7 +60,7 @@ async def start_recording(request: Request, req: StartRequest, db: AsyncSession 
                 raise HTTPException(status_code=response.status_code, detail=response.json().get("detail"))
             data = response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail="Audio service unreachable")
+            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
 
     if request.headers.get("HX-Request"):
         return templates.TemplateResponse(
@@ -83,7 +84,7 @@ async def stop_recording(request: Request, db: AsyncSession = Depends(get_db)):
                 raise HTTPException(status_code=response.status_code, detail=response.json().get("detail"))
             data = response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail="Audio service unreachable")
+            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
 
     # Save metadata to SQLite
     from datetime import date

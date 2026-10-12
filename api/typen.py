@@ -20,6 +20,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import sprache
 from models import AnsageRegel, MarkerType, ServiceType
 import service_types as rueckfall
 
@@ -37,6 +38,11 @@ class Typen:
         self.beitragsarten_gueltig: set[str] = set(rueckfall.MARKER_TYPES) | {"Unbenannt"}
         self.nicht_exportieren: set[str] = set(rueckfall.NICHT_EXPORTIEREN)
         self.nas_vorlagen: dict[str, str] = {}
+        # Anzeigenamen je Sprache, getrennt nach Art: {"ru": {"Predigt": "Проповедь"}}.
+        # Getrennt, weil derselbe Name in beiden Tabellen stehen darf — "Sonstiges" gibt
+        # es als Gottesdienstart und als Beitragsart.
+        self.anzeige_gottesdienst: dict[str, dict[str, str]] = {}
+        self.anzeige_beitrag: dict[str, dict[str, str]] = {}
         self.geschuetzte_arten: set[str] = {"Hochzeit", "Sonstiges"}
         self.geschuetzte_beitragsarten: set[str] = {"Predigt", "Orchester"}
         # Alles, was der Audio-Dienst fuer die Erkennung braucht. Er hat keinen
@@ -71,6 +77,10 @@ async def neu_laden(db: AsyncSession) -> Typen:
         neu.haupt_gottesdienstarten = [a.name for a in arten if a.active and a.is_primary]
         neu.geschuetzte_arten = {a.name for a in arten if a.geschuetzt}
         neu.nas_vorlagen = {a.name: a.nas_vorlage for a in arten if a.nas_vorlage}
+        neu.anzeige_gottesdienst = {
+            s: {a.name: getattr(a, f"anzeige_{s}") for a in arten if getattr(a, f"anzeige_{s}")}
+            for s in sprache.SPRACHEN if s != sprache.AUSGANGSSPRACHE
+        }
 
     beitraege = (await db.execute(
         select(MarkerType).order_by(MarkerType.sort_order, MarkerType.name)
@@ -80,6 +90,10 @@ async def neu_laden(db: AsyncSession) -> Typen:
         neu.beitragsarten_gueltig = {b.name for b in beitraege}
         neu.nicht_exportieren = {b.name for b in beitraege if not b.exportieren}
         neu.geschuetzte_beitragsarten = {b.name for b in beitraege if b.geschuetzt}
+        neu.anzeige_beitrag = {
+            s: {b.name: getattr(b, f"anzeige_{s}") for b in beitraege if getattr(b, f"anzeige_{s}")}
+            for s in sprache.SPRACHEN if s != sprache.AUSGANGSSPRACHE
+        }
         neu.erkennung = {
             "musik_typen": [b.name for b in beitraege if b.klang_klasse == "musik"],
             "sprach_typen": [b.name for b in beitraege if b.klang_klasse == "sprache"],
@@ -106,6 +120,36 @@ async def neu_laden(db: AsyncSession) -> Typen:
     for fn in _zuhoerer:
         fn(neu)
     return neu
+
+
+def anzeige_gottesdienstart(name: str, s: Optional[str] = None) -> str:
+    """Wie diese Gottesdienstart in der aktiven Sprache heissen soll.
+
+    Faellt auf den deutschen Namen zurueck — fuer jeden selbst angelegten Typ ist das
+    der Normalfall, und das ist besser als ein leeres Feld oder ein geratener Name.
+    """
+    s = s or sprache.aktuelle()
+    return aktuell.anzeige_gottesdienst.get(s, {}).get(name) or name
+
+
+def anzeige_beitragsart(name: str, s: Optional[str] = None) -> str:
+    """Wie diese Beitragsart in der aktiven Sprache heissen soll."""
+    s = s or sprache.aktuelle()
+    return aktuell.anzeige_beitrag.get(s, {}).get(name) or name
+
+
+def anzeige_katalog(s: Optional[str] = None) -> dict:
+    """Beide Anzeigenamen-Woerterbuecher fuer das JavaScript im Browser.
+
+    Auf Deutsch bewusst leer: Dort ist der Name schon die Anzeige, und ein Woerterbuch,
+    das jeden Namen auf sich selbst abbildet, waere nur Ballast auf dem Tablet."""
+    s = s or sprache.aktuelle()
+    if s == sprache.AUSGANGSSPRACHE:
+        return {"gottesdienst": {}, "beitrag": {}}
+    return {
+        "gottesdienst": aktuell.anzeige_gottesdienst.get(s, {}),
+        "beitrag": aktuell.anzeige_beitrag.get(s, {}),
+    }
 
 
 def exportieren(marker_type: str) -> bool:
