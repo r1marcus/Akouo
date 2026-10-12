@@ -13,8 +13,8 @@ sound booth — self-hosted on a single Mac.**
 > audience is the person at the mixing console, not the developer — and so are the domain terms in
 > the code, because the service structure it models (*Gebetsstunde*, *Vermeldungen*,
 > *Erntedankfest*) does not translate cleanly. This README and
-> [`ARCHITECTURE.md`](ARCHITECTURE.md) are in English. The interface is German today; English and
-> Russian are being built.
+> [`ARCHITECTURE.md`](ARCHITECTURE.md) are in English. The interface itself speaks **German,
+> English and Russian** — switchable per device.
 >
 > *Akouo* — from the Greek ἀκούω, "I hear".
 
@@ -88,7 +88,8 @@ And the honest operational caveats:
 ## What it looks like
 
 The interface is built for a tablet propped up next to a mixing console — large targets, no
-hover, nothing that needs a second hand. It is in German, because the people using it are.
+hover, nothing that needs a second hand. It speaks German, English and Russian; the choice is
+per device, so two people can work the same recording in different languages.
 
 ![Choosing the service: four large tiles for the regular services, the rest behind "Weitere", and
 an optional free-text theme field](docs/bilder/gottesdienst-waehlen.png)
