@@ -5,7 +5,6 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +17,7 @@ from sprache import uebersetze
 router = APIRouter(prefix="/api/sessions", tags=["insights"])
 
 AUDIO_SERVICE_URL = os.environ.get("AUDIO_SERVICE_URL", "http://127.0.0.1:8001")
-templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
+from vorlagen import templates   # die eine Jinja-Umgebung, siehe api/vorlagen.py
 
 
 def _as_dict(row: SegmentInsight) -> dict:
@@ -57,7 +56,7 @@ async def create_insight(
     segments = await _build_segments(session, db)
     segment = next((s for s in segments if s["marker_id"] == marker_id), None)
     if segment is None:
-        raise HTTPException(status_code=404, detail=uebersetze("Segment for marker not found"))
+        raise HTTPException(status_code=404, detail=uebersetze("Kein Segment zu diesem Marker"))
 
     async with httpx.AsyncClient(timeout=420.0) as client:
         try:
@@ -71,7 +70,7 @@ async def create_insight(
                 },
             )
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
+            raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
     if response.status_code != 200:
         raise HTTPException(status_code=response.status_code, detail=response.json().get("detail"))
     data = response.json()

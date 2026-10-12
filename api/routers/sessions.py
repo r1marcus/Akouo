@@ -59,7 +59,7 @@ async def start_session(req: StartSessionRequest, db: AsyncSession = Depends(get
                 raise HTTPException(status_code=response.status_code, detail=response.json().get("detail"))
             data = response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
+            raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
 
     # Persist session row (with Phase-6 Hochzeitsfeldern)
     session_row = RecordingSession(
@@ -111,7 +111,7 @@ async def place_marker(req: MarkerRequest, db: AsyncSession = Depends(get_db)):
                 raise HTTPException(status_code=response.status_code, detail=response.json().get("detail"))
             data = response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
+            raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
 
     active = await _get_active_session(db)
     if active is not None:
@@ -154,7 +154,7 @@ async def end_marker(db: AsyncSession = Depends(get_db)):
                 raise HTTPException(status_code=response.status_code, detail=response.json().get("detail"))
             offset = float(response.json()["offset_seconds"])
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
+            raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
 
     marker.ended_at_ts = max(offset, float(marker.placed_at_ts) + 0.5)
     await db.commit()
@@ -227,7 +227,7 @@ async def pause_session(db: AsyncSession = Depends(get_db)):
                 raise HTTPException(status_code=response.status_code, detail=response.json().get("detail"))
             data = response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
+            raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
     active = await _get_active_session(db)
     if active is not None:
         active.status = "paused"
@@ -245,7 +245,7 @@ async def resume_session(db: AsyncSession = Depends(get_db)):
                 raise HTTPException(status_code=response.status_code, detail=response.json().get("detail"))
             data = response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
+            raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
     active = await _get_active_session(db)
     if active is not None:
         active.status = "recording"
@@ -262,7 +262,7 @@ async def stop_session(db: AsyncSession = Depends(get_db)):
                 raise HTTPException(status_code=response.status_code, detail=response.json().get("detail"))
             data = response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
+            raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
     active = await _get_active_session(db)
     if active is not None:
         active.status = "stopped"
@@ -303,7 +303,7 @@ async def session_status():
             response = await client.get(f"{AUDIO_SERVICE_URL}/api/session/status")
             return response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
+            raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
 
 
 @router.get("/marker-types")
@@ -313,7 +313,7 @@ async def marker_types():
             response = await client.get(f"{AUDIO_SERVICE_URL}/api/session/marker-types")
             return response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
+            raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
 
 
 @router.post("/{session_id}/export")
@@ -341,7 +341,7 @@ async def export_session(session_id: int, db: AsyncSession = Depends(get_db)):
                 raise HTTPException(status_code=response.status_code, detail=response.json().get("detail"))
             return response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
+            raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
 
 
 @router.get("/markers")
@@ -439,7 +439,7 @@ async def automode_schalten(schalter: str):
         async with httpx.AsyncClient(timeout=10.0) as client:
             r = await client.post(f"{AUDIO_SERVICE_URL}/api/session/automode/{schalter}")
     except httpx.ConnectError:
-        raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
+        raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
     if r.status_code != 200:
         raise HTTPException(status_code=r.status_code,
                             detail=r.json().get("detail", "Automodus fehlgeschlagen"))
@@ -473,7 +473,7 @@ async def session_levels(
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.get(f"{AUDIO_SERVICE_URL}/api/session/levels", params=params)
     except httpx.ConnectError:
-        raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
+        raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
     if r.status_code != 200:
         detail = r.json().get("detail", f"Fehler {r.status_code}") if r.headers.get("content-type", "").startswith("application/json") else f"Fehler {r.status_code}"
         raise HTTPException(status_code=r.status_code, detail=detail)

@@ -35,7 +35,7 @@ curl -s -o /dev/null -w "%{http_code}\n" localhost:8001/api/config/erkennung
 # 404 = alter Code läuft noch · 200 = neue Fassung ist aktiv
 
 sqlite3 data/tontechnik.db "SELECT version_num FROM alembic_version;"
-# 013 = noch nicht migriert · 014 = aktiv
+# 013 = noch nicht migriert · 015 = aktiv
 ```
 
 ### Was mit der Aktivierung dazukommt
@@ -391,7 +391,7 @@ pro Gerät über einen Umschalter in der Kopfzeile. Bedienung: [betrieb.md, Absc
 **Deutsch ist die Ausgangssprache und zugleich der Schlüssel.** Im Template steht der
 deutsche Satz, nicht ein Kürzel wie `dashboard.aufnahme.start`. Fehlt eine Übersetzung,
 steht dort Deutsch — nie ein nackter Schlüssel, der im Betrieb wie ein Fehler aussieht.
-255 Sätze je Sprache in `api/sprachen/{de,en,ru}.json`.
+292 Sätze je Sprache in `api/sprachen/{de,en,ru}.json`.
 
 **Die Namen der Arten bleiben deutsch**, weil an ihnen Logik hängt: Anker der
 Programmzuordnung, Ansage-Regeln, NAS-Vorlagen. Migration 015 legt daneben zwei Spalten für
@@ -413,8 +413,9 @@ auf der Einstellungsseite editierbar, auch bei geschützten Arten.
   Funktion — ausgerechnet dort, wo die Track-Knöpfe entstehen.
 
 Geprüft wurde die Umstellung damit, dass **jedes Template auf Deutsch zeichengenau dasselbe
-liefert wie vorher**. Dazu 16 Tests, darunter zwei, die eine vergessene oder verwaiste
-Übersetzung in der CI auffallen lassen statt im Gottesdienst.
+liefert wie vorher**. Dazu Tests, die eine vergessene, verwaiste oder nur halb eingetragene Übersetzung in
+der CI auffallen lassen statt im Gottesdienst — und einer, der jedes Template durch die
+echte Jinja-Umgebung rendert.
 
 **Noch deutsch:** Meldungen, die aus dem Audio-Dienst kommen (er kennt die Sprache des
 Geräts nicht), und rein technische 4xx-Texte wie `invalid filename`. Die russische Fassung
@@ -495,8 +496,8 @@ Der Ablauf liegt danach als `ablauf.txt` und `marker.json` im Session-Ordner.
 | Export | MP3 192 kbit/s, 48 kHz, −3 dBFS, je 1 s Blende |
 | Web | `http://<rechner>.local:8000` — immer über den Namen, die IP wechselt per DHCP. Von unterwegs über Tailscale: `http://<tailscale-adresse>:8000` |
 | Stream | Icecast `<icecast-host>:8000/<mount>`, Quelle = Dante 46+47 |
-| Datenbank | SQLite, Alembic-Stand **013** — Ziel 014, siehe Abschnitt 1a |
-| Tests | **164 Tests** in zwei Umgebungen (102 API, 62 Audio-Dienst), dazu CI auf ubuntu-24.04 |
+| Datenbank | SQLite, Alembic-Stand **013** — Ziel 015, siehe Abschnitt 1a |
+| Tests | **218 Tests** in zwei Umgebungen (156 API, 62 Audio-Dienst), dazu CI auf ubuntu-24.04 |
 
 **Committet und gepusht:** alles — siehe Abschnitt 2f zu den beiden Repositories. Nicht im Repo:
 die laufende Datenbank `data/tontechnik.db`, die Aufnahmen selbst und `audio-service/.env`

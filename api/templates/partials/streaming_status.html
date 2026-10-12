@@ -27,12 +27,12 @@
             {% if not configured %}
                 <a href="/settings" class="underline underline-offset-4 hover:text-zinc-300">{{ t("Stream-Ziel in den Einstellungen setzen") }}</a>
             {% elif status == 'streaming' %}
-                {% if elapsed_seconds %}<span class="font-mono tabular-nums">{{ '%02d:%02d' % (elapsed_seconds // 60, elapsed_seconds % 60) }}</span> auf Sendung{% else %}{{ t("Auf Sendung") }}{% endif %}
+                {% if elapsed_seconds %}<span class="font-mono tabular-nums">{{ '%02d:%02d' % (elapsed_seconds // 60, elapsed_seconds % 60) }}</span> {{ t("auf Sendung") }}{% else %}{{ t("Auf Sendung") }}{% endif %}
             {% elif status == 'error' %}
                 {{ error_message or t("Unbekannter Fehler") }}
             {% else %}
                 {% if target %}<span class="font-mono text-xs">{{ target }}</span>{% else %}{{ t("Bereit zum Senden") }}{% endif %}
-                {% if channels %} · Kanäle {{ channels | join('+') }}{% endif %}
+                {% if channels %} · {{ t("Kanäle") }} {{ channels | join('+') }}{% endif %}
             {% endif %}
         </div>
     </div>

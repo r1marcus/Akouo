@@ -15,14 +15,24 @@ Die Sprachdateien werden bei jeder Änderung neu gelesen. Das ist Absicht: Templ
 und eine Übersetzung, die einen Dienst-Neustart braucht, würde man nie korrigieren.
 """
 import json
+import logging
 import os
 from contextvars import ContextVar
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from starlette.requests import Request
 
 SPRACHEN: tuple[str, ...] = ("de", "en", "ru")
+# Wie die Sprache in ihrer eigenen Sprache heißt — für den Umschalter. Hier und nicht im
+# Template: sonst muss eine vierte Sprache an zwei Stellen gepflegt werden, und die
+# zweite vergisst man.
+NAMEN: dict[str, str] = {"de": "Deutsch", "en": "English", "ru": "Русский"}
 AUSGANGSSPRACHE = "de"
 COOKIE = "akouo_sprache"
+
+_log = logging.getLogger(__name__)
 
 ORDNER = Path(__file__).parent / "sprachen"
 
@@ -50,10 +60,16 @@ def _laden(sprache: str) -> dict[str, str]:
         try:
             with pfad.open(encoding="utf-8") as f:
                 _katalog[sprache] = json.load(f)
-            _gelesen[sprache] = stand
-        except (OSError, json.JSONDecodeError):
-            # Kaputte Sprachdatei darf die Oberfläche nicht abschießen — dann eben Deutsch.
+        except (OSError, json.JSONDecodeError) as fehler:
+            # Kaputte Sprachdatei darf die Oberfläche nicht abschießen — dann eben
+            # Deutsch. Aber sie muss im Log stehen: Sonst merkt man einen Tippfehler in
+            # ru.json nur daran, dass alles deutsch bleibt, und findet nirgends warum.
+            _log.warning("Sprachdatei %s nicht lesbar (%s) — es bleibt bei Deutsch.",
+                         pfad.name, type(fehler).__name__)
             _katalog.setdefault(sprache, {})
+        # Auch nach einem Fehlschlag merken: sonst wird die kaputte Datei bei JEDEM
+        # Aufruf neu gelesen und neu geparst, und eine Seite ruft hundertmal auf.
+        _gelesen[sprache] = stand
     return _katalog[sprache]
 
 
@@ -94,7 +110,7 @@ def katalog(sprache: Optional[str] = None) -> dict[str, str]:
     return {} if s == AUSGANGSSPRACHE else dict(_laden(s))
 
 
-def aus_request(request) -> str:
+def aus_request(request: "Request") -> str:
     """Sprache dieses Geräts: Cookie, sonst Deutsch.
 
     Bewusst **pro Gerät** und nicht pro Anlage: Die Gottesdienst-Auswahl gilt für alle Geräte,

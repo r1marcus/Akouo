@@ -48,7 +48,7 @@
                         hx-delete="/api/checklists/items/{{ item.id }}"
                         hx-target="#template-{{ tpl.id }}"
                         hx-swap="outerHTML"
-                        hx-confirm="Element löschen?"
+                        hx-confirm="{{ t('Element löschen?') }}"
                         class="w-10 h-10 flex items-center justify-center rounded-lg text-red-400/80
                                hover:bg-red-500/10 hover:text-red-400 active:scale-95 transition"
                         title="{{ t('Löschen') }}">

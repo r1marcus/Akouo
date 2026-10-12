@@ -20,7 +20,7 @@
             </div>
             <span x-show="serviceType" x-cloak
                   class="rounded-full bg-white/[0.06] px-3 py-1 text-sm font-medium text-zinc-300"
-                  x-text="serviceType"></span>
+                  x-text="anzGottesdienst(serviceType)"></span>
         </div>
 
         <div class="mt-5 flex items-center gap-4" x-show="total > 0" x-cloak>
@@ -92,7 +92,7 @@
                : 'bg-zinc-100 text-zinc-900 hover:bg-white'">
             <span>{{ t("Weiter zum Dashboard") }}</span>
             <span x-show="open > 0" x-cloak class="font-normal text-zinc-500"
-                  x-text="'· ' + open + ' offen'"></span>
+                  x-text="'· ' + trf('{n} offen', {n: open})"></span>
         </a>
     </div>
 </div>

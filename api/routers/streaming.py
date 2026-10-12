@@ -5,7 +5,6 @@ from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import httpx
@@ -19,7 +18,7 @@ router = APIRouter(prefix="/api/streaming", tags=["streaming"])
 STREAMING_SERVICE_URL = os.environ.get("AUDIO_SERVICE_URL", "http://127.0.0.1:8001")
 
 BASE_DIR = Path(__file__).parent.parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+from vorlagen import templates   # die eine Jinja-Umgebung, siehe api/vorlagen.py
 
 STREAM_TARGET_KEY = "stream_target_url"
 
@@ -58,7 +57,7 @@ async def streaming_status(request: Request, db: AsyncSession = Depends(get_db))
             response = await client.get(f"{STREAMING_SERVICE_URL}/api/streaming/status")
             data = response.json()
         except httpx.ConnectError:
-            data = {"status": "error", "message": uebersetze("Streaming service unreachable")}
+            data = {"status": "error", "message": uebersetze("Stream-Dienst nicht erreichbar")}
 
     # Same precedence as /start: settings override the audio service's own STREAM_URL.
     listen_url = _listen_url(await _get_stream_target(db) or data.get("target"))
@@ -100,7 +99,7 @@ async def start_streaming(request: Request, db: AsyncSession = Depends(get_db)):
                 )
             data = response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail=uebersetze("Streaming service unreachable"))
+            raise HTTPException(status_code=503, detail=uebersetze("Stream-Dienst nicht erreichbar"))
 
     if request.headers.get("HX-Request"):
         return templates.TemplateResponse(
@@ -123,7 +122,7 @@ async def stop_streaming(request: Request):
                 )
             data = response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail=uebersetze("Streaming service unreachable"))
+            raise HTTPException(status_code=503, detail=uebersetze("Stream-Dienst nicht erreichbar"))
 
     if request.headers.get("HX-Request"):
         return templates.TemplateResponse(

@@ -23,16 +23,18 @@ branch_labels = None
 depends_on = None
 
 
-# Gottesdienstarten. Die Feste tragen ihre kirchlich gebräuchlichen Namen, nicht
-# wörtliche Übersetzungen — „Erntedankfest" ist im Russischen das Erntedankfest der
-# Gemeinde, nicht ein amerikanischer Feiertag.
+# Gottesdienstarten. Die Feste tragen die Namen, die eine russischsprachige Freikirche
+# benutzt — nicht die der Orthodoxie und nicht die weltlichen. „Венчание" etwa ist das
+# orthodoxe Krönungssakrament; eine Freikirche traut, sie krönt nicht. „Праздник Жатвы"
+# ist der Name in russischen Baptisten- und Mennonitengemeinden, „Праздник урожая" wäre
+# das landwirtschaftliche Erntefest.
 GOTTESDIENSTARTEN = {
-    "Bibelstunde":    ("Bible study", "Разбор Библии"),
+    "Bibelstunde":    ("Bible study", "Библейский час"),
     "Gebetsstunde":   ("Prayer meeting", "Молитвенное собрание"),
     "Sonntagmorgen":  ("Sunday morning", "Воскресное утро"),
     "Sonntagabend":   ("Sunday evening", "Воскресный вечер"),
-    "Hochzeit":       ("Wedding", "Венчание"),
-    "Heiligabend":    ("Christmas Eve", "Сочельник"),
+    "Hochzeit":       ("Wedding", "Бракосочетание"),
+    "Heiligabend":    ("Christmas Eve", "Рождественский вечер"),
     "Weihnachten":    ("Christmas", "Рождество"),
     "Silvester":      ("New Year's Eve", "Новогодний вечер"),
     "Neujahr":        ("New Year's Day", "Новый год"),
@@ -40,8 +42,8 @@ GOTTESDIENSTARTEN = {
     "Ostern":         ("Easter", "Пасха"),
     "Himmelfahrt":    ("Ascension", "Вознесение"),
     "Pfingsten":      ("Pentecost", "Пятидесятница"),
-    "Erntedankfest":  ("Harvest festival", "Праздник урожая"),
-    "Besuch":         ("Visiting speaker", "Гости"),
+    "Erntedankfest":  ("Harvest festival", "Праздник Жатвы"),
+    "Besuch":         ("Visiting speaker", "Гостевой проповедник"),
     "Sonstiges":      ("Other", "Прочее"),
 }
 
@@ -56,9 +58,9 @@ BEITRAGSARTEN = {
     "Anspiel":          ("Sketch", "Сценка"),
     "Predigt":          ("Sermon", "Проповедь"),
     "Kindergeschichte": ("Children's story", "Рассказ для детей"),
-    "Prosa":            ("Prose reading", "Чтение"),
+    "Prosa":            ("Prose reading", "Художественное чтение"),
     "Gebetslied":       ("Prayer song", "Молитвенная песня"),
-    "Musikstück":       ("Instrumental piece", "Музыкальный номер"),
+    "Musikstück":       ("Instrumental piece", "Инструментальный номер"),
     "Gemeindegesang":   ("Congregational singing", "Общее пение"),
     "Kinderlied":       ("Children's song", "Детская песня"),
     "Gebet":            ("Prayer", "Молитва"),

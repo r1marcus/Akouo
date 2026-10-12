@@ -180,13 +180,75 @@ def test_anzeigename_faellt_auf_den_deutschen_namen_zurueck():
     assert typen.anzeige_gottesdienstart("Jugendstunde", "en") == "Jugendstunde"
 
 
-def test_der_name_bleibt_der_schluessel():
+def test_der_name_bleibt_der_schluessel(monkeypatch):
     """Anzeigenamen dürfen nie dort landen, wo der Name gebraucht wird — an ihm hängen
     Anker, Ansage-Regeln und NAS-Vorlagen."""
     import typen
     t = typen.Typen()
     t.anzeige_beitrag = {"ru": {"Predigt": "Проповедь"}}
-    typen.aktuell = t
+    # monkeypatch statt einer blanken Zuweisung: typen.aktuell ist modulweit, und ein
+    # Test, der ihn stehen lässt, vergiftet jeden nachfolgenden im selben Prozess.
+    monkeypatch.setattr(typen, "aktuell", t)
     assert typen.anzeige_beitragsart("Predigt", "ru") == "Проповедь"
     # … der Name selbst bleibt unangetastet
     assert "Predigt" in t.beitragsarten_gueltig
+
+
+def test_jeder_text_aus_den_templates_steht_im_katalog():
+    """Ein t("…") mit einem Satz, den der Katalog nicht kennt, fällt sonst nirgends auf:
+    die Oberfläche zeigt klaglos Deutsch, und die Vollständigkeitstests vergleichen nur
+    die Kataloge untereinander. Genau so blieb „Unbekannter Fehler" unübersetzt."""
+    import re
+
+    ordner = Path(__file__).resolve().parent.parent / "api" / "templates"
+    de = set(_katalog("de"))
+    fehlend = set()
+    for datei in sorted(ordner.rglob("*.html")):
+        quelle = datei.read_text()
+        for m in re.finditer(r'(?<![\w.$])t\(\s*"((?:[^"\\]|\\.)*)"\s*\)', quelle):
+            wert = m.group(1).replace('\\"', '"').replace("\\\\", "\\")
+            if wert and wert not in de:
+                fehlend.add(f"{datei.name}: {wert}")
+        # tr('…') und trf('…', {…}) — beide holen ihren Text aus demselben Katalog
+        for muster in (r"(?<![\w.$])tr\('((?:[^'\\]|\\.)*)'\)",
+                       r"(?<![\w.$])trf\('((?:[^'\\]|\\.)*)'"):
+            for m in re.finditer(muster, quelle):
+                wert = m.group(1).replace("\\'", "'").replace("\\\\", "\\")
+                if wert and wert not in de:
+                    fehlend.add(f"{datei.name}: {wert}")
+    assert not fehlend, f"{len(fehlend)} Texte ohne Katalogeintrag: {sorted(fehlend)[:8]}"
+
+
+def test_jede_meldung_aus_python_steht_im_katalog():
+    """Dasselbe für die Meldungen, die über `uebersetze(…)` in einen Toast wandern.
+
+    Sie fallen noch leichter durch als die Templates: Ein fehlender Eintrag sieht auf
+    Deutsch völlig richtig aus — es ist ja der deutsche Satz."""
+    import re
+
+    api = Path(__file__).resolve().parent.parent / "api"
+    de = set(_katalog("de"))
+    fehlend = {
+        f"{datei.relative_to(api)}: {m.group(1)}"
+        for datei in sorted(api.rglob("*.py"))
+        for m in re.finditer(r'uebersetze\(\s*"((?:[^"\\]|\\.)*)"', datei.read_text())
+        if m.group(1) and m.group(1).replace('\\"', '"') not in de
+    }
+    assert not fehlend, f"{len(fehlend)} Meldungen ohne Katalogeintrag: {sorted(fehlend)[:8]}"
+
+
+def test_platzhalter_ueberleben_die_uebersetzung():
+    """`{feld}` in einem Satz muss in jeder Sprache vorkommen — sonst wirft `.format()`
+    nicht, sondern lässt den Wert einfach weg, und der Nutzer liest einen Satz mit
+    einem Loch darin."""
+    import re
+
+    de = _katalog("de")
+    for code in ("en", "ru"):
+        ziel = _katalog(code)
+        for schluessel, deutsch in de.items():
+            namen = set(re.findall(r"\{(\w+)\}", deutsch))
+            if namen:
+                assert set(re.findall(r"\{(\w+)\}", ziel[schluessel])) == namen, (
+                    f"{code}: „{schluessel}“ verliert oder erfindet einen Platzhalter"
+                )

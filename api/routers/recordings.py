@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
@@ -18,7 +17,7 @@ router = APIRouter(prefix="/api/recordings", tags=["recordings"])
 AUDIO_SERVICE_URL = os.environ.get("AUDIO_SERVICE_URL", "http://127.0.0.1:8001")
 
 BASE_DIR = Path(__file__).parent.parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+from vorlagen import templates   # die eine Jinja-Umgebung, siehe api/vorlagen.py
 
 
 class StartRequest(BaseModel):
@@ -33,7 +32,7 @@ async def recording_status(request: Request):
             response = await client.get(f"{AUDIO_SERVICE_URL}/status")
             data = response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
+            raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
 
     if request.headers.get("HX-Request"):
         return templates.TemplateResponse(
@@ -60,7 +59,7 @@ async def start_recording(request: Request, req: StartRequest, db: AsyncSession 
                 raise HTTPException(status_code=response.status_code, detail=response.json().get("detail"))
             data = response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
+            raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
 
     if request.headers.get("HX-Request"):
         return templates.TemplateResponse(
@@ -84,7 +83,7 @@ async def stop_recording(request: Request, db: AsyncSession = Depends(get_db)):
                 raise HTTPException(status_code=response.status_code, detail=response.json().get("detail"))
             data = response.json()
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
+            raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
 
     # Save metadata to SQLite
     from datetime import date

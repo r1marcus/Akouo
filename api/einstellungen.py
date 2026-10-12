@@ -23,6 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import nas_pfad
+from sprache import uebersetze
 from models import Setting
 
 
@@ -49,21 +50,27 @@ class Feld:
             return str(rohwert).strip() not in ("0", "false", "False", "", "None", "off")
         if rohwert is None or str(rohwert).strip() == "":
             if self.art in ("int", "float"):
-                raise ValueError(f"{self.name} braucht einen Wert")
+                raise ValueError(uebersetze("{feld} braucht einen Wert").format(feld=uebersetze(self.name)))
             return ""
         text = str(rohwert).strip()
         if self.art in ("int", "float"):
             try:
                 wert = int(text) if self.art == "int" else float(text.replace(",", "."))
             except ValueError:
-                raise ValueError(f"{self.name}: „{text}“ ist keine Zahl")
+                raise ValueError(uebersetze("{feld}: „{wert}“ ist keine Zahl")
+                                 .format(feld=uebersetze(self.name), wert=text))
             if self.von is not None and wert < self.von:
-                raise ValueError(f"{self.name} darf nicht kleiner als {self.von}{self.einheit} sein")
+                raise ValueError(uebersetze("{feld} darf nicht kleiner als {grenze} sein")
+                                 .format(feld=uebersetze(self.name),
+                                         grenze=f"{self.von}{uebersetze(self.einheit)}"))
             if self.bis is not None and wert > self.bis:
-                raise ValueError(f"{self.name} darf nicht größer als {self.bis}{self.einheit} sein")
+                raise ValueError(uebersetze("{feld} darf nicht größer als {grenze} sein")
+                                 .format(feld=uebersetze(self.name),
+                                         grenze=f"{self.bis}{uebersetze(self.einheit)}"))
             return wert
         if self.art == "auswahl" and text not in self.auswahl:
-            raise ValueError(f"{self.name}: „{text}“ ist keine der erlaubten Angaben")
+            raise ValueError(uebersetze("{feld}: „{wert}“ ist keine der erlaubten Angaben")
+                             .format(feld=uebersetze(self.name), wert=text))
         if self.schluessel.startswith("nas_vorlage_"):
             # Eine unbrauchbare Vorlage verstreut Aufnahmen über das Archiv — hier
             # abfangen, nicht erst beim Upload.

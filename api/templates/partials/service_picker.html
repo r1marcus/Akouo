@@ -31,7 +31,7 @@
             <span>
                 {{ t("Weitere") }}
                 <span x-show="$store.service.isOther()" x-cloak class="ml-1 text-zinc-100"
-                      x-text="'· ' + $store.service.draft.service_type"></span>
+                      x-text="'· ' + anzGottesdienst($store.service.draft.service_type)"></span>
             </span>
             <svg class="w-4 h-4 transition-transform duration-200" :class="$store.service.showMore && 'rotate-180'"
                  viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">

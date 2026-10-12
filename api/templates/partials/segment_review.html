@@ -51,7 +51,7 @@
   <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-3">
     <div>
       <div class="eyebrow">{{ t("Segmente exportieren") }}</div>
-      <p class="mt-1 text-sm text-zinc-400">Session #{{ session_id }} · {{ service_type }}</p>
+      <p class="mt-1 text-sm text-zinc-400">Session #{{ session_id }} · {{ anzeige_gottesdienstart(service_type) }}</p>
     </div>
     <div class="flex items-center gap-2">
     {% if segments %}
@@ -64,7 +64,7 @@
     </button>
     <button @click="exportAll()" :disabled="running"
             class="btn min-h-9 px-4 text-sm bg-zinc-100 text-zinc-900 hover:bg-white">
-      <span x-text="running ? `Schneide ${done}/${ids.length}…`
+      <span x-text="running ? trf('Schneide {fertig}/{gesamt}…', {fertig: done, gesamt: ids.length})
                             : (tr('Alle exportieren') + ({{ nicht_export }} ? ' ({{ nicht_export }} übersprungen)' : ''))">{{ t("Alle exportieren") }}</span>
     </button>
     {% endif %}
@@ -85,7 +85,7 @@
           <div class="min-w-0">
             <div class="flex flex-wrap items-baseline gap-x-3 min-w-0">
               <span class="font-mono text-xs text-zinc-600">{{ "%02d"|format(seg.index) }}</span>
-              <span class="font-medium text-zinc-100">{{ seg.marker_type }}</span>
+              <span class="font-medium text-zinc-100">{{ anzeige_beitragsart(seg.marker_type) }}</span>
               {% if not seg.exportieren %}
               <span class="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-zinc-400">
                 {{ t("nur dokumentiert") }}
@@ -106,7 +106,7 @@
                 {% if seg.export.nas_status == 'uploaded' %}
                   {{ t("hochgeladen") }}{% if seg.export.uploaded_at %} ({{ seg.export.uploaded_at }}){% endif %}
                 {% elif seg.export.nas_status == 'failed' %}
-                  Fehler: {{ seg.export.nas_error }}
+                  {{ t("Fehler") }}: {{ seg.export.nas_error }}
                 {% elif seg.export.nas_status == 'skipped' %}
                   {{ t("übersprungen (nicht konfiguriert)") }}
                 {% else %}
@@ -116,7 +116,7 @@
             {% endif %}
             <template x-if="insights[{{ seg.marker_id }}]">
               <div class="mt-2 rounded-xl bg-white/[0.03] px-3 py-2 text-sm">
-                <div class="font-medium text-zinc-100" x-text="insights[{{ seg.marker_id }}].title || 'ohne Titel'"></div>
+                <div class="font-medium text-zinc-100" x-text="insights[{{ seg.marker_id }}].title || tr('ohne Titel')"></div>
                 <p class="mt-1 text-zinc-400" x-text="insights[{{ seg.marker_id }}].summary"></p>
                 <div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
                   <template x-for="ref in insights[{{ seg.marker_id }}].bible_refs" :key="ref">
@@ -126,7 +126,7 @@
                     <span class="rounded-full bg-white/[0.06] text-zinc-400 px-2 py-0.5" x-text="word"></span>
                   </template>
                   <span x-show="insights[{{ seg.marker_id }}].speaker" class="text-zinc-500"
-                        x-text="'Sprecher: ' + insights[{{ seg.marker_id }}].speaker"></span>
+                        x-text="trf('Sprecher: {name}', {name: insights[{{ seg.marker_id }}].speaker})"></span>
                 </div>
               </div>
             </template>
@@ -134,7 +134,7 @@
           <div class="flex items-center gap-2 shrink-0">
           <button @click="analyse({{ seg.marker_id }})" :disabled="busyInsight !== null"
                   class="btn min-h-10 px-3 text-sm bg-white/[0.06] text-zinc-300 hover:bg-white/10">
-            <span x-text="busyInsight === {{ seg.marker_id }} ? 'Denkt…' : (insights[{{ seg.marker_id }}] ? tr('Neu auswerten') : 'KI-Auswertung')">{{ t("KI-Auswertung") }}</span>
+            <span x-text="busyInsight === {{ seg.marker_id }} ? tr('Denkt…') : (insights[{{ seg.marker_id }}] ? tr('Neu auswerten') : 'KI-Auswertung')">{{ t("KI-Auswertung") }}</span>
           </button>
           <button hx-post="/api/sessions/{{ session_id }}/segments/{{ seg.marker_id }}/export"
                   hx-target="#segment-review-{{ session_id }}"

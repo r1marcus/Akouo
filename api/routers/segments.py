@@ -8,7 +8,6 @@ import httpx
 import pathlib as _pl
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,7 +25,7 @@ AUDIO_SERVICE_URL = os.environ.get("AUDIO_SERVICE_URL", "http://127.0.0.1:8001")
 
 # Resolve templates relative to api/ package, mirroring main.py's BASE_DIR.
 _BASE = _pl.Path(__file__).resolve().parent.parent
-templates = Jinja2Templates(directory=str(_BASE / "templates"))
+from vorlagen import templates   # die eine Jinja-Umgebung, siehe api/vorlagen.py
 
 
 def _safe_filename_part(s: str) -> str:
@@ -306,7 +305,7 @@ async def refine_session(session: RecordingSession, db: AsyncSession) -> RefineR
                     },
                 )
             except httpx.ConnectError:
-                raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
+                raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
             if r.status_code != 200:
                 continue
             data = r.json()
@@ -325,7 +324,7 @@ async def refine_segments(session_id: int, request: Request, db: AsyncSession = 
     if session is None:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
     if not session.wav_path:
-        raise HTTPException(status_code=409, detail=uebersetze("Session has no wav_path"))
+        raise HTTPException(status_code=409, detail=uebersetze("Session hat keine Aufnahmedatei"))
     await refine_session(session, db)
     return await list_segments(session_id, request, db)
 
@@ -341,7 +340,7 @@ async def export_segment(
     if session is None:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
     if not session.wav_path:
-        raise HTTPException(status_code=409, detail=uebersetze("Session has no wav_path"))
+        raise HTTPException(status_code=409, detail=uebersetze("Session hat keine Aufnahmedatei"))
 
     marker = await db.get(Marker, marker_id)
     if marker is None or marker.session_id != session_id:
@@ -351,7 +350,7 @@ async def export_segment(
     segments = await _build_segments(session, db)
     seg = next((s for s in segments if s["marker_id"] == marker_id), None)
     if seg is None:
-        raise HTTPException(status_code=404, detail=uebersetze("Segment for marker not found"))
+        raise HTTPException(status_code=404, detail=uebersetze("Kein Segment zu diesem Marker"))
 
     # Filename: YYYY-MM-DD_ServiceType_NN_MarkerType.mp3
     date_part = (session.started_at.strftime("%Y-%m-%d")
@@ -420,7 +419,7 @@ async def export_segment(
         try:
             r = await client.post(f"{AUDIO_SERVICE_URL}/api/session/segment-export", json=payload)
         except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail=uebersetze("Audio service unreachable"))
+            raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
     if r.status_code != 200:
         raise HTTPException(status_code=r.status_code, detail=r.json().get("detail"))
     data = r.json()

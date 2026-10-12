@@ -17,7 +17,7 @@
                 <h1 class="mt-1 text-2xl font-semibold tracking-tight text-zinc-100">{{ t("Frühere Aufnahmen") }}</h1>
             </div>
             <span class="text-sm text-zinc-500" x-show="aufnahmen.length" x-cloak
-                  x-text="aufnahmen.length + ' Aufnahmen'"></span>
+                  x-text="trf('{n} Aufnahmen', {n: aufnahmen.length})"></span>
         </div>
         <p class="mt-3 text-sm text-zinc-500">
             {{ t("Marker prüfen, Typen korrigieren, einzelne Segmente nachexportieren. Die Automatik fasst diese Aufnahmen nicht an.") }}
@@ -44,13 +44,13 @@
                             :class="offen === a.id && 'bg-white/[0.04]'">
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-baseline gap-x-3">
-                                <span class="font-medium text-zinc-100" x-text="a.gottesdienst"></span>
+                                <span class="font-medium text-zinc-100" x-text="anzGottesdienst(a.gottesdienst)"></span>
                                 <span x-show="a.thema" x-cloak class="text-zinc-400" x-text="a.thema"></span>
                                 <span class="font-mono text-xs text-zinc-500" x-text="datum(a.begonnen)"></span>
                             </div>
                             <div class="mt-0.5 text-xs text-zinc-500">
                                 <span x-text="dauer(a.dauer_s)"></span>
-                                <span x-text="' · ' + a.beitraege + ' ' + tr('Beiträge')"></span>
+                                <span x-text="' · ' + trf('{n} Beiträge', {n: a.beitraege})"></span>
                                 <span x-show="a.exporte" x-cloak x-text="' · ' + a.exporte + ' MP3s'"></span>
                                 <span x-show="!a.aufnahme_da" x-cloak class="text-amber-400">
                                     {{ t("· Aufnahmedatei fehlt, kein Export möglich") }}
@@ -95,7 +95,7 @@ function archiv() {
            + ' ' + d.toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'});
     },
     dauer(s) {
-      if (!s) return 'keine Dauer';
+      if (!s) return tr('keine Dauer');
       return Math.floor(s / 60) + ' Minuten';
     },
 

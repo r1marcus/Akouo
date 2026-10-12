@@ -78,7 +78,10 @@ async def neu_laden(db: AsyncSession) -> Typen:
         neu.geschuetzte_arten = {a.name for a in arten if a.geschuetzt}
         neu.nas_vorlagen = {a.name: a.nas_vorlage for a in arten if a.nas_vorlage}
         neu.anzeige_gottesdienst = {
-            s: {a.name: getattr(a, f"anzeige_{s}") for a in arten if getattr(a, f"anzeige_{s}")}
+            # getattr MIT Default: Eine Sprache in SPRACHEN, fuer die es keine Spalte
+            # gibt, warf sonst in der Lifespan — die API startete dann gar nicht mehr.
+            s: {a.name: getattr(a, f"anzeige_{s}", None) for a in arten
+                if getattr(a, f"anzeige_{s}", None)}
             for s in sprache.SPRACHEN if s != sprache.AUSGANGSSPRACHE
         }
 
@@ -91,7 +94,8 @@ async def neu_laden(db: AsyncSession) -> Typen:
         neu.nicht_exportieren = {b.name for b in beitraege if not b.exportieren}
         neu.geschuetzte_beitragsarten = {b.name for b in beitraege if b.geschuetzt}
         neu.anzeige_beitrag = {
-            s: {b.name: getattr(b, f"anzeige_{s}") for b in beitraege if getattr(b, f"anzeige_{s}")}
+            s: {b.name: getattr(b, f"anzeige_{s}", None) for b in beitraege
+                if getattr(b, f"anzeige_{s}", None)}
             for s in sprache.SPRACHEN if s != sprache.AUSGANGSSPRACHE
         }
         neu.erkennung = {

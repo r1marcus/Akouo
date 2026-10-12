@@ -3,7 +3,6 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Request, Depends
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -39,19 +38,7 @@ app = FastAPI(title="Akouo API", version="1.0.0", lifespan=lifespan)
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-
-
-def static_url(path: str) -> str:
-    """Static asset URL with an mtime version so browsers/tablets never keep a stale app.css."""
-    try:
-        version = int((BASE_DIR / "static" / path).stat().st_mtime)
-    except OSError:
-        version = 0
-    return f"/static/{path}?v={version}"
-
-
-templates.env.globals["static_url"] = static_url
+from vorlagen import templates   # die eine Jinja-Umgebung, siehe api/vorlagen.py
 
 
 # ─── Sprache ────────────────────────────────────────────────────────────────
@@ -77,27 +64,19 @@ class SpracheMiddleware:
 app.add_middleware(SpracheMiddleware)
 
 
-templates.env.globals["t"] = sprache.uebersetze
-templates.env.globals["sprache_aktuell"] = sprache.aktuelle
-templates.env.globals["sprachen"] = sprache.SPRACHEN
-templates.env.globals["sprach_katalog"] = sprache.katalog
-# Anzeigenamen der Arten. Als Funktion und nicht als Liste: der Wert, der an die API
-# geht, bleibt der deutsche Name — uebersetzt wird nur, was danebensteht.
-templates.env.globals["anzeige_gottesdienstart"] = typen.anzeige_gottesdienstart
-templates.env.globals["anzeige_beitragsart"] = typen.anzeige_beitragsart
-templates.env.globals["anzeige_katalog"] = typen.anzeige_katalog
-
-
 @app.get("/sprache/{code}", include_in_schema=False)
-async def sprache_waehlen(code: str, request: Request):
+async def sprache_waehlen(code: str, request: Request) -> RedirectResponse:
     """Sprache dieses Geraets umstellen und zurueck, wo man war.
 
     Als Server-Route und nicht als JavaScript: Der Umschalter muss auch dann funktionieren,
     wenn ein Skript haengt — und das Cookie soll der Browser schreiben, nicht die Seite.
     """
     ziel = request.query_params.get("weiter", "/")
-    # Nur eigene Pfade. Ohne diese Pruefung waere der Umschalter eine offene Weiterleitung.
-    if not ziel.startswith("/") or ziel.startswith("//"):
+    # Nur eigene Pfade. Ohne diese Pruefung waere der Umschalter eine offene
+    # Weiterleitung. Der Backslash muss mit: Browser normalisieren ihn nach WHATWG zu
+    # "/", aus "/\example.invalid" wird also "//example.invalid" — und damit doch ein
+    # fremder Host.
+    if not ziel.startswith("/") or ziel.startswith("//") or "\\" in ziel:
         ziel = "/"
     antwort = RedirectResponse(ziel, status_code=303)
     antwort.set_cookie(
@@ -107,20 +86,6 @@ async def sprache_waehlen(code: str, request: Request):
     return antwort
 
 
-def _typen_in_templates(t: "typen.Typen") -> None:
-    """Die Listen als Template-Globals bereitstellen.
-
-    Sie stehen in jedem Seitenaufbau (Gottesdienst-Auswahl im Kopf, Track-Knöpfe während
-    der Aufnahme). Statt sie pro Request zu übergeben, werden die Globals nach jedem
-    Neuladen überschrieben — die Templates bleiben dadurch unverändert.
-    """
-    templates.env.globals["service_types"] = t.gottesdienstarten
-    templates.env.globals["primary_service_types"] = t.haupt_gottesdienstarten
-    templates.env.globals["marker_types"] = t.beitragsarten
-
-
-typen.bei_aenderung(_typen_in_templates)
-_typen_in_templates(typen.aktuell)   # Rückfallwerte, bis der Start die Datenbank gelesen hat
 
 app.include_router(health.router)
 app.include_router(recordings.router)

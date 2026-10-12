@@ -26,6 +26,15 @@
     // aufzurufen — und zwar genau dort, wo die Track-Knoepfe entstehen.
     function tr(s) { return (window.AKOUO_T && window.AKOUO_T[s]) || s; }
 
+    // Fuer Saetze mit eingesetzten Werten. Aus Bruchstuecken zusammengeklebte Texte
+    // ('Vorschlag: ' + x) lassen sich nicht uebersetzen, ohne die Wortstellung
+    // kaputtzumachen — im Russischen steht das Verb woanders als im Deutschen.
+    // Deshalb der ganze Satz als Schluessel, mit {name} als Platzhalter.
+    function trf(s, werte) {
+        return tr(s).replace(/\{(\w+)\}/g, (treffer, name) =>
+            Object.prototype.hasOwnProperty.call(werte, name) ? werte[name] : treffer);
+    }
+
     // Anzeigenamen der Arten in der aktiven Sprache. Der Wert, der an die API geht,
     // bleibt ueberall der deutsche Name — das hier ist nur die Beschriftung.
     window.AKOUO_ANZEIGE = {{ anzeige_katalog() | tojson }};
@@ -123,7 +132,7 @@
                     // dashboard comes after it. Already on the checklist → stay and reload it.
                     window.location.href = '/checkliste';
                 } catch (e) {
-                    this.error = 'Netzwerkfehler: ' + e.message;
+                    this.error = trf('Netzwerkfehler: {fehler}', {fehler: e.message});
                 }
             },
         });
@@ -208,8 +217,10 @@
 </head>
 <body class="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
     {% set path = request.url.path %}
+    {# Mit Abfragezeichenkette, sonst verliert ein Sprachwechsel die Filter der Seite #}
+    {% set ziel = path ~ ('?' ~ request.url.query if request.url.query else '') %}
     <header class="sticky top-0 z-40 border-b border-white/5 bg-zinc-950/80 backdrop-blur-xl pt-[env(safe-area-inset-top)]">
-        <div class="max-w-5xl mx-auto px-4 sm:px-6 py-2 sm:py-0 sm:h-14 flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 py-2 lg:py-0 lg:h-14 flex flex-wrap lg:flex-nowrap items-center gap-x-3 gap-y-2">
             <a href="/" class="flex items-center gap-2.5 shrink-0">
                 <span class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_12px_2px_rgba(239,68,68,0.45)]"></span>
                 <span class="hidden sm:inline text-[15px] font-semibold tracking-tight">Akouo</span>
@@ -223,7 +234,7 @@
                     :class="$store.service.current || !$store.service.loaded
                         ? 'border-white/10 bg-white/[0.06] text-zinc-100 hover:bg-white/10'
                         : 'border-amber-400/30 bg-amber-400/10 text-amber-300 hover:bg-amber-400/15'"
-                    class="min-h-9 min-w-0 flex-1 sm:flex-none inline-flex items-center gap-2 rounded-full border px-3.5
+                    class="min-h-9 min-w-0 flex-1 sm:flex-initial sm:min-w-40 sm:max-w-56 inline-flex items-center gap-2 rounded-full border px-3.5
                            text-sm font-medium transition-colors disabled:cursor-default">
                 <span class="truncate" x-text="$store.service.label()">…</span>
                 <svg x-show="!$store.service.locked" class="w-3.5 h-3.5 shrink-0 text-zinc-500" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
@@ -275,12 +286,12 @@
                muss auch dann gehen, wenn ein Skript haengt — und wer die Oberflaeche in einer
                Sprache vorfindet, die er nicht liest, braucht etwas, das ohne Lesen erkennbar
                ist. Deshalb Kuerzel statt Sprachnamen. #}
-            <div class="shrink-0 inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] p-0.5 text-[11px] font-medium">
+            <div class="shrink-0 inline-flex items-center gap-0.5 rounded-full border border-white/10 bg-white/[0.04] p-0.5 text-[11px] font-medium">
                 {% for code in sprachen %}
-                <a href="/sprache/{{ code }}?weiter={{ path | urlencode }}"
+                <a href="/sprache/{{ code }}?weiter={{ ziel | urlencode }}"
                    hreflang="{{ code }}"
-                   title="{{ {'de': 'Deutsch', 'en': 'English', 'ru': 'Русский'}[code] }}"
-                   class="min-h-8 px-2 inline-flex items-center rounded-full uppercase tracking-wide transition-colors
+                   title="{{ sprach_namen.get(code, code) }}"
+                   class="min-h-11 min-w-11 justify-center px-2 inline-flex items-center rounded-full uppercase tracking-wide transition-colors
                           {% if sprache_aktuell() == code %}bg-white/10 text-zinc-100{% else %}text-zinc-500 hover:text-zinc-200{% endif %}">{{ code }}</a>
                 {% endfor %}
             </div>

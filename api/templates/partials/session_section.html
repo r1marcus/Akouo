@@ -16,7 +16,7 @@
     </div>
     <span x-show="serviceType && (state === 'recording' || state === 'paused')" x-cloak
           class="rounded-full bg-white/[0.06] px-3 py-1 text-xs font-medium text-zinc-300"
-          x-text="serviceType"></span>
+          x-text="anzGottesdienst(serviceType)"></span>
   </div>
 
   <!-- Timers -->
@@ -71,7 +71,7 @@
             :class="confirmStop ? 'bg-red-600 text-white hover:bg-red-500' : 'bg-white/[0.06] text-zinc-100 hover:bg-white/10'"
             class="btn min-h-14 text-base">
       <span class="w-3 h-3 rounded-sm" :class="confirmStop ? 'bg-white' : 'bg-zinc-300'"></span>
-      <span x-text="busy ? tr('Wird gestoppt…') : (confirmStop ? tr('Wirklich stoppen?') : 'Stoppen')">{{ t("Stoppen") }}</span>
+      <span x-text="busy ? tr('Wird gestoppt…') : (confirmStop ? tr('Wirklich stoppen?') : tr('Stoppen'))">{{ t("Stoppen") }}</span>
     </button>
   </div>
   <p x-show="state === 'offline'" x-cloak class="mt-3 text-sm text-amber-400/90">
@@ -86,7 +86,7 @@
       <div class="mt-0.5 text-xs text-zinc-500"
            x-text="auto.fehler ? auto.fehler
                    : (auto.aktiv ? tr('setzt Marker selbständig — Typ jederzeit änderbar')
-                                 : 'aus — Tracks von Hand markieren')"></div>
+                                 : tr('aus — Tracks von Hand markieren'))"></div>
     </div>
     <button type="button" @click="toggleAuto()" :disabled="autoBusy"
             :aria-pressed="auto.aktiv"
@@ -375,7 +375,7 @@ function sessionPanel() {
         }
         this.auto = await r.json();
       } catch (e) {
-        this.notifyError('Automatik: ' + e.message);
+        this.notifyError(trf('Automatik: {fehler}', {fehler: e.message}));
       } finally {
         this.autoBusy = false;
       }

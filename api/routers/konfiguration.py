@@ -57,7 +57,12 @@ async def alles_lesen(db: AsyncSession = Depends(get_db)):
                 # Beschriftung, Bereich, Hilfe und Einheit sind das, was der Nutzer
                 # liest — sie gehen uebersetzt hinaus. Der Schluessel nicht: an ihm
                 # haengt die Zuordnung zur Datenbank und zum Audio-Dienst.
+                # Zwei Felder, nicht eins: "bereich" ist uebersetzt und wird angezeigt,
+                # "bereich_schluessel" ist der deutsche Name und wird verglichen. Mit nur
+                # einem Feld verglich das Template gegen uebersetzten Text — und die
+                # Platzhalter-Hilfe unter der NAS-Ablage verschwand in jeder anderen Sprache.
                 "schluessel": f.schluessel, "bereich": uebersetze(f.bereich),
+                "bereich_schluessel": f.bereich,
                 "name": uebersetze(f.name), "art": f.art,
                 "hilfe": uebersetze(f.hilfe), "einheit": uebersetze(f.einheit),
                 "von": f.von, "bis": f.bis, "auswahl": list(f.auswahl),
@@ -105,7 +110,7 @@ async def einstellung_setzen(schluessel: str, request: Request,
     try:
         wert = await einstellungen.setzen(db, schluessel, rohwert)
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Unbekannte Einstellung: {schluessel}")
+        raise HTTPException(status_code=404, detail=uebersetze("Unbekannte Einstellung: {schluessel}").format(schluessel=schluessel))
     except ValueError as fehler:
         raise HTTPException(status_code=422, detail=str(fehler))
     geschoben = await _neu_laden_und_schieben(db)
@@ -143,6 +148,10 @@ async def art_anlegen(eingabe: ArtEingabe, db: AsyncSession = Depends(get_db)):
         is_primary=bool(eingabe.is_primary),
         active=True if eingabe.active is None else bool(eingabe.active),
         nas_vorlage=(eingabe.nas_vorlage or None),
+        # Beim Anlegen mitnehmen, nicht nur beim Aendern: ueber die API (und spaeter
+        # vom iPad) gingen die Felder sonst still verloren.
+        anzeige_en=(eingabe.anzeige_en or "").strip() or None,
+        anzeige_ru=(eingabe.anzeige_ru or "").strip() or None,
     )
     db.add(art)
     await db.commit()
@@ -287,6 +296,10 @@ async def beitrag_anlegen(eingabe: BeitragEingabe, db: AsyncSession = Depends(ge
         auto_marker=True if eingabe.auto_marker is None else bool(eingabe.auto_marker),
         dauer_min=eingabe.dauer_min,
         dauer_max=eingabe.dauer_max,
+        # Beim Anlegen mitnehmen, nicht nur beim Aendern: ueber die API (und spaeter
+        # vom iPad) gingen die Felder sonst still verloren.
+        anzeige_en=(eingabe.anzeige_en or "").strip() or None,
+        anzeige_ru=(eingabe.anzeige_ru or "").strip() or None,
     )
     db.add(art)
     await db.commit()

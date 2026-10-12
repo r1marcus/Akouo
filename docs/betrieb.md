@@ -659,7 +659,7 @@ make lint        # ruff
 schiebt die API ihre Erkennungskonfiguration zum Audio-Dienst — ein Testlauf ohne diese
 Umleitung würde den **produktiv laufenden** Dienst umkonfigurieren.
 
-Stand 12.10.2026: **164 Tests grün** (102 API, 62 Audio-Dienst).
+Stand 12.10.2026: **218 Tests grün** (156 API, 62 Audio-Dienst).
 
 ---
 
@@ -742,8 +742,9 @@ Danach prüfen, ob die Einstellbarkeit wirklich angekommen ist — das ist der P
 sqlite3 data/tontechnik.db "SELECT version_num FROM alembic_version;"  # 015
 curl -s -o /dev/null -w "%{http_code}\n" localhost:8001/api/config/erkennung  # 200, nicht 404
 curl -s -o /dev/null -w "%{http_code}\n" localhost:8000/sprache/ru            # 303
-launchctl list | grep -c akouo                                          # 3 (api, whisper, dashboard)
-                                                                        # + de.akouo.audio
+# launchctl list zeigt als Benutzer NUR die Agents, nie den System-Daemon der API.
+# Drei sind also richtig — die API steckt in der healthz-Zeile darueber.
+launchctl list | grep -c akouo                                          # 3: audio, whisper, dashboard
 ```
 
 Und erst wenn das steht, kann `api/templates/settings.html` weg — bis zum Neustart erwartet die
@@ -866,12 +867,12 @@ ollama list                                    # installierte Sprachmodelle
 | Aufnahmen | `~/Recordings/Tontechnik/sessions/<Datum>_<Typ>_<Nr>/` |
 | Logs | alle unter `~/Library/Logs/Akouo/`: `api.log`, `audio.log`, `audio-error.log`, `whisper.log`, `dashboard.log` |
 | Konfiguration | `audio-service/.env`, `~/run-akouo-api.sh`, Einstellungsseite |
-| Datenbank | `data/tontechnik.db` — Alembic-Stand **013**, Ziel 014 (Abschnitt 8a) |
+| Datenbank | `data/tontechnik.db` — Alembic-Stand **013**, Ziel 015 (Abschnitt 8a) |
 | Ablauf je Aufnahme | `marker.json` und `ablauf.txt` im Session-Ordner |
 | whisper-Modelle | `~/ai/models/ggml-large-v3-turbo.bin` |
 
 **Tests**
 
 ```bash
-make test        # 164 Tests, beide Gruppen
+make test        # 218 Tests, beide Gruppen
 ```

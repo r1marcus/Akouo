@@ -21,7 +21,7 @@
       <button @click="startTrack()" :disabled="busyTrack"
               class="btn w-full min-h-16 text-lg bg-sky-500 text-zinc-950 hover:bg-sky-400">
         <span class="w-3.5 h-3.5 rounded-full bg-zinc-900"></span>
-        <span x-text="busyTrack ? 'Moment…' : tr('Track starten')">{{ t("Track starten") }}</span>
+        <span x-text="busyTrack ? tr('Moment…') : tr('Track starten')">{{ t("Track starten") }}</span>
       </button>
     </template>
 
@@ -34,7 +34,7 @@
             {{ t("— was ist es?") }}
           </span>
           <span x-show="pendingTracks.length" class="text-xs text-sky-300/80"
-                x-text="'Vorschlag: ' + pendingTracks[0]"></span>
+                x-text="trf('Vorschlag: {typ}', {typ: anzBeitrag(pendingTracks[0])})"></span>
         </div>
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <template x-for="t in markerTypes" :key="t">
@@ -58,7 +58,7 @@
         <div class="flex-1 min-w-0">
           <div class="eyebrow text-sky-300">{{ t("Track läuft") }}</div>
           <div class="mt-1 flex items-baseline gap-3">
-            <span class="text-xl font-semibold truncate" x-text="openMarker().marker_type"></span>
+            <span class="text-xl font-semibold truncate" x-text="anzBeitrag(openMarker().marker_type)"></span>
             <span class="font-mono tabular-nums text-zinc-300"
                   x-text="formatTime(elapsed - Math.floor(openMarker().placed_at_ts + (openMarker().start_nudge || 0)))"></span>
           </div>
@@ -77,14 +77,14 @@
     <template x-if="autoOffen()">
       <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span class="eyebrow text-emerald-300">{{ t("Automatik hört") }}</span>
-        <span class="font-medium text-zinc-100" x-text="autoOffen().typ"></span>
+        <span class="font-medium text-zinc-100" x-text="anzBeitrag(autoOffen().typ)"></span>
         <span class="text-sm text-zinc-400"
-              x-text="autoOffen().klasse + ' · ' + Math.round(autoOffen().sicherheit * 100) + '% sicher'
-                      + (autoOffen().quelle === 'ansage' ? ' · laut Ansage' : '')"></span>
+              x-text="autoOffen().klasse + ' · ' + Math.round(autoOffen().sicherheit * 100) + tr('% sicher')
+                      + (autoOffen().quelle === 'ansage' ? ' · ' + tr('laut Ansage') : '')"></span>
         <span x-show="autoOffen().liednummer" x-cloak class="text-sm text-zinc-400"
               x-text="tr('Lied') + ' ' + autoOffen().liednummer"></span>
         <span x-show="autoOffen().alternativen.length" x-cloak class="text-xs text-zinc-500"
-              x-text="'sonst: ' + autoOffen().alternativen.join(', ')"></span>
+              x-text="trf('sonst: {liste}', {liste: autoOffen().alternativen.map(anzBeitrag).join(', ')})"></span>
       </div>
     </template>
     <template x-if="!autoOffen()">
@@ -98,7 +98,7 @@
         <ul class="text-xs text-zinc-400 space-y-0.5">
           <template x-for="e in (auto.programm || []).filter(e => !e.erledigt)" :key="e.typ + (e.titel || '')">
             <li>
-              <span class="text-zinc-300" x-text="e.typ"></span>
+              <span class="text-zinc-300" x-text="anzBeitrag(e.typ)"></span>
               <span x-show="e.titel" x-cloak x-text="' — ' + e.titel"></span>
             </li>
           </template>
@@ -136,7 +136,7 @@
                   x-text="(m.ended_at_ts === null || m.ended_at_ts === undefined)
                       ? tr('läuft')
                       : '→ ' + formatTime(Math.floor(m.ended_at_ts + (m.end_nudge || 0)))
-                        + ' · ' + formatTime(Math.floor((m.ended_at_ts + (m.end_nudge || 0)) - (m.placed_at_ts + (m.start_nudge || 0)))) + ' lang'"></span>
+                        + ' · ' + formatTime(Math.floor((m.ended_at_ts + (m.end_nudge || 0)) - (m.placed_at_ts + (m.start_nudge || 0)))) + ' ' + tr('lang')"></span>
             <span class="font-mono text-xs text-amber-400" x-show="m.start_nudge"
                   x-text="tr('Start') + ' ' + (m.start_nudge > 0 ? '+' : '') + m.start_nudge + 's'"></span>
             <span class="font-mono text-xs text-amber-400" x-show="m.end_nudge"
@@ -152,7 +152,7 @@
             <span class="pl-2 pr-1 text-zinc-600">{{ t("Ende") }}</span>
             <button @click="nudge(m, 'end', -1)" class="h-9 min-w-9 px-2 rounded-lg bg-white/[0.05] font-mono text-zinc-300 hover:bg-white/10 active:scale-95">−1</button>
             <button @click="nudge(m, 'end', 1)" class="h-9 min-w-9 px-2 rounded-lg bg-white/[0.05] font-mono text-zinc-300 hover:bg-white/10 active:scale-95">+1</button>
-            <button @click="deleteMarker(m)" :title="tr('Marker') + ' ' + m.marker_type + ' entfernen'"
+            <button @click="deleteMarker(m)" :title="trf('Marker {typ} entfernen', {typ: anzBeitrag(m.marker_type)})"
                     class="ml-1 h-9 w-9 shrink-0 grid place-items-center rounded-lg text-zinc-600
                            hover:bg-red-500/15 hover:text-red-400 active:scale-95">
               <svg class="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
