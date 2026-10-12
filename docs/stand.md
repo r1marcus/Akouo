@@ -362,9 +362,22 @@ serverseitig über ihre SHA abrufbar, bis GitHub aufräumt. Ein frisch angelegte
 Repository ist die einzige Variante, bei der die Daten das veröffentlichte Repository nie
 berühren.
 
-**Noch offen vor dem Öffentlichmachen:** der Zugriffsschutz (roadmap.md, Punkt 5) — das
-Dashboard hat keine Anmeldung, und `SECURITY.md` sagt das auch. Das ist eine Eigenschaft des
-Betriebs, kein Hindernis für die Veröffentlichung des Codes.
+**Seit dem 12. Oktober ist `r1marcus/Akouo` öffentlich.** Der Zugriffsschutz wurde dabei
+bewusst zurückgestellt (roadmap.md, Punkt 5): Das Dashboard hat keine Anmeldung, `SECURITY.md`
+benennt es, und das Risiko trägt die eigene Anlage, nicht der Leser. Mitgewandert sind drei
+Bilder der Oberfläche unter `docs/bilder/` — das Dashboard-Bild stammt aus der laufenden Anlage,
+aber nur aus dem oberen Teil: Stream-Ziel und Live-Transkript bleiben draußen. Die anderen
+beiden kommen aus einer Demo-Instanz mit leerer Datenbank.
+
+Dabei fiel auf, dass die **Oberfläche durchgehend noch „Tontechnik" hieß** — Kopfzeile,
+Seitentitel, Name der Home-Bildschirm-App und die Titel beider FastAPI-Anwendungen. Alles auf
+Akouo gezogen. Nicht umbenannt: der Stream-Name, den Hörer im Player sehen; er steht seit dem
+ersten Stream in ihren Playern und ist jetzt über `STREAM_NAME` einstellbar, Voreinstellung
+unverändert.
+
+Der Archivzweig liegt seit dem 12. Oktober auch im Archiv-Repository
+(`r1marcus/Akouo-Archiv`, Zweig `historie-tontechnik`) — bis dahin existierten die elf neuesten
+Commits nur auf dieser Platte.
 
 ---
 

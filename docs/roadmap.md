@@ -3,6 +3,26 @@
 Was als Nächstes gebaut werden soll, nach Nutzen sortiert. Was heute läuft, steht in
 [stand.md](stand.md), wie man es bedient in [betrieb.md](betrieb.md).
 
+## Beschlossen am 12. Oktober 2026
+
+Die Reihenfolge ist damit festgelegt, bis sie jemand ändert:
+
+1. **Aktivierung** (stand.md 1a) — zusammen mit dem Umstieg auf die `de.akouo.*`-Dienstnamen
+   und, im selben Zug, der Umbenennung des Verzeichnisses `audio-service` → `audio_service`.
+   Letzteres fasst Importe, Tests, Plists, Makefile, Installer und Doku gleichzeitig an und
+   gehört deshalb an einen Tag mit Luft, nicht an ein Gottesdienst-Wochenende.
+2. **`.env`-Bereich auf der Einstellungsseite**, mit Neustart-Knopf daneben — gesperrt, solange
+   eine Aufnahme läuft. Danach ist nichts mehr ausschließlich über die Kommandozeile einstellbar.
+3. Dann die Punkte unten, in dieser Folge: **Programmblatt vorab einlesen** (Punkt 2),
+   **Statusanzeige der Dienste** (Punkt 6), **Sprecher erkennen** (Punkt 4).
+
+**Bewusst zurückgestellt:** der **Zugriffsschutz** (Punkt 5). Das Dashboard bleibt vorerst ohne
+Anmeldung, und `SECURITY.md` benennt das offen. Die Entscheidung gilt für ein Netz, in dem nur
+Technikteam und Gemeinde sind — sie ist neu zu treffen, sobald Gäste ins selbe WLAN kommen.
+
+**Keine Vorarbeit fürs NAS**, solange die Freigabe fehlt: der EBADF-Fehler des Shares ist offen,
+und Vorbereitung auf Vermutungen hin kann in die falsche Richtung laufen.
+
 **Davor steht eine Entscheidung, kein Entwicklungsschritt.** Am 11. Oktober wurde die
 Einstellbarkeit gebaut — Gottesdienst- und Beitragsarten aus der Datenbank, eine
 Einstellungsseite über alle Werte, editierbare Ansage-Regeln, NAS-Vorlagen. **Nichts davon
