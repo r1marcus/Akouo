@@ -62,6 +62,12 @@ css:
 	./tailwindcss-macos-arm64 -i api/static/input.css -o api/static/app.css --minify
 
 db:
+	@test -z "$(wildcard data/tontechnik.db)" || { \
+	  echo "data/tontechnik.db liegt schon da. 'make db' wuerde daneben eine leere"; \
+	  echo "data/akouo.db anlegen, und autostart/install.sh faende dann zwei."; \
+	  echo "Vorhandene migrieren:"; \
+	  echo "  DATABASE_URL=\"sqlite+aiosqlite:///$$PWD/data/tontechnik.db\" $(PY) -m alembic upgrade head"; \
+	  exit 1; }
 	@mkdir -p data
 	@$(PY) -m alembic upgrade head
 
