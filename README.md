@@ -86,33 +86,24 @@ And the honest operational caveats:
 The interface is built for a tablet propped up next to a mixing console — large targets, no
 hover, nothing that needs a second hand. It is in German, because the people using it are.
 
-<table>
-<tr>
-<td width="50%" valign="top">
+![Choosing the service: four large tiles for the regular services, the rest behind "Weitere", and
+an optional free-text theme field](docs/bilder/gottesdienst-waehlen.png)
 
-![Choosing the service: four large tiles for the regular services, the rest behind "Weitere",
-and an optional free-text theme](docs/bilder/gottesdienst-waehlen.png)
-
-**Choosing the service.** Four tiles for the ones that happen every week, the rest folded away.
-The choice drives the checklist, the folder layout on the NAS, and what the automatic detection
-expects to hear. `Thema` is free text — *Erntedankfest*, a baptism, an anniversary.
-
-</td>
-<td width="50%" valign="top">
+**Choosing the service.** Four tiles for the ones that happen every week, the rest folded away
+under *Weitere*. The choice drives the checklist, the folder layout on the NAS, and what the
+automatic detection expects to hear. `Thema` is free text — *Erntedankfest*, a baptism, an
+anniversary — and ends up in the folder name and the MP3 tag.
 
 ![The settings page: export, detection and cut-edge values, each with a sentence explaining what
 it does and what happens if you get it wrong](docs/bilder/einstellungen.png)
 
 **Settings.** Nineteen values across five groups, each with a sentence saying what it changes —
-and, where it was measured rather than guessed, what the measurement was. Item types,
-announcement rules and the NAS folder template are editable here too.
+and, where a number was measured rather than guessed, what the measurement was. *"At 5 s, pauses
+in speech cut the sermon apart; at 15 s, consecutive items melt together."* Item types,
+announcement rules and the NAS folder template are editable on the same page.
 
-</td>
-</tr>
-</table>
-
-<sup>Screenshots from a fresh install with an empty database, which is why the audio service
-reports as offline in the right-hand shot.</sup>
+<sup>Both shots come from a fresh install with an empty database, which is why the audio service
+reports as offline.</sup>
 
 ## Requirements
 
