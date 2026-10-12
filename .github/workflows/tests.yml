@@ -92,9 +92,17 @@ jobs:
 
       - name: Keine internen Adressen oder Zugangsdaten
         run: |
-          muster='192\.168\.|10\.[0-9]+\.[0-9]+\.[0-9]+|100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\.|\.ts\.net|evch\.audio'
-          if git grep -nIE "$muster" -- . ':(exclude).github/workflows/*'; then
-            echo "FEHLER: interne Adresse gefunden. Platzhalter verwenden."
+          # Hier stand einmal der Name des Icecast-Servers im Klartext — in genau der
+          # Datei, die interne Adressen verhindern soll, und vom eigenen Suchpfad
+          # ausgenommen, sodass der Waechter sich nicht selbst meldete. Deshalb jetzt
+          # ohne Namen: gesucht wird die FORM einer echten Adresse, und was erlaubt
+          # ist, steht als Ausnahmeliste daneben.
+          muster='192\.168\.|10\.[0-9]+\.[0-9]+\.[0-9]+|100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\.|\.ts\.net|(icecast|rtmp)://'
+          # Platzhalter und ausdrueckliche Beispieladressen (RFC 2606) sind in Ordnung.
+          erlaubt='://<|://[.…]|example[./]|\.invalid|\.test\b|a\.rtmp\.youtube\.com|startswith\("'"'"'icecast://|startswith\("icecast://"\)'
+          # Diesmal OHNE Ausnahme fuer das eigene Verzeichnis.
+          if git grep -nIE "$muster" -- . | grep -vE "$erlaubt"; then
+            echo "FEHLER: interne Adresse gefunden. Platzhalter <…> verwenden."
             exit 1
           fi
           echo "OK: keine internen Adressen."

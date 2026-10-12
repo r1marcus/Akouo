@@ -39,6 +39,12 @@ async def lifespan(app: FastAPI):
     monitor = asyncio.create_task(continuous_recorder.monitor_input())
     yield
     monitor.cancel()
+    # Die WAV-Kopfzeile schreiben, BEVOR der Eingang zugeht. Ohne das steht beim
+    # Entladen des Dienstes waehrend einer Aufnahme nframes=0 im Kopf — die Daten sind
+    # da, aber jeder Player sieht eine leere Datei. Der SIGTERM-Handler weiter unten
+    # kommt dafuer nicht in Frage: uvicorn setzt in capture_signals() einen eigenen
+    # und ueberschreibt ihn, er laeuft also nie.
+    continuous_recorder.emergency_close()
     continuous_recorder.close_input()
 
 
@@ -138,7 +144,10 @@ async def session_marker(req: MarkerRequest):
     result = continuous_recorder.place_marker(req.marker_type)
     if result["status"] == "error":
         # Distinguish "unknown type" (422) vs "not recording" (409)
-        if "Unknown marker type" in result["message"]:
+        # Der Vergleich lief frueher gegen "Unknown marker type" — die Meldung heisst
+        # seit der Umstellung auf die Datenbank "Unbekannte Beitragsart: …", der Zweig
+        # war also tot und es kam 409 statt 422.
+        if "Unbekannte Beitragsart" in result["message"]:
             raise HTTPException(status_code=422, detail=result["message"])
         raise HTTPException(status_code=409, detail=result["message"])
     return result
@@ -499,7 +508,16 @@ async def session_export(req: ExportRequest):
         raise HTTPException(status_code=404, detail=f"WAV not found: {wav}")
     mp3 = pathlib.Path(req.mp3_path) if req.mp3_path else wav.with_suffix(".mp3")
     # CPU-bound pydub call → run in thread to avoid blocking event loop (T-05-10)
-    result = await asyncio.to_thread(export_wav_to_mp3, wav, mp3)
+    result = await asyncio.to_thread(
+        export_wav_to_mp3, wav, mp3,
+        # Dieselben Werte wie beim Segment-Export. Ohne sie nahm der Gesamt-Export die
+        # Signatur-Vorgaben, und wer die Bitrate auf der Einstellungsseite aenderte, sah
+        # die Aenderung nur bei Segmenten. Benannt uebergeben: zwischen bitrate und
+        # fade_ms steht target_sample_rate, positionell landete der Pegel dort.
+        bitrate=laufzeit.EXPORT["bitrate"],
+        peak_dbfs=laufzeit.EXPORT["peak_dbfs"],
+        fade_ms=laufzeit.EXPORT["fade_ms"],
+    )
     return result
 
 
@@ -675,7 +693,10 @@ async def streaming_status():
     }
 
 
-# ─── SIGTERM handler — flush WAV header on launchd unload ──────────────────
+# ─── SIGTERM — Rueckfall fuer den Fall, dass die Lifespan nicht laeuft ─────
+# Beim Start unter uvicorn ueberschreibt dessen capture_signals() diesen Handler, und
+# das ist in Ordnung: Dann erledigt die Lifespan oben dieselbe Arbeit. Der Handler
+# bleibt fuer den Fall, dass main.py anders gestartet wird.
 def _on_sigterm(signum, frame):
     continuous_recorder.emergency_close()
 
@@ -685,4 +706,10 @@ _signal.signal(_signal.SIGTERM, _on_sigterm)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=config.api_port, log_level="info")
+    # timeout_graceful_shutdown ist nicht optional: Der Dienst haelt mit der
+    # Pegelanzeige (SSE) und dem Mithoerweg Dauerverbindungen offen. Ohne Zeitlimit
+    # wartet uvicorn beim Beenden darauf, bis launchd nach rund 20 s SIGKILL schickt —
+    # und dann laeuft auch die Lifespan nicht mehr zu Ende. Die API hat dasselbe
+    # Zeitlimit, siehe autostart/run-api.sh.template.
+    uvicorn.run(app, host="127.0.0.1", port=config.api_port, log_level="info",
+                timeout_graceful_shutdown=3)

@@ -28,6 +28,16 @@ WRAPPER="$HOME/run-akouo-api.sh"
 # immer eine vorhandene Datei, und nur eine frische Installation legt akouo.db an.
 if [ -n "${AKOUO_DB:-}" ]; then
     DB_PATH="$AKOUO_DB"
+elif [ -f "$REPO_DIR/data/akouo.db" ] && [ -f "$REPO_DIR/data/tontechnik.db" ]; then
+    # Zwei Datenbanken, und keine Regel sagt verlaesslich welche. Genau so entsteht der
+    # stille Unfall: "make db" ohne DATABASE_URL legt eine leere akouo.db an, der
+    # Installer bevorzugte sie, und die API startete ohne Aufnahmen — ohne Fehler.
+    echo "[DB]   FEHLER: data/akouo.db UND data/tontechnik.db liegen beide da."
+    echo "       Welche benutzt werden soll, muss gesagt werden:"
+    echo "         AKOUO_DB=$REPO_DIR/data/tontechnik.db bash autostart/install.sh"
+    echo "       Eine leere akouo.db entsteht durch 'alembic upgrade head' ohne"
+    echo "       DATABASE_URL — die darf dann weg."
+    exit 1
 elif [ -f "$REPO_DIR/data/akouo.db" ]; then
     DB_PATH="$REPO_DIR/data/akouo.db"
 elif [ -f "$REPO_DIR/data/tontechnik.db" ]; then

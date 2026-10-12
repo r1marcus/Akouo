@@ -8,12 +8,15 @@ Was als Nächstes gebaut werden soll, nach Nutzen sortiert. Was heute läuft, st
 Die Reihenfolge ist damit festgelegt, bis sie jemand ändert:
 
 1. **Aktivierung** (stand.md 1a) — zusammen mit dem Umstieg auf die `de.akouo.*`-Dienstnamen
-   und, im selben Zug, der Umbenennung des Verzeichnisses `audio-service` → `audio_service`.
-   Letzteres fasst Importe, Tests, Plists, Makefile, Installer und Doku gleichzeitig an und
-   gehört deshalb an einen Tag mit Luft, nicht an ein Gottesdienst-Wochenende.
-2. **`.env`-Bereich auf der Einstellungsseite**, mit Neustart-Knopf daneben — gesperrt, solange
+   und dem Zusammenführen der dreisprachigen Oberfläche. Der Ablauf steht vollständig in
+   [betrieb.md, Abschnitt 8a](betrieb.md) unter *Der erste Lauf*.
+2. **Umbenennung `audio-service` → `audio_service`** — danach, als eigener Schritt. Sie fasst
+   Importe, Tests, Plists, Makefile, Installer und Doku gleichzeitig an; mit in die Aktivierung
+   genommen, würde sie deren Befehle ungültig machen (`bash audio-service/install.sh` gibt es
+   danach nicht mehr). Erst aktivieren, prüfen, dann umbenennen.
+3. **`.env`-Bereich auf der Einstellungsseite**, mit Neustart-Knopf daneben — gesperrt, solange
    eine Aufnahme läuft. Danach ist nichts mehr ausschließlich über die Kommandozeile einstellbar.
-3. Dann die Punkte unten, in dieser Folge: **Programmblatt vorab einlesen** (Punkt 2),
+4. Dann die Punkte unten, in dieser Folge: **Programmblatt vorab einlesen** (Punkt 2),
    **Statusanzeige der Dienste** (Punkt 6), **Sprecher erkennen** (Punkt 4).
 
 **Bewusst zurückgestellt:** der **Zugriffsschutz** (Punkt 5). Das Dashboard bleibt vorerst ohne
