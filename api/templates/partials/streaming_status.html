@@ -1,0 +1,39 @@
+{# Context variables expected: status (str), elapsed_seconds (int|None), error_message (str|None), configured (bool) #}
+{# Defaults for initial server-side render (before HTMX polling starts) #}
+{# x-init syncs the dashboard's `streaming` flag with the real state on every poll #}
+{% set status = status | default('idle') %}
+{% set configured = configured | default(true) %}
+{% set elapsed_seconds = elapsed_seconds | default(None) %}
+{% set error_message = error_message | default(None) %}
+{% set target = target | default(None) %}
+{% set channels = channels | default(None) %}
+<div class="flex items-start gap-3" x-init="streaming = {{ 'true' if status == 'streaming' else 'false' }}">
+    <span class="mt-2.5 w-2.5 h-2.5 rounded-full shrink-0
+        {% if status == 'streaming' %}bg-emerald-500 animate-pulse shadow-[0_0_12px_2px_rgba(16,185,129,0.45)]
+        {% elif status == 'error' or not configured %}bg-amber-400
+        {% else %}bg-zinc-600{% endif %}">
+    </span>
+    <div class="min-w-0">
+        <div class="text-2xl font-semibold tracking-tight
+            {% if status == 'streaming' %}text-emerald-400
+            {% elif status == 'error' or not configured %}text-amber-400
+            {% else %}text-zinc-300{% endif %}">
+            {% if not configured %}Nicht konfiguriert
+            {% elif status == 'streaming' %}Live
+            {% elif status == 'error' %}Fehler
+            {% else %}Bereit{% endif %}
+        </div>
+        <div class="mt-0.5 text-sm text-zinc-500 break-words">
+            {% if not configured %}
+                <a href="/settings" class="underline underline-offset-4 hover:text-zinc-300">Stream-Ziel in den Einstellungen setzen</a>
+            {% elif status == 'streaming' %}
+                {% if elapsed_seconds %}<span class="font-mono tabular-nums">{{ '%02d:%02d' % (elapsed_seconds // 60, elapsed_seconds % 60) }}</span> auf Sendung{% else %}Auf Sendung{% endif %}
+            {% elif status == 'error' %}
+                {{ error_message or 'Unbekannter Fehler' }}
+            {% else %}
+                {% if target %}<span class="font-mono text-xs">{{ target }}</span>{% else %}Bereit zum Senden{% endif %}
+                {% if channels %} · Kanäle {{ channels | join('+') }}{% endif %}
+            {% endif %}
+        </div>
+    </div>
+</div>

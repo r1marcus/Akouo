@@ -1,0 +1,525 @@
+{% extends "base.html" %}
+{% block content %}
+{#
+  Einstellungsseite. Füllt sich selbst aus /api/konfiguration — kein serverseitiger
+  Zustand, dieselbe Bauart wie checkliste.html.
+
+  Die Zahlen- und Schalterfelder werden aus der Felderliste erzeugt, die der Server
+  mitliefert. Eine neue Einstellung braucht deshalb nur einen Eintrag in
+  api/einstellungen.py und kein neues Formular hier.
+#}
+<div class="max-w-3xl space-y-4"
+     x-data="einstellungen()" x-init="laden()">
+
+    <div class="flex items-baseline justify-between mb-6">
+        <h1 class="text-2xl font-semibold tracking-tight">Einstellungen</h1>
+        <span class="text-sm" :class="meldung.art === 'fehler' ? 'text-red-400' : 'text-emerald-400'"
+              x-text="meldung.text"></span>
+    </div>
+
+    <template x-if="!geladen">
+        <div class="card text-zinc-400">Wird geladen …</div>
+    </template>
+
+    <template x-if="geladen">
+    <div class="space-y-4">
+
+        {# ─── Werte aus der Registry, nach Bereich gruppiert ─────────────── #}
+        <template x-for="bereich in bereiche" :key="bereich">
+        <section class="card">
+            <div class="eyebrow mb-4" x-text="bereich"></div>
+            <div class="space-y-5">
+                <template x-for="feld in felderIn(bereich)" :key="feld.schluessel">
+                <div>
+                    {# Schalter #}
+                    <template x-if="feld.art === 'bool'">
+                        <div class="flex items-start justify-between gap-4">
+                            <div class="flex-1">
+                                <div class="text-sm text-zinc-100" x-text="feld.name"></div>
+                                <p class="mt-1 text-sm text-zinc-400" x-text="feld.hilfe"></p>
+                            </div>
+                            <button type="button" role="switch"
+                                    :aria-checked="werte[feld.schluessel] ? 'true' : 'false'"
+                                    @click="setzen(feld, !werte[feld.schluessel])"
+                                    class="relative shrink-0 w-14 h-8 rounded-full transition-colors"
+                                    :class="werte[feld.schluessel] ? 'bg-emerald-600' : 'bg-white/10'">
+                                <span class="absolute top-1 w-6 h-6 rounded-full bg-white transition-all"
+                                      :class="werte[feld.schluessel] ? 'left-7' : 'left-1'"></span>
+                            </button>
+                        </div>
+                    </template>
+
+                    {# Auswahl #}
+                    <template x-if="feld.art === 'auswahl'">
+                        <div>
+                            <label class="text-sm text-zinc-100" x-text="feld.name"></label>
+                            <p class="mt-1 mb-2 text-sm text-zinc-400" x-text="feld.hilfe"></p>
+                            <select class="field" :value="werte[feld.schluessel]"
+                                    @change="setzen(feld, $event.target.value)">
+                                <template x-for="w in feld.auswahl" :key="w">
+                                    <option :value="w" :selected="w === werte[feld.schluessel]" x-text="w"></option>
+                                </template>
+                            </select>
+                        </div>
+                    </template>
+
+                    {# Zahl und Text #}
+                    <template x-if="['int','float','text'].includes(feld.art)">
+                        <div>
+                            <label class="text-sm text-zinc-100">
+                                <span x-text="feld.name"></span>
+                                <span class="text-zinc-500" x-show="feld.einheit" x-text="feld.einheit"></span>
+                            </label>
+                            <p class="mt-1 mb-2 text-sm text-zinc-400" x-text="feld.hilfe"></p>
+                            <div class="flex gap-2">
+                                <input :type="feld.art === 'text' ? 'text' : 'number'"
+                                       :step="feld.art === 'float' ? 'any' : '1'"
+                                       :min="feld.von" :max="feld.bis"
+                                       :value="werte[feld.schluessel]"
+                                       @keydown.enter="setzen(feld, $event.target.value)"
+                                       @blur="setzen(feld, $event.target.value)"
+                                       class="field flex-1"
+                                       :class="feld.schluessel.startsWith('nas_vorlage') || feld.art === 'text' ? 'font-mono text-sm' : ''">
+                                <button type="button" class="btn bg-white/[0.06] text-zinc-300 hover:bg-white/10 shrink-0"
+                                        x-show="werte[feld.schluessel] != feld.standard"
+                                        @click="setzen(feld, feld.standard)"
+                                        title="Auf den Standardwert zurücksetzen">Standard</button>
+                            </div>
+                            <p class="mt-1 text-xs text-zinc-500" x-show="feld.von !== null">
+                                erlaubt: <span x-text="feld.von"></span> bis <span x-text="feld.bis"></span><span x-text="feld.einheit"></span>
+                            </p>
+
+                            {# Vorschau für NAS-Vorlagen: zeigt, welcher Ordner entsteht #}
+                            <template x-if="feld.schluessel.startsWith('nas_vorlage')">
+                                <div class="mt-2 text-xs space-y-1">
+                                    <button type="button" class="text-zinc-400 underline underline-offset-4 hover:text-zinc-100"
+                                            @click="vorschau(feld.schluessel, werte[feld.schluessel])">Ordner anzeigen</button>
+                                    <template x-if="vorschauen[feld.schluessel]">
+                                        <div class="font-mono" :class="vorschauen[feld.schluessel].gueltig ? 'text-zinc-400' : 'text-red-400'">
+                                            <template x-if="vorschauen[feld.schluessel].gueltig">
+                                                <div class="space-y-0.5">
+                                                    <div>mit Angaben: <span class="text-zinc-200" x-text="vorschauen[feld.schluessel].pfad"></span></div>
+                                                    <div>ohne: <span class="text-zinc-200" x-text="vorschauen[feld.schluessel].ohne_optionale"></span></div>
+                                                </div>
+                                            </template>
+                                            <template x-if="!vorschauen[feld.schluessel].gueltig">
+                                                <div x-text="vorschauen[feld.schluessel].fehler"></div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
+                    <p class="mt-1 text-xs text-amber-400/80" x-show="feld.wirkt === 'neustart'">
+                        Wirkt erst nach einem Dienst-Neustart.
+                    </p>
+                </div>
+                </template>
+            </div>
+
+            {# Platzhalter-Hilfe unter dem NAS-Bereich #}
+            <template x-if="bereich === 'NAS-Ablage'">
+                <details class="mt-5 text-sm">
+                    <summary class="cursor-pointer text-zinc-400 hover:text-zinc-100">Welche Platzhalter gibt es?</summary>
+                    <p class="mt-3 text-zinc-400" x-text="platzhalterHinweis"></p>
+                    <dl class="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+                        <template x-for="p in platzhalter" :key="p.name">
+                            <div class="contents">
+                                <dt class="font-mono text-zinc-300" x-text="'{' + p.name + '}'"></dt>
+                                <dd class="text-zinc-400" x-text="p.bedeutung"></dd>
+                            </div>
+                        </template>
+                    </dl>
+                </details>
+            </template>
+        </section>
+        </template>
+
+        {# ─── Gottesdienstarten ──────────────────────────────────────────── #}
+        <section class="card">
+            <div class="eyebrow mb-1">Gottesdienstarten</div>
+            <p class="mb-4 text-sm text-zinc-400">
+                Die Auswahl im Kopf jeder Seite. Bis zu vier davon erscheinen als große Kacheln
+                auf der Startseite. Ausblenden nimmt eine Art aus der Auswahl, ohne das Archiv
+                anzufassen.
+            </p>
+
+            <div class="flex flex-col gap-2">
+                <template x-for="a in arten" :key="a.id">
+                <div class="flex flex-wrap items-center gap-2 py-2 border-t border-white/5">
+                    <input type="text" :value="a.name" :disabled="a.geschuetzt"
+                           @blur="artAendern(a, {name: $event.target.value})"
+                           @keydown.enter="$event.target.blur()"
+                           class="field flex-1 min-w-40"
+                           :class="a.geschuetzt ? 'opacity-60 cursor-not-allowed' : ''"
+                           :title="a.geschuetzt ? 'Geschützt: an diesem Namen hängt Logik' : ''">
+
+                    <label class="flex items-center gap-1.5 text-sm text-zinc-400 shrink-0">
+                        <input type="checkbox" :checked="a.is_primary"
+                               @change="artAendern(a, {is_primary: $event.target.checked})"
+                               class="accent-emerald-600">
+                        Kachel
+                    </label>
+                    <label class="flex items-center gap-1.5 text-sm text-zinc-400 shrink-0">
+                        <input type="checkbox" :checked="a.active"
+                               @change="artAendern(a, {active: $event.target.checked})"
+                               class="accent-emerald-600">
+                        sichtbar
+                    </label>
+                    <button type="button" @click="sortieren('arten', a, -1)"
+                            class="btn bg-white/[0.06] text-zinc-300 hover:bg-white/10 shrink-0" title="nach oben">↑</button>
+                    <button type="button" @click="sortieren('arten', a, 1)"
+                            class="btn bg-white/[0.06] text-zinc-300 hover:bg-white/10 shrink-0" title="nach unten">↓</button>
+                    <button type="button" x-show="!a.geschuetzt" @click="artLoeschen(a)"
+                            class="btn bg-white/[0.06] text-red-400/80 hover:bg-red-500/10 shrink-0">Löschen</button>
+                    <span x-show="a.geschuetzt" class="text-xs text-zinc-500 shrink-0" title="An diesem Namen hängt Logik">geschützt</span>
+                </div>
+                </template>
+            </div>
+
+            <form @submit.prevent="artAnlegen()" class="flex gap-2 mt-4 pt-4 border-t border-white/5">
+                <input type="text" x-model="neueArt" placeholder="Neue Gottesdienstart, z.B. Jugendstunde"
+                       class="field flex-1">
+                <button type="submit" class="btn bg-zinc-100 text-zinc-900 hover:bg-white shrink-0">Hinzufügen</button>
+            </form>
+        </section>
+
+        {# ─── Beitragsarten ──────────────────────────────────────────────── #}
+        <section class="card">
+            <div class="eyebrow mb-1">Beitragsarten</div>
+            <p class="mb-4 text-sm text-zinc-400">
+                Die Track-Knöpfe während der Aufnahme. <span class="text-zinc-300">Klang</span> sagt der
+                Erkennung, ob der Typ zu gemessener Musik oder Sprache passt — leer heißt: wird nie von
+                selbst vorgeschlagen, nur auf Ansage oder von Hand. <span class="text-zinc-300">Anker</span>
+                bedeutet: hier gilt alles davor als erledigt.
+            </p>
+
+            <div class="flex flex-col gap-2">
+                <template x-for="b in beitraege" :key="b.id">
+                <div class="py-2 border-t border-white/5 space-y-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input type="text" :value="b.name" :disabled="b.geschuetzt"
+                               @blur="beitragAendern(b, {name: $event.target.value})"
+                               @keydown.enter="$event.target.blur()"
+                               class="field flex-1 min-w-40"
+                               :class="b.geschuetzt ? 'opacity-60 cursor-not-allowed' : ''"
+                               :title="b.geschuetzt ? 'Geschützt: der Name steht in den Ansage-Regeln oder dient als Anker' : ''">
+
+                        <select class="field w-36 shrink-0" @change="beitragAendern(b, {klang_klasse: $event.target.value})">
+                            <option value="" :selected="!b.klang_klasse">nur auf Ansage</option>
+                            <option value="musik" :selected="b.klang_klasse === 'musik'">Musik</option>
+                            <option value="sprache" :selected="b.klang_klasse === 'sprache'">Sprache</option>
+                        </select>
+
+                        <button type="button" @click="sortieren('beitraege', b, -1)"
+                                class="btn bg-white/[0.06] text-zinc-300 hover:bg-white/10 shrink-0">↑</button>
+                        <button type="button" @click="sortieren('beitraege', b, 1)"
+                                class="btn bg-white/[0.06] text-zinc-300 hover:bg-white/10 shrink-0">↓</button>
+                        <button type="button" x-show="!b.geschuetzt" @click="beitragLoeschen(b)"
+                                class="btn bg-white/[0.06] text-red-400/80 hover:bg-red-500/10 shrink-0">Löschen</button>
+                        <span x-show="b.geschuetzt" class="text-xs text-zinc-500 shrink-0">geschützt</span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-400 pl-1">
+                        <label class="flex items-center gap-1.5">
+                            <input type="checkbox" :checked="b.active" class="accent-emerald-600"
+                                   @change="beitragAendern(b, {active: $event.target.checked})"> Knopf sichtbar
+                        </label>
+                        <label class="flex items-center gap-1.5">
+                            <input type="checkbox" :checked="b.exportieren" class="accent-emerald-600"
+                                   @change="beitragAendern(b, {exportieren: $event.target.checked})"> im Sammel-Export
+                        </label>
+                        <label class="flex items-center gap-1.5">
+                            <input type="checkbox" :checked="b.anker" class="accent-emerald-600"
+                                   @change="beitragAendern(b, {anker: $event.target.checked})"> Anker
+                        </label>
+                        <label class="flex items-center gap-1.5">
+                            <input type="checkbox" :checked="b.auto_marker" class="accent-emerald-600"
+                                   @change="beitragAendern(b, {auto_marker: $event.target.checked})"> Automatik darf markieren
+                        </label>
+                        <span class="flex items-center gap-1.5">
+                            Dauer
+                            <input type="number" min="1" :value="b.dauer_min" placeholder="von"
+                                   @blur="beitragAendern(b, {dauer_min: $event.target.value ? +$event.target.value : null})"
+                                   class="field w-20 py-1 text-sm">
+                            <input type="number" min="1" :value="b.dauer_max" placeholder="bis"
+                                   @blur="beitragAendern(b, {dauer_max: $event.target.value ? +$event.target.value : null})"
+                                   class="field w-20 py-1 text-sm">
+                            Sekunden
+                        </span>
+                    </div>
+                </div>
+                </template>
+            </div>
+
+            <form @submit.prevent="beitragAnlegen()" class="flex flex-wrap gap-2 mt-4 pt-4 border-t border-white/5">
+                <input type="text" x-model="neuerBeitrag.name" placeholder="Neue Beitragsart, z.B. Posaunenchor"
+                       class="field flex-1 min-w-48">
+                <select x-model="neuerBeitrag.klang_klasse" class="field w-36 shrink-0">
+                    <option value="">nur auf Ansage</option>
+                    <option value="musik">Musik</option>
+                    <option value="sprache">Sprache</option>
+                </select>
+                <button type="submit" class="btn bg-zinc-100 text-zinc-900 hover:bg-white shrink-0">Hinzufügen</button>
+            </form>
+        </section>
+
+        {# ─── Ansage-Regeln ──────────────────────────────────────────────── #}
+        <section class="card">
+            <div class="eyebrow mb-1">Ansage-Regeln</div>
+            <p class="mb-4 text-sm text-zinc-400">
+                Woran die Automatik in einer Ansage erkennt, welcher Beitrag kommt. Die erste
+                passende Regel gewinnt. Jede Gemeinde sagt anders an — „unser Chor singt“ trifft
+                nicht überall. Muster vor dem Speichern ausprobieren.
+            </p>
+
+            <div class="flex flex-col gap-2">
+                <template x-for="r in regeln" :key="r.id">
+                <div class="flex flex-wrap items-center gap-2 py-2 border-t border-white/5">
+                    <input type="text" :value="r.muster"
+                           @blur="regelAendern(r, {muster: $event.target.value})"
+                           @keydown.enter="$event.target.blur()"
+                           class="field flex-1 min-w-48 font-mono text-sm">
+                    <select class="field w-44 shrink-0" @change="regelAendern(r, {marker_type: $event.target.value})">
+                        <template x-for="b in beitraege" :key="b.id">
+                            <option :value="b.name" :selected="b.name === r.marker_type" x-text="b.name"></option>
+                        </template>
+                    </select>
+                    <label class="flex items-center gap-1.5 text-sm text-zinc-400 shrink-0">
+                        <input type="checkbox" :checked="r.active" class="accent-emerald-600"
+                               @change="regelAendern(r, {active: $event.target.checked})"> aktiv
+                    </label>
+                    <button type="button" @click="sortieren('regeln', r, -1)"
+                            class="btn bg-white/[0.06] text-zinc-300 hover:bg-white/10 shrink-0">↑</button>
+                    <button type="button" @click="sortieren('regeln', r, 1)"
+                            class="btn bg-white/[0.06] text-zinc-300 hover:bg-white/10 shrink-0">↓</button>
+                    <button type="button" @click="regelLoeschen(r)"
+                            class="btn bg-white/[0.06] text-red-400/80 hover:bg-red-500/10 shrink-0">Löschen</button>
+                </div>
+                </template>
+            </div>
+
+            <div class="mt-4 pt-4 border-t border-white/5 space-y-2">
+                <div class="flex flex-wrap gap-2">
+                    <input type="text" x-model="neueRegel.muster" placeholder="Muster, z.B. \bposaunenchor\b"
+                           class="field flex-1 min-w-48 font-mono text-sm">
+                    <select x-model="neueRegel.marker_type" class="field w-44 shrink-0">
+                        <option value="">Beitragsart …</option>
+                        <template x-for="b in beitraege" :key="b.id">
+                            <option :value="b.name" x-text="b.name"></option>
+                        </template>
+                    </select>
+                    <button type="button" @click="regelAnlegen()"
+                            class="btn bg-zinc-100 text-zinc-900 hover:bg-white shrink-0">Hinzufügen</button>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <input type="text" x-model="probeText" placeholder="Beispielsatz zum Ausprobieren"
+                           class="field flex-1 min-w-48 text-sm">
+                    <button type="button" @click="probieren()"
+                            class="btn bg-white/[0.06] text-zinc-200 hover:bg-white/10 shrink-0">Probieren</button>
+                </div>
+                <p class="text-sm h-5" x-show="probe">
+                    <template x-if="probe && !probe.gueltig">
+                        <span class="text-red-400" x-text="probe.fehler"></span>
+                    </template>
+                    <template x-if="probe && probe.gueltig && probe.treffer">
+                        <span class="text-emerald-400">Treffer: <span class="font-mono" x-text="probe.treffer"></span></span>
+                    </template>
+                    <template x-if="probe && probe.gueltig && !probe.treffer">
+                        <span class="text-zinc-500">Kein Treffer in diesem Satz</span>
+                    </template>
+                </p>
+            </div>
+        </section>
+
+        {# ─── Checklisten ────────────────────────────────────────────────── #}
+        <section class="card">
+            <div class="eyebrow mb-1">Checklisten-Vorlagen</div>
+            <p class="mb-4 text-sm text-zinc-400">
+                Punkte anlegen, umbenennen und sortieren. Abgehakt wird vor dem Gottesdienst unter
+                <a href="/checkliste" class="underline underline-offset-4 hover:text-zinc-100">Checkliste</a>.
+            </p>
+            <a href="/checklists" class="btn bg-white/[0.06] text-zinc-100 hover:bg-white/10">Vorlagen bearbeiten</a>
+        </section>
+
+    </div>
+    </template>
+</div>
+
+<script>
+function einstellungen() {
+    return {
+        geladen: false,
+        werte: {}, felder: [], bereiche: [],
+        arten: [], beitraege: [], regeln: [],
+        platzhalter: [], platzhalterHinweis: '',
+        vorschauen: {}, probe: null, probeText: '',
+        neueArt: '', neuerBeitrag: {name: '', klang_klasse: ''}, neueRegel: {muster: '', marker_type: ''},
+        meldung: {text: '', art: 'ok'},
+
+        async laden() {
+            const r = await fetch('/api/konfiguration');
+            const d = await r.json();
+            this.werte = d.einstellungen;
+            this.felder = d.felder;
+            this.bereiche = [...new Set(d.felder.map(f => f.bereich))];
+            this.arten = d.gottesdienstarten;
+            this.beitraege = d.beitragsarten;
+            this.regeln = d.ansage_regeln;
+            const p = await (await fetch('/api/konfiguration/nas-platzhalter')).json();
+            this.platzhalter = p.platzhalter;
+            this.platzhalterHinweis = p.hinweis;
+            this.geladen = true;
+        },
+
+        felderIn(bereich) { return this.felder.filter(f => f.bereich === bereich); },
+
+        sagen(text, art = 'ok') {
+            this.meldung = {text, art};
+            if (art === 'ok') setTimeout(() => { this.meldung = {text: '', art: 'ok'}; }, 2500);
+        },
+
+        /* Eine Antwort auswerten: bei 4xx steht im detail ein Satz, der angezeigt werden
+           soll — die Schutzregeln erklären dort, warum etwas nicht geht. */
+        async pruefen(r, erfolg = 'Gespeichert') {
+            if (r.ok) { this.sagen(erfolg); return true; }
+            let text = 'Fehler ' + r.status;
+            try { const d = await r.json(); if (d.detail) text = d.detail; } catch (_) {}
+            this.sagen(text, 'fehler');
+            return false;
+        },
+
+        async setzen(feld, wert) {
+            const r = await fetch('/api/konfiguration/einstellung/' + feld.schluessel, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({value: String(wert)}),
+            });
+            if (await this.pruefen(r)) {
+                const d = await r.json();
+                this.werte[feld.schluessel] = d.wert;
+                if (feld.schluessel.startsWith('nas_vorlage')) this.vorschau(feld.schluessel, d.wert);
+            } else {
+                await this.laden();   // abgelehnten Wert nicht stehen lassen
+            }
+        },
+
+        async vorschau(schluessel, vorlage) {
+            const r = await fetch('/api/konfiguration/nas-vorschau', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({vorlage}),
+            });
+            this.vorschauen[schluessel] = r.ok ? await r.json()
+                : {gueltig: false, fehler: 'Vorschau nicht möglich'};
+        },
+
+        /* ─── Gottesdienstarten ─── */
+        async artAnlegen() {
+            if (!this.neueArt.trim()) return;
+            const r = await fetch('/api/konfiguration/gottesdienstarten', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: this.neueArt.trim()}),
+            });
+            if (await this.pruefen(r, 'Angelegt')) { this.neueArt = ''; await this.laden(); }
+        },
+        async artAendern(a, felder) {
+            if (felder.name !== undefined && felder.name === a.name) return;
+            const r = await fetch('/api/konfiguration/gottesdienstarten/' + a.id, {
+                method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(felder),
+            });
+            await this.pruefen(r); await this.laden();
+        },
+        async artLoeschen(a) {
+            if (!confirm('„' + a.name + '“ löschen?')) return;
+            const r = await fetch('/api/konfiguration/gottesdienstarten/' + a.id, {method: 'DELETE'});
+            await this.pruefen(r, 'Gelöscht'); await this.laden();
+        },
+
+        /* ─── Beitragsarten ─── */
+        async beitragAnlegen() {
+            if (!this.neuerBeitrag.name.trim()) return;
+            const r = await fetch('/api/konfiguration/beitragsarten', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    name: this.neuerBeitrag.name.trim(),
+                    klang_klasse: this.neuerBeitrag.klang_klasse,
+                }),
+            });
+            if (await this.pruefen(r, 'Angelegt')) {
+                this.neuerBeitrag = {name: '', klang_klasse: ''};
+                await this.laden();
+            }
+        },
+        async beitragAendern(b, felder) {
+            if (felder.name !== undefined && felder.name === b.name) return;
+            const r = await fetch('/api/konfiguration/beitragsarten/' + b.id, {
+                method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(felder),
+            });
+            await this.pruefen(r); await this.laden();
+        },
+        async beitragLoeschen(b) {
+            if (!confirm('„' + b.name + '“ löschen?')) return;
+            const r = await fetch('/api/konfiguration/beitragsarten/' + b.id, {method: 'DELETE'});
+            await this.pruefen(r, 'Gelöscht'); await this.laden();
+        },
+
+        /* ─── Ansage-Regeln ─── */
+        async regelAnlegen() {
+            if (!this.neueRegel.muster.trim() || !this.neueRegel.marker_type) return;
+            const r = await fetch('/api/konfiguration/ansage-regeln', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(this.neueRegel),
+            });
+            if (await this.pruefen(r, 'Angelegt')) {
+                this.neueRegel = {muster: '', marker_type: ''};
+                await this.laden();
+            }
+        },
+        async regelAendern(r0, felder) {
+            if (felder.muster !== undefined && felder.muster === r0.muster) return;
+            const r = await fetch('/api/konfiguration/ansage-regeln/' + r0.id, {
+                method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(felder),
+            });
+            await this.pruefen(r); await this.laden();
+        },
+        async regelLoeschen(r0) {
+            const r = await fetch('/api/konfiguration/ansage-regeln/' + r0.id, {method: 'DELETE'});
+            await this.pruefen(r, 'Gelöscht'); await this.laden();
+        },
+        async probieren() {
+            const muster = this.neueRegel.muster.trim();
+            if (!muster) { this.sagen('Erst ein Muster eintragen', 'fehler'); return; }
+            const r = await fetch('/api/konfiguration/ansage-regeln/probe', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({muster, text: this.probeText}),
+            });
+            this.probe = r.ok ? await r.json() : {gueltig: false, fehler: 'Probe nicht möglich'};
+        },
+
+        /* Umsortieren: Nachbarn tauschen die sort_order. Einfacher als Drag-and-drop und
+           auf einem Tablet mit Handschuhen zuverlässiger zu treffen. */
+        async sortieren(liste, zeile, richtung) {
+            const pfad = {arten: 'gottesdienstarten', beitraege: 'beitragsarten', regeln: 'ansage-regeln'}[liste];
+            const alle = this[liste];
+            const i = alle.findIndex(x => x.id === zeile.id);
+            const j = i + richtung;
+            if (j < 0 || j >= alle.length) return;
+            const a = alle[i], b = alle[j];
+            await fetch('/api/konfiguration/' + pfad + '/' + a.id, {
+                method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({sort_order: b.sort_order}),
+            });
+            await fetch('/api/konfiguration/' + pfad + '/' + b.id, {
+                method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({sort_order: a.sort_order}),
+            });
+            await this.laden();
+        },
+    };
+}
+</script>
+{% endblock %}

@@ -1,0 +1,79 @@
+Akouo
+Copyright 2026 Marcus Rüb
+
+Dieses Produkt enthält Software, die im Rahmen des Apache-License-2.0-Projekts
+entwickelt wurde (siehe LICENSE).
+
+────────────────────────────────────────────────────────────────────────────────
+Mitgelieferte Fremdsoftware
+────────────────────────────────────────────────────────────────────────────────
+
+Dieses Repository enthält folgende Dateien Dritter. Die vollständigen
+Lizenztexte und die übrigen Abhängigkeiten stehen in THIRD-PARTY-LICENSES.md.
+
+  Alpine.js 3.15.9 — MIT License
+  Copyright (c) 2019-2025 Caleb Porzio and contributors
+  api/static/alpine.min.js
+
+  htmx 2.0.7 — Zero-Clause BSD (0BSD)
+  Copyright (c) Big Sky Software
+  api/static/htmx.min.js
+
+  Tailwind CSS 4.2.2 (Build-Ergebnis) — MIT License
+  Copyright (c) Tailwind Labs, Inc.
+  api/static/app.css
+
+Die Python-Abhängigkeiten werden nicht mitgeliefert, sondern beim Einrichten von
+PyPI installiert (siehe requirements-Dateien).
+
+────────────────────────────────────────────────────────────────────────────────
+Externe Programme — nicht mitgeliefert
+────────────────────────────────────────────────────────────────────────────────
+
+FFmpeg
+  Akouo ruft FFmpeg als eigenständiges Programm über die Kommandozeile auf
+  (Subprozess mit Pipes) und bindet es nicht ein. FFmpeg wird nicht mitgeliefert,
+  sondern ist vom Betreiber zu installieren, üblicherweise über Homebrew. Das
+  Homebrew-Paket wird mit --enable-gpl gebaut und steht damit unter der GPL-2.0.
+  Wer Akouo in einem Paket weitergibt, das FFmpeg enthält (Docker-Image, DMG,
+  Installer, Release-Archiv), unterliegt für dieses Gesamtpaket den Bedingungen
+  der GPL. Das ist beim Verteilen zu beachten; für den normalen Betrieb nicht.
+
+whisper.cpp und Whisper-Modelle
+  whisper.cpp und ggml stehen unter der MIT License (Copyright (c) Georgi
+  Gerganov und Mitwirkende). Die Whisper-Modellgewichte von OpenAI, einschließlich
+  large-v3-turbo, stehen ebenfalls unter der MIT License. Beides wird nicht
+  mitgeliefert und nur über HTTP angesprochen.
+
+Ollama und Sprachmodelle
+  Ollama steht unter der MIT License. Die Modelle haben eigene Lizenzen, und die
+  sind nicht alle gleich:
+
+    qwen2.5:14b-instruct   Apache-2.0 — der Standard von Akouo
+    llama3.1:8b            Llama 3.1 Community License (Meta)
+    llama3.2               Llama 3.2 Community License (Meta)
+
+  Die Llama-Lizenzen sind keine OSI-anerkannten Open-Source-Lizenzen. Sie
+  verlangen unter anderem eine Nennung ("Built with Llama"), eine Namenskonvention
+  für abgeleitete Modelle und die Einhaltung einer Acceptable Use Policy. Wer
+  diese Modelle einsetzt, akzeptiert Metas Lizenzbedingungen. Akouo liefert keine
+  Modellgewichte aus; die Lizenzen binden den Betreiber, nicht diesen Quellcode.
+  Wer das vermeiden will, setzt OLLAMA_MODELS auf ausschließlich Apache-2.0-
+  lizenzierte Modelle.
+
+PortAudio
+  Wird über die sounddevice-Wheels von PyPI mitinstalliert und steht unter einer
+  MIT-artigen Lizenz. Copyright (c) 1999-2006 Ross Bencina und Phil Burk.
+
+────────────────────────────────────────────────────────────────────────────────
+Marken
+────────────────────────────────────────────────────────────────────────────────
+
+Focusrite® ist eine Marke der Focusrite plc. Dante® ist eine Marke der Audinate
+Pty Ltd. Synology® ist eine Marke der Synology Inc. YouTube™ ist eine Marke von
+Google LLC. Apple®, macOS® und Safari® sind Marken der Apple Inc. Icecast ist ein
+Projekt der Xiph.Org Foundation. Shelly® ist eine Marke der Allterco Robotics.
+
+Alle Marken werden ausschließlich beschreibend verwendet, um Kompatibilität zu
+benennen. Dieses Projekt steht in keiner Verbindung zu den genannten Unternehmen
+und wird von ihnen weder unterstützt noch gesponsert.

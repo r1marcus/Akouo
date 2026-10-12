@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{#
+  Archiv: alte Aufnahmen wieder öffnen.
+
+  Bewusst deutlich von der laufenden Aufnahme getrennt — wer hier etwas anfasst,
+  arbeitet an Vergangenem. Die Automatik rührt diese Aufnahmen nie an.
+#}
+
+{% block content %}
+<div x-data="archiv()" x-init="load()" class="space-y-4">
+
+    <section class="card">
+        <div class="flex flex-wrap items-baseline justify-between gap-3">
+            <div>
+                <div class="eyebrow">Archiv</div>
+                <h1 class="mt-1 text-2xl font-semibold tracking-tight text-zinc-100">Frühere Aufnahmen</h1>
+            </div>
+            <span class="text-sm text-zinc-500" x-show="aufnahmen.length" x-cloak
+                  x-text="aufnahmen.length + ' Aufnahmen'"></span>
+        </div>
+        <p class="mt-3 text-sm text-zinc-500">
+            Marker prüfen, Typen korrigieren, einzelne Segmente nachexportieren. Die Automatik
+            fasst diese Aufnahmen nicht an.
+        </p>
+    </section>
+
+    <div x-show="fehler" x-cloak
+         class="flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/[0.07] px-4 py-3 text-sm">
+        <span class="mt-1.5 w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+        <span class="flex-1" x-text="fehler"></span>
+    </div>
+
+    <section class="card" x-show="geladen && !aufnahmen.length" x-cloak>
+        <p class="text-sm text-zinc-400">Noch keine abgeschlossenen Aufnahmen.</p>
+    </section>
+
+    <section class="card" x-show="aufnahmen.length" x-cloak>
+        <ul class="divide-y divide-white/5">
+            <template x-for="a in aufnahmen" :key="a.id">
+                <li>
+                    <button type="button" @click="oeffnen(a)"
+                            class="w-full min-h-16 flex flex-wrap items-center justify-between gap-x-4 gap-y-1
+                                   px-2 py-3 text-left rounded-xl hover:bg-white/[0.03] active:bg-white/[0.06]"
+                            :class="offen === a.id && 'bg-white/[0.04]'">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-baseline gap-x-3">
+                                <span class="font-medium text-zinc-100" x-text="a.gottesdienst"></span>
+                                <span x-show="a.thema" x-cloak class="text-zinc-400" x-text="a.thema"></span>
+                                <span class="font-mono text-xs text-zinc-500" x-text="datum(a.begonnen)"></span>
+                            </div>
+                            <div class="mt-0.5 text-xs text-zinc-500">
+                                <span x-text="dauer(a.dauer_s)"></span>
+                                <span x-text="' · ' + a.beitraege + ' Beiträge'"></span>
+                                <span x-show="a.exporte" x-cloak x-text="' · ' + a.exporte + ' MP3s'"></span>
+                                <span x-show="!a.aufnahme_da" x-cloak class="text-amber-400">
+                                    · Aufnahmedatei fehlt, kein Export möglich
+                                </span>
+                            </div>
+                        </div>
+                        <span class="text-zinc-600" x-text="offen === a.id ? '▾' : '›'"></span>
+                    </button>
+
+                    {# Segmente derselben Karte wie im Dashboard — per HTMX nachgeladen #}
+                    <div x-show="offen === a.id" x-cloak class="pb-3" :id="'archiv-' + a.id"></div>
+                </li>
+            </template>
+        </ul>
+    </section>
+</div>
+
+<script>
+function archiv() {
+  return {
+    aufnahmen: [],
+    geladen: false,
+    offen: null,
+    fehler: null,
+
+    async load() {
+      try {
+        const r = await fetch('/api/sessions/archiv');
+        if (!r.ok) throw new Error('Fehler ' + r.status);
+        this.aufnahmen = (await r.json()).aufnahmen || [];
+      } catch (e) {
+        this.fehler = 'Archiv laden fehlgeschlagen: ' + e.message;
+      } finally {
+        this.geladen = true;
+      }
+    },
+
+    datum(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return d.toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit', year: 'numeric'})
+           + ' ' + d.toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'});
+    },
+    dauer(s) {
+      if (!s) return 'keine Dauer';
+      return Math.floor(s / 60) + ' Minuten';
+    },
+
+    oeffnen(a) {
+      if (this.offen === a.id) { this.offen = null; return; }
+      this.offen = a.id;
+      // Die Segment-Karte des Dashboards wiederverwenden statt sie nachzubauen
+      this.$nextTick(() => {
+        htmx.ajax('GET', `/api/sessions/${a.id}/segments`,
+                  {target: `#archiv-${a.id}`, swap: 'innerHTML'});
+      });
+    },
+  };
+}
+</script>
+{% endblock %}

@@ -1,0 +1,153 @@
+{# Phase 7: Per-session segment review + export buttons (EXP-01, EXP-02). #}
+{# Rendered by GET /api/sessions/{id}/segments and re-rendered by POST .../export when HX-Request. #}
+<section id="segment-review-{{ session_id }}" class="card"
+         x-data="{
+            running: false,
+            done: 0,
+            insights: {},          // marker_id -> {title, summary, bible_refs, keywords, speaker}
+            busyInsight: null,
+            {# Gemeindegesang, Gebet, Ansagen sind markiert, gehören aber nicht ins
+               Archiv — der Sammel-Export lässt sie aus, einzeln geht weiterhin. #}
+            ids: {{ segments | selectattr('exportieren') | map(attribute='marker_id') | list | tojson }},
+            async loadInsights() {
+                try {
+                    const r = await fetch('/api/sessions/{{ session_id }}/insights');
+                    if (!r.ok) return;
+                    for (const row of await r.json()) this.insights[row.marker_id] = row;
+                } catch (_) { /* offline-first */ }
+            },
+            async analyse(markerId) {
+                this.busyInsight = markerId;
+                try {
+                    const r = await fetch(`/api/sessions/{{ session_id }}/segments/${markerId}/insights`, {method: 'POST'});
+                    const d = await r.json().catch(() => ({}));
+                    if (!r.ok) {
+                        window.dispatchEvent(new CustomEvent('toast', {detail: 'KI-Auswertung: ' + (d.detail || r.status)}));
+                        return;
+                    }
+                    this.insights[markerId] = d;
+                } catch (e) {
+                    window.dispatchEvent(new CustomEvent('toast', {detail: 'KI-Auswertung: ' + e.message}));
+                } finally {
+                    this.busyInsight = null;
+                }
+            },
+            async exportAll() {
+                this.running = true;
+                this.done = 0;
+                for (const id of this.ids) {
+                    try {
+                        await fetch(`/api/sessions/{{ session_id }}/segments/${id}/export`, {method: 'POST'});
+                    } catch (e) { /* keep going, the list shows what worked */ }
+                    this.done++;
+                }
+                this.running = false;
+                htmx.ajax('GET', '/api/sessions/{{ session_id }}/segments',
+                          {target: '#segment-review-{{ session_id }}', swap: 'outerHTML'});
+            }
+         }"
+         x-init="loadInsights()">
+  {% set nicht_export = segments | rejectattr('exportieren') | list | length %}
+  <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-3">
+    <div>
+      <div class="eyebrow">Segmente exportieren</div>
+      <p class="mt-1 text-sm text-zinc-400">Session #{{ session_id }} · {{ service_type }}</p>
+    </div>
+    <div class="flex items-center gap-2">
+    {% if segments %}
+    <button hx-post="/api/sessions/{{ session_id }}/segments/refine"
+            hx-target="#segment-review-{{ session_id }}"
+            hx-swap="outerHTML"
+            :disabled="running"
+            class="btn min-h-9 px-4 text-sm bg-white/[0.06] text-zinc-200 hover:bg-white/10">
+      Kanten korrigieren
+    </button>
+    <button @click="exportAll()" :disabled="running"
+            class="btn min-h-9 px-4 text-sm bg-zinc-100 text-zinc-900 hover:bg-white">
+      <span x-text="running ? `Schneide ${done}/${ids.length}…`
+                            : ('Alle exportieren' + ({{ nicht_export }} ? ' ({{ nicht_export }} übersprungen)' : ''))">Alle exportieren</span>
+    </button>
+    {% endif %}
+    <button hx-get="/api/sessions/{{ session_id }}/segments"
+            hx-target="#segment-review-{{ session_id }}"
+            hx-swap="outerHTML"
+            class="btn min-h-9 px-3 text-sm bg-white/[0.06] text-zinc-300 hover:bg-white/10">Aktualisieren</button>
+    </div>
+  </div>
+
+  {% if not segments %}
+    <p class="text-sm text-zinc-500">Keine Marker in dieser Session — keine Segmente zu exportieren.</p>
+  {% else %}
+    <ul class="divide-y divide-white/5">
+      {% for seg in segments %}
+        <li class="py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2
+                   {% if not seg.exportieren %}opacity-55{% endif %}">
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-baseline gap-x-3 min-w-0">
+              <span class="font-mono text-xs text-zinc-600">{{ "%02d"|format(seg.index) }}</span>
+              <span class="font-medium text-zinc-100">{{ seg.marker_type }}</span>
+              {% if not seg.exportieren %}
+              <span class="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-zinc-400">
+                nur dokumentiert
+              </span>
+              {% endif %}
+              <span class="font-mono text-xs text-zinc-500 tabular-nums">
+                {{ "%.1f"|format(seg.start_seconds) }}s – {{ "%.1f"|format(seg.end_seconds) }}s
+                · {{ "%.1f"|format(seg.duration_seconds) }}s
+              </span>
+            </div>
+            {% if seg.export %}
+              <div class="mt-1 text-xs truncate
+                          {% if seg.export.nas_status == 'uploaded' %}text-emerald-400
+                          {% elif seg.export.nas_status == 'failed' %}text-red-400
+                          {% else %}text-zinc-500{% endif %}">
+                <span class="font-mono">{{ seg.export.mp3_filename }}</span>
+                — NAS:
+                {% if seg.export.nas_status == 'uploaded' %}
+                  hochgeladen{% if seg.export.uploaded_at %} ({{ seg.export.uploaded_at }}){% endif %}
+                {% elif seg.export.nas_status == 'failed' %}
+                  Fehler: {{ seg.export.nas_error }}
+                {% elif seg.export.nas_status == 'skipped' %}
+                  übersprungen (nicht konfiguriert)
+                {% else %}
+                  {{ seg.export.nas_status }}
+                {% endif %}
+              </div>
+            {% endif %}
+            <template x-if="insights[{{ seg.marker_id }}]">
+              <div class="mt-2 rounded-xl bg-white/[0.03] px-3 py-2 text-sm">
+                <div class="font-medium text-zinc-100" x-text="insights[{{ seg.marker_id }}].title || 'ohne Titel'"></div>
+                <p class="mt-1 text-zinc-400" x-text="insights[{{ seg.marker_id }}].summary"></p>
+                <div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                  <template x-for="ref in insights[{{ seg.marker_id }}].bible_refs" :key="ref">
+                    <span class="rounded-full bg-sky-500/15 text-sky-200 px-2 py-0.5" x-text="ref"></span>
+                  </template>
+                  <template x-for="word in insights[{{ seg.marker_id }}].keywords" :key="word">
+                    <span class="rounded-full bg-white/[0.06] text-zinc-400 px-2 py-0.5" x-text="word"></span>
+                  </template>
+                  <span x-show="insights[{{ seg.marker_id }}].speaker" class="text-zinc-500"
+                        x-text="'Sprecher: ' + insights[{{ seg.marker_id }}].speaker"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+          <button @click="analyse({{ seg.marker_id }})" :disabled="busyInsight !== null"
+                  class="btn min-h-10 px-3 text-sm bg-white/[0.06] text-zinc-300 hover:bg-white/10">
+            <span x-text="busyInsight === {{ seg.marker_id }} ? 'Denkt…' : (insights[{{ seg.marker_id }}] ? 'Neu auswerten' : 'KI-Auswertung')">KI-Auswertung</span>
+          </button>
+          <button hx-post="/api/sessions/{{ session_id }}/segments/{{ seg.marker_id }}/export"
+                  hx-target="#segment-review-{{ session_id }}"
+                  hx-swap="outerHTML"
+                  hx-indicator="#seg-spin-{{ seg.marker_id }}"
+                  class="btn shrink-0 min-h-10 px-4 text-sm
+                         {% if seg.export %}bg-white/[0.06] text-zinc-200 hover:bg-white/10{% else %}bg-zinc-100 text-zinc-900 hover:bg-white{% endif %}">
+            <span class="htmx-indicator inline-block" id="seg-spin-{{ seg.marker_id }}">…</span>
+            {% if seg.export %}Erneut exportieren{% else %}Exportieren{% endif %}
+          </button>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</section>

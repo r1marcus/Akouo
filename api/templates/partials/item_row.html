@@ -1,0 +1,48 @@
+<li x-data="{ editing: false }" class="flex items-center gap-2 rounded-xl bg-white/[0.03] pl-4 pr-1.5 py-1.5">
+    <span x-show="!editing" class="flex-1 text-sm text-zinc-200">{{ item.text }}</span>
+    <form x-show="editing" class="flex-1 flex gap-2"
+          hx-patch="/api/checklists/items/{{ item.id }}"
+          hx-target="closest section"
+          hx-swap="outerHTML">
+        <input type="text" name="text" value="{{ item.text }}" class="field flex-1 min-h-10 text-sm" x-ref="editInput" />
+        <button type="submit" class="btn min-h-10 px-3 text-sm bg-zinc-100 text-zinc-900">OK</button>
+        <button type="button" @click="editing = false" class="btn min-h-10 px-3 text-sm bg-white/[0.06] text-zinc-300">✕</button>
+    </form>
+    <button type="button" x-show="!editing"
+            @click="editing = true; $nextTick(() => $refs.editInput.focus())"
+            class="w-10 h-10 flex items-center justify-center rounded-lg text-zinc-500
+                   hover:bg-white/[0.06] hover:text-zinc-100 active:scale-95 transition"
+            title="Bearbeiten">
+        ✎
+    </button>
+    <button type="button" x-show="!editing"
+            hx-post="/api/checklists/items/{{ item.id }}/move"
+            hx-vals="direction=up"
+            hx-target="closest section"
+            hx-swap="outerHTML"
+            class="w-10 h-10 flex items-center justify-center rounded-lg text-zinc-500
+                   hover:bg-white/[0.06] hover:text-zinc-100 active:scale-95 transition"
+            title="Nach oben">
+        ↑
+    </button>
+    <button type="button"
+            hx-post="/api/checklists/items/{{ item.id }}/move"
+            hx-vals="direction=down"
+            hx-target="closest section"
+            hx-swap="outerHTML"
+            class="w-10 h-10 flex items-center justify-center rounded-lg text-zinc-500
+                   hover:bg-white/[0.06] hover:text-zinc-100 active:scale-95 transition"
+            title="Nach unten">
+        ↓
+    </button>
+    <button type="button"
+            hx-delete="/api/checklists/items/{{ item.id }}"
+            hx-target="closest section"
+            hx-swap="outerHTML"
+            hx-confirm="Element löschen?"
+            class="w-10 h-10 flex items-center justify-center rounded-lg text-red-400/80
+                   hover:bg-red-500/10 hover:text-red-400 active:scale-95 transition"
+            title="Löschen">
+        ✕
+    </button>
+</li>

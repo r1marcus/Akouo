@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block content %}
+<script>
+function dashboard() {
+    return {
+        streaming: false,
+        toast: null,
+        toastTimer: null,
+
+        notify(msg) {
+            this.toast = msg;
+            clearTimeout(this.toastTimer);
+            this.toastTimer = setTimeout(() => { this.toast = null; }, 6000);
+        },
+
+        errorDetail(xhr) {
+            try { return JSON.parse(xhr.response).detail || 'Fehler ' + xhr.status; }
+            catch (_) { return 'Fehler ' + xhr.status; }
+        },
+
+        // Starts recording with the service selected in the header — no dialog.
+        async startSession() {
+            const svc = Alpine.store('service');
+            if (!svc.current) { svc.openPicker(); return; }
+            const c = svc.current;
+            try {
+                const resp = await fetch('/api/sessions/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        service_type: c.service_type,
+                        couple_name: c.couple_name || null,
+                        wedding_part: c.wedding_part || null,
+                        thema: c.thema || null,
+                    }),
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    window.dispatchEvent(new CustomEvent('session:started', {detail: data}));
+                    svc.load();
+                } else {
+                    const err = await resp.json().catch(() => ({}));
+                    this.notify('Aufnahme konnte nicht starten: ' + (err.detail || 'Fehler ' + resp.status));
+                }
+            } catch (e) {
+                this.notify('Netzwerkfehler beim Starten: ' + e.message);
+            }
+        },
+    };
+}
+
+function checklistBadge() {
+    return {
+        total: 0,
+        open: 0,
+        get done() { return this.total - this.open; },
+        async load() {
+            try {
+                const d = await fetch('/api/checklists/active').then(r => r.json());
+                const items = d.items || [];
+                this.total = items.length;
+                this.open = items.filter(i => !i.checked).length;
+            } catch (_) { /* offline-first: no line rather than an error */ }
+        },
+    };
+}
+</script>
+
+{# Checklisten-Rest auf dem Dashboard: eine Zeile, mehr nicht. Die Punkte selbst stehen
+   unter /checkliste. Lädt einmal und beim Zurückkommen auf den Tab. #}
+<div x-data="checklistBadge()" x-init="load()" @focus.window="load()"
+     x-show="total > 0" x-cloak class="mb-4">
+    <a href="/checkliste"
+       class="flex items-center gap-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] transition-colors px-4 py-2.5">
+        <span class="eyebrow shrink-0">Checkliste</span>
+        <span class="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+            <span class="block h-full rounded-full transition-all duration-500"
+                  :class="open === 0 ? 'bg-emerald-500' : 'bg-amber-400'"
+                  :style="'width: ' + (total ? (done / total * 100) : 0) + '%'"></span>
+        </span>
+        <span x-show="open === 0" class="text-sm font-medium text-emerald-400">Alles erledigt</span>
+        <span x-show="open > 0" x-cloak class="font-mono text-sm tabular-nums text-zinc-300">
+            <span x-text="done"></span><span class="text-zinc-600">/</span><span x-text="total"></span>
+        </span>
+        <span class="text-zinc-600">›</span>
+    </a>
+</div>
+
+<div x-data="dashboard()"
+     @toast.window="notify($event.detail)"
+     class="grid gap-4 lg:grid-cols-3">
+
+    {# Aufnahme + Stream side by side, track & marker full width below — all three share one
+       sessionPanel() scope. display:contents keeps the cards direct grid children. #}
+    <div x-data="sessionPanel()" style="display: contents">
+
+    {# AUFNAHME — status, timers, level meter, transport #}
+    {% include "partials/session_section.html" %}
+
+    <!-- STREAM -->
+    <section class="card flex flex-col lg:self-start">
+        <div class="flex items-center justify-between">
+            <div class="eyebrow">Stream</div>
+            <a href="/settings" class="text-xs text-zinc-500 hover:text-zinc-300">Ziel ändern</a>
+        </div>
+        <div id="streaming-status" class="mt-4"
+             hx-get="/api/streaming/status"
+             hx-trigger="every 2s"
+             hx-swap="innerHTML">
+            {% include "partials/streaming_status.html" %}
+        </div>
+        <div class="mt-5">
+            <button x-show="!streaming"
+                    hx-post="/api/streaming/start"
+                    hx-target="#streaming-status"
+                    hx-swap="innerHTML"
+                    @htmx:response-error="notify('Stream konnte nicht starten: ' + errorDetail($event.detail.xhr))"
+                    class="btn w-full min-h-14 text-base bg-emerald-600 text-white hover:bg-emerald-500">
+                <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9.5-5.5z"/></svg>
+                Stream starten
+            </button>
+            <button x-show="streaming" x-cloak
+                    hx-post="/api/streaming/stop"
+                    hx-target="#streaming-status"
+                    hx-swap="innerHTML"
+                    @htmx:response-error="notify('Stream konnte nicht stoppen: ' + errorDetail($event.detail.xhr))"
+                    class="btn w-full min-h-14 text-base bg-white/[0.06] text-zinc-100 hover:bg-white/10">
+                <span class="w-3 h-3 rounded-sm bg-zinc-300"></span>
+                Stream stoppen
+            </button>
+        </div>
+    </section>
+
+    {# TRACK & MARKER — full width under the two control cards #}
+    {% include "partials/track_marker_section.html" %}
+
+    </div>{# /sessionPanel scope #}
+
+    {# Live-Transkript — direkt über der Checkliste #}
+    {% include "partials/transcript_section.html" %}
+
+    {# Phase 7: segment review host — populated after session stop via HTMX trigger #}
+    <div id="segment-review-host" class="lg:col-span-3 empty:hidden"
+         hx-get="/api/sessions/latest-stopped/segments"
+         hx-trigger="load delay:500ms, every 30s, session:stopped from:window delay:1s"
+         hx-target="this"
+         hx-swap="innerHTML"></div>
+
+    <!-- Toast for errors -->
+    <div x-show="toast" x-cloak x-transition.opacity
+         class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md
+                flex items-start gap-3 rounded-2xl border border-red-500/20 bg-zinc-900/95 backdrop-blur
+                px-4 py-3 text-sm text-zinc-100 shadow-2xl">
+        <span class="mt-1.5 w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+        <span class="flex-1" x-text="toast"></span>
+        <button @click="toast = null" class="text-zinc-500 hover:text-zinc-200" aria-label="Schließen">✕</button>
+    </div>
+</div>
+{% endblock %}

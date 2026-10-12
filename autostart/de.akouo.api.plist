@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Web-API und Dashboard (Port 8000).
+
+  LaunchDaemon, nicht LaunchAgent: die API braucht keine Benutzersitzung und soll
+  schon vor der Anmeldung laufen. Der Audio-Dienst dagegen ist ein LaunchAgent,
+  weil er fuer den Mikrofonzugriff eine Sitzung braucht.
+
+  Die Platzhalter setzt autostart/install.sh ein. Ziel:
+  /Library/LaunchDaemons/de.akouo.api.plist  (braucht sudo)
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>de.akouo.api</string>
+
+    <key>UserName</key>
+    <string>RUN_AS_USER_PLACEHOLDER</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>WRAPPER_PLACEHOLDER</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>REPO_DIR_PLACEHOLDER</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>LOG_FILE_PLACEHOLDER</string>
+
+    <key>StandardErrorPath</key>
+    <string>LOG_FILE_PLACEHOLDER</string>
+</dict>
+</plist>

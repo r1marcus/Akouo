@@ -1,0 +1,168 @@
+<!-- Track & Marker (UI-07, REC-08) — full-width row below the Aufnahme/Stream controls. -->
+<!-- Runs in the sessionPanel() scope opened by dashboard.html, not its own x-data. -->
+<section class="card lg:col-span-3"
+         x-show="state === 'recording' || state === 'paused' || markers.length > 0" x-cloak>
+
+  <!-- Level curve of the whole session: track regions, boundaries, playhead -->
+  <div x-show="levels.length > 0" x-cloak class="mb-5">
+    <div class="mb-2 flex items-center justify-between">
+      <span class="eyebrow">Verlauf</span>
+      <span class="font-mono text-[10px] text-zinc-600"
+            x-text="formatTime(Math.round(levels.length * levelBlock))"></span>
+    </div>
+    <canvas x-ref="band" class="block w-full h-14 rounded-lg bg-white/[0.02]"></canvas>
+  </div>
+
+  <!-- Track aufnehmen: großer Start, Typ danach, dann Ende (REC-08) -->
+  <div x-show="state === 'recording' || state === 'paused'" x-cloak>
+
+    <!-- 1. kein Track läuft -->
+    <template x-if="!openMarker()">
+      <button @click="startTrack()" :disabled="busyTrack"
+              class="btn w-full min-h-16 text-lg bg-sky-500 text-zinc-950 hover:bg-sky-400">
+        <span class="w-3.5 h-3.5 rounded-full bg-zinc-900"></span>
+        <span x-text="busyTrack ? 'Moment…' : 'Track starten'">Track starten</span>
+      </button>
+    </template>
+
+    <!-- 2. Track läuft, Typ noch offen -->
+    <template x-if="openMarker() && openMarker().marker_type === 'Unbenannt'">
+      <div class="rounded-2xl bg-sky-500/10 ring-1 ring-inset ring-sky-500/20 p-4">
+        <div class="flex items-baseline justify-between gap-3 mb-3">
+          <span class="eyebrow text-sky-300">Läuft seit
+            <span class="font-mono" x-text="formatTime(elapsed - Math.floor(openMarker().placed_at_ts))"></span>
+            — was ist es?
+          </span>
+          <span x-show="pendingTracks.length" class="text-xs text-sky-300/80"
+                x-text="'Vorschlag: ' + pendingTracks[0]"></span>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <template x-for="t in markerTypes" :key="t">
+            <button @click="setTrackType(t)" :disabled="busyTrack"
+                    :class="pendingTracks[0] === t
+                        ? 'bg-sky-500 text-zinc-950 hover:bg-sky-400 border-transparent'
+                        : 'bg-white/[0.06] text-zinc-100 border-white/10 hover:bg-white/[0.12]'"
+                    class="btn min-h-12 px-3 text-sm border" x-text="t"></button>
+          </template>
+        </div>
+        <button @click="endTrack()" :disabled="busyTrack"
+                class="btn w-full min-h-12 mt-3 text-sm bg-white/[0.06] text-zinc-300 hover:bg-white/10">
+          Track beenden (ohne Typ)
+        </button>
+      </div>
+    </template>
+
+    <!-- 3. Track läuft und ist benannt -->
+    <template x-if="openMarker() && openMarker().marker_type !== 'Unbenannt'">
+      <div class="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl bg-sky-500/10 ring-1 ring-inset ring-sky-500/20 p-4">
+        <div class="flex-1 min-w-0">
+          <div class="eyebrow text-sky-300">Track läuft</div>
+          <div class="mt-1 flex items-baseline gap-3">
+            <span class="text-xl font-semibold truncate" x-text="openMarker().marker_type"></span>
+            <span class="font-mono tabular-nums text-zinc-300"
+                  x-text="formatTime(elapsed - Math.floor(openMarker().placed_at_ts + (openMarker().start_nudge || 0)))"></span>
+          </div>
+        </div>
+        <button @click="endTrack()" :disabled="busyTrack"
+                class="btn min-h-14 px-6 text-base bg-sky-500 text-zinc-950 hover:bg-sky-400">
+          <span class="w-3 h-3 rounded-sm bg-zinc-900"></span>
+          <span x-text="busyTrack ? 'Moment…' : 'Track beenden'">Track beenden</span>
+        </button>
+      </div>
+    </template>
+  </div>
+
+  <!-- Was die Automatik gerade sieht: laufende Einschätzung und Übergangenes -->
+  <div x-show="auto.aktiv" x-cloak class="mb-5 rounded-2xl bg-emerald-500/[0.07] ring-1 ring-inset ring-emerald-500/20 p-4">
+    <template x-if="autoOffen()">
+      <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span class="eyebrow text-emerald-300">Automatik hört</span>
+        <span class="font-medium text-zinc-100" x-text="autoOffen().typ"></span>
+        <span class="text-sm text-zinc-400"
+              x-text="autoOffen().klasse + ' · ' + Math.round(autoOffen().sicherheit * 100) + '% sicher'
+                      + (autoOffen().quelle === 'ansage' ? ' · laut Ansage' : '')"></span>
+        <span x-show="autoOffen().liednummer" x-cloak class="text-sm text-zinc-400"
+              x-text="'Lied ' + autoOffen().liednummer"></span>
+        <span x-show="autoOffen().alternativen.length" x-cloak class="text-xs text-zinc-500"
+              x-text="'sonst: ' + autoOffen().alternativen.join(', ')"></span>
+      </div>
+    </template>
+    <template x-if="!autoOffen()">
+      <div class="eyebrow text-emerald-300/70">Automatik läuft — wartet auf den nächsten Beitrag</div>
+    </template>
+    <!-- Was angesagt wurde und noch aussteht. Bewusst nur zur Ansicht: die
+         Zuordnung zu erkannten Beiträgen war im Test durchgehend verschoben. -->
+    <template x-if="(auto.programm || []).filter(e => !e.erledigt).length">
+      <div class="mt-3 border-t border-white/5 pt-2">
+        <div class="eyebrow text-emerald-300/70 mb-1">Angesagt, steht noch aus</div>
+        <ul class="text-xs text-zinc-400 space-y-0.5">
+          <template x-for="e in (auto.programm || []).filter(e => !e.erledigt)" :key="e.typ + (e.titel || '')">
+            <li>
+              <span class="text-zinc-300" x-text="e.typ"></span>
+              <span x-show="e.titel" x-cloak x-text="' — ' + e.titel"></span>
+            </li>
+          </template>
+        </ul>
+      </div>
+    </template>
+
+    <template x-if="autoUebergangen().length">
+      <div class="mt-3 border-t border-white/5 pt-2 text-xs text-zinc-500">
+        <span>Erkannt, aber nicht exportiert:</span>
+        <template x-for="b in autoUebergangen()" :key="b.nr">
+          <span class="ml-2" x-text="b.typ + ' (' + formatTime(Math.round(b.start_s)) + ')'"></span>
+        </template>
+      </div>
+    </template>
+  </div>
+
+  <!-- Marker list with ±1s nudge buttons (UI-07) -->
+  <div class="mt-6 border-t border-white/5 pt-5" x-show="state === 'recording' || state === 'paused' || markers.length > 0" x-cloak>
+    <div class="eyebrow mb-3">Marker</div>
+    <ul class="space-y-1.5">
+      <template x-for="m in markers" :key="m.id">
+        <li class="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/[0.03] pl-3 pr-1.5 py-1.5">
+          <div class="flex items-baseline gap-3 min-w-0">
+            <span class="font-mono text-sm tabular-nums text-zinc-500"
+                  x-text="formatTime(Math.floor(m.placed_at_ts + (m.start_nudge || 0)))"></span>
+            <select class="field h-8 min-h-8 py-0 pr-7 text-sm font-medium max-w-[10.5rem]"
+                    @change="setTypeOf(m, $event.target.value)">
+              <template x-for="t in markerTypes" :key="t">
+                <option :value="t" :selected="t === m.marker_type" x-text="t"></option>
+              </template>
+            </select>
+            <span class="font-mono text-xs"
+                  :class="m.ended_at_ts === null || m.ended_at_ts === undefined ? 'text-sky-300' : 'text-zinc-500'"
+                  x-text="(m.ended_at_ts === null || m.ended_at_ts === undefined)
+                      ? 'läuft'
+                      : '→ ' + formatTime(Math.floor(m.ended_at_ts + (m.end_nudge || 0)))
+                        + ' · ' + formatTime(Math.floor((m.ended_at_ts + (m.end_nudge || 0)) - (m.placed_at_ts + (m.start_nudge || 0)))) + ' lang'"></span>
+            <span class="font-mono text-xs text-amber-400" x-show="m.start_nudge"
+                  x-text="'Start ' + (m.start_nudge > 0 ? '+' : '') + m.start_nudge + 's'"></span>
+            <span class="font-mono text-xs text-amber-400" x-show="m.end_nudge"
+                  x-text="'Ende ' + (m.end_nudge > 0 ? '+' : '') + m.end_nudge + 's'"></span>
+          </div>
+          <canvas x-show="levels.length > 0" x-cloak :data-marker-id="m.id"
+                  x-init="$nextTick(() => drawSparklines())"
+                  class="order-last w-full h-6 rounded bg-white/[0.02] sm:order-none sm:w-40"></canvas>
+          <div class="flex items-center gap-1 text-xs">
+            <span class="px-1 text-zinc-600">Start</span>
+            <button @click="nudge(m, 'start', -1)" class="h-9 min-w-9 px-2 rounded-lg bg-white/[0.05] font-mono text-zinc-300 hover:bg-white/10 active:scale-95">−1</button>
+            <button @click="nudge(m, 'start', 1)" class="h-9 min-w-9 px-2 rounded-lg bg-white/[0.05] font-mono text-zinc-300 hover:bg-white/10 active:scale-95">+1</button>
+            <span class="pl-2 pr-1 text-zinc-600">Ende</span>
+            <button @click="nudge(m, 'end', -1)" class="h-9 min-w-9 px-2 rounded-lg bg-white/[0.05] font-mono text-zinc-300 hover:bg-white/10 active:scale-95">−1</button>
+            <button @click="nudge(m, 'end', 1)" class="h-9 min-w-9 px-2 rounded-lg bg-white/[0.05] font-mono text-zinc-300 hover:bg-white/10 active:scale-95">+1</button>
+            <button @click="deleteMarker(m)" :title="'Marker ' + m.marker_type + ' entfernen'"
+                    class="ml-1 h-9 w-9 shrink-0 grid place-items-center rounded-lg text-zinc-600
+                           hover:bg-red-500/15 hover:text-red-400 active:scale-95">
+              <svg class="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+                <path stroke-linecap="round" d="M3 4.5h10M6.5 4.5V3h3v1.5M5 4.5l.5 8h5l.5-8"/>
+              </svg>
+            </button>
+          </div>
+        </li>
+      </template>
+    </ul>
+    <p x-show="markers.length === 0" class="text-sm text-zinc-600">Noch keine Marker.</p>
+  </div>
+</section>

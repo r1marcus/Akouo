@@ -1,0 +1,93 @@
+{# Header service picker (SVC-01, SVC-02) — state lives in Alpine.store('service') defined in base.html #}
+<div x-data x-show="$store.service.pickerOpen" x-cloak
+     x-transition.opacity
+     @keydown.escape.window="$store.service.pickerOpen = false"
+     @click.self="$store.service.pickerOpen = false"
+     class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    {# Close via backdrop click (@click.self) — @click.outside would fire on the opening click itself #}
+    <div class="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl border border-white/10 bg-zinc-900 p-6 shadow-2xl">
+
+        <div class="flex items-center justify-between mb-5">
+            <h2 class="text-lg font-semibold">Welcher Gottesdienst?</h2>
+            <button @click="$store.service.pickerOpen = false" class="w-9 h-9 rounded-full bg-white/5 text-zinc-400 hover:text-zinc-100" aria-label="Schließen">✕</button>
+        </div>
+
+        <!-- Regular services: large tiles -->
+        <div class="grid grid-cols-2 gap-3">
+            <template x-for="t in $store.service.primary" :key="t">
+                <button type="button" @click="$store.service.draft.service_type = t"
+                        :class="$store.service.draft.service_type === t
+                            ? 'bg-zinc-100 text-zinc-900 border-transparent'
+                            : 'bg-white/[0.04] text-zinc-100 border-white/10 hover:bg-white/[0.08]'"
+                        class="min-h-20 px-4 rounded-2xl border text-base font-semibold transition-colors"
+                        x-text="t"></button>
+            </template>
+        </div>
+
+        <!-- All other services: small, behind "Weitere" -->
+        <button type="button" @click="$store.service.showMore = !$store.service.showMore"
+                class="mt-3 w-full min-h-11 flex items-center justify-between gap-3 rounded-xl px-3 text-sm
+                       text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200 transition-colors">
+            <span>
+                Weitere
+                <span x-show="$store.service.isOther()" x-cloak class="ml-1 text-zinc-100"
+                      x-text="'· ' + $store.service.draft.service_type"></span>
+            </span>
+            <svg class="w-4 h-4 transition-transform duration-200" :class="$store.service.showMore && 'rotate-180'"
+                 viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6l4 4 4-4"/>
+            </svg>
+        </button>
+        <div x-show="$store.service.showMore" x-cloak class="mt-2 grid grid-cols-3 sm:grid-cols-4 gap-1.5">
+            <template x-for="t in $store.service.others" :key="t">
+                <button type="button" @click="$store.service.draft.service_type = t"
+                        :class="$store.service.draft.service_type === t
+                            ? 'bg-zinc-100 text-zinc-900 border-transparent'
+                            : 'bg-white/[0.02] text-zinc-400 border-white/5 hover:bg-white/[0.06] hover:text-zinc-200'"
+                        class="min-h-9 px-2 rounded-lg border text-xs font-medium transition-colors"
+                        x-text="t"></button>
+            </template>
+        </div>
+
+        {# Freier Titel — gilt für jeden Typ, landet im Dateinamen und im NAS-Ordner #}
+        <div class="mt-5">
+            <label class="eyebrow block mb-2">Thema <span class="text-zinc-600">(optional)</span></label>
+            <input x-model="$store.service.draft.thema" type="text"
+                   placeholder="Erntedankfest, Taufe, Jubiläum …" class="field"
+                   @keydown.enter="$store.service.save()">
+        </div>
+
+        {# Hochzeitsfelder (SVC-02) #}
+        <div x-show="$store.service.isWedding()" x-cloak class="space-y-4 mt-5">
+            <div>
+                <label class="eyebrow block mb-2">Brautpaar</label>
+                <input x-model="$store.service.draft.couple_name" type="text" placeholder="Max & Maria Mustermann" class="field">
+            </div>
+            <div>
+                <div class="eyebrow mb-2">Teil</div>
+                <div class="grid grid-cols-3 gap-2">
+                    <template x-for="p in [1,2,3]" :key="p">
+                        <button type="button" @click="$store.service.draft.wedding_part = p"
+                                :class="$store.service.draft.wedding_part === p
+                                    ? 'bg-zinc-100 text-zinc-900 border-transparent'
+                                    : 'bg-white/[0.03] text-zinc-300 border-white/5 hover:bg-white/[0.07]'"
+                                class="min-h-11 rounded-xl border text-sm font-medium"
+                                x-text="'Teil ' + p"></button>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <p x-show="$store.service.error" x-cloak class="mt-4 text-sm text-red-400" x-text="$store.service.error"></p>
+
+        <div class="mt-6 grid grid-cols-2 gap-3">
+            <button @click="$store.service.pickerOpen = false" class="btn bg-white/[0.06] text-zinc-200 hover:bg-white/10">
+                Abbrechen
+            </button>
+            <button @click="$store.service.save()" :disabled="!$store.service.draft.service_type"
+                    class="btn bg-zinc-100 text-zinc-900 hover:bg-white">
+                Übernehmen
+            </button>
+        </div>
+    </div>
+</div>

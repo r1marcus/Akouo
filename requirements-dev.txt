@@ -1,0 +1,13 @@
+# Entwicklungs- und Testabhängigkeiten.
+#
+# Hintergrund: api/requirements.txt enthielt kein pytest, audio-service/requirements.txt
+# führte es als Laufzeitabhängigkeit mit. Ein frischer Klon konnte deshalb vier von
+# achtzehn Testdateien nicht einmal einsammeln.
+#
+# Für die Tests werden beide Dienste gebraucht:
+-r api/requirements.txt
+-r audio-service/requirements.txt
+
+pytest==9.0.2
+pytest-asyncio==1.3.0
+ruff==0.14.0

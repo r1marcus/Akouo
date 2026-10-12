@@ -1,0 +1,41 @@
+# Akouo — Projekt- und Werkzeugkonfiguration
+#
+# Das Projekt wird nicht als Paket installiert; diese Datei bündelt die
+# Werkzeugeinstellungen, die vorher gar nicht existierten.
+
+[project]
+name = "akouo"
+version = "1.0.0"
+description = "Daueraufnahme, Segment-Erkennung, Livestream und Checklisten für die Tontechnik im Gottesdienst"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+# Genau 3.12: pydub importiert audioop, das in Python 3.13 aus der Standardbibliothek
+# entfernt wurde. Homebrew installiert inzwischen standardmäßig 3.14 — wer dem folgt,
+# bekommt beim Start des Audio-Dienstes sofort einen ModuleNotFoundError.
+requires-python = "==3.12.*"
+
+[tool.pytest.ini_options]
+# Ersetzt rund fünfzig verstreute sys.path.insert(0, "audio-service")-Aufrufe, von denen
+# viele relativ waren und daher nur funktionierten, wenn pytest genau aus dem Repo-Wurzel-
+# verzeichnis gestartet wurde.
+pythonpath = ["api", "audio-service"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+filterwarnings = [
+    # pydub ist seit 2021 unmaintained und meldet das audioop-Ende bei jedem Import.
+    "ignore:'audioop' is deprecated:DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+exclude = [".venv", "migrations/versions"]
+
+[tool.ruff.lint]
+# Bewusst eng gehalten. Der volle Default meldet im Bestand dreistellig viele Treffer;
+# das gehört in einen eigenen Aufräum-Commit, nicht in die Lizenzumstellung.
+select = ["E4", "E7", "E9", "F"]
+ignore = [
+    "E402",  # Importe nach Code: in migrations/env.py und den Tests bewusst so
+    "F401",  # ungenutzte Importe: kommen in den Test-Fixtures vor
+]

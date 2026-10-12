@@ -1,0 +1,81 @@
+/* Only scan the Jinja templates — auto-detection would also crawl .venv/ and emit junk classes */
+@import "tailwindcss" source(none);
+@source "../templates";
+
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  body {
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  [x-cloak] {
+    display: none !important;
+  }
+}
+
+/* Surface for every dashboard section */
+@utility card {
+  border-radius: 1.25rem;
+  border: 1px solid rgb(255 255 255 / 0.06);
+  background-color: rgb(24 24 27 / 0.72);
+  box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.04);
+  padding: 1.25rem;
+}
+
+/* Small uppercase section label */
+@utility eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-zinc-500);
+}
+
+/* Base button — add colour utilities per use */
+@utility btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 3rem;
+  border-radius: 0.875rem;
+  padding-inline: 1.25rem;
+  font-size: 15px;
+  font-weight: 600;
+  user-select: none;
+  transition: background-color 150ms, opacity 150ms, transform 100ms;
+  &:active {
+    transform: scale(0.98);
+  }
+  &:disabled {
+    opacity: 0.3;
+    pointer-events: none;
+  }
+}
+
+/* Text inputs and selects */
+@utility field {
+  width: 100%;
+  min-height: 2.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background-color: rgb(9 9 11 / 0.6);
+  padding-inline: 0.875rem;
+  color: var(--color-zinc-100);
+  font-size: 15px;
+  &::placeholder {
+    color: var(--color-zinc-600);
+  }
+  &:focus {
+    outline: none;
+    border-color: rgb(255 255 255 / 0.2);
+    box-shadow: 0 0 0 3px rgb(255 255 255 / 0.06);
+  }
+}

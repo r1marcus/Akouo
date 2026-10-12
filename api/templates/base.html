@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#09090b">
+    {# Home-screen web app (iPad/iPhone): fullscreen without Safari chrome #}
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Tontechnik">
+    <link rel="apple-touch-icon" href="{{ static_url('icon-180.png') }}">
+    <link rel="icon" type="image/png" href="{{ static_url('icon-180.png') }}">
+    <link rel="manifest" href="{{ static_url('manifest.json') }}">
+    <title>Tontechnik</title>
+    <link rel="stylesheet" href="{{ static_url('app.css') }}">
+    <script>
+    window.SERVICE_TYPES = {{ service_types | tojson }};
+    window.PRIMARY_SERVICE_TYPES = {{ primary_service_types | tojson }};
+    window.MARKER_TYPES = {{ marker_types | tojson }};
+
+    // Current service ("in welchem Gottesdienst sind wir gerade") — header picker + dashboard.
+    // Stored server-side (/api/service/current) so every device shows the same selection.
+    document.addEventListener('alpine:init', () => {
+        Alpine.store('service', {
+            primary: window.PRIMARY_SERVICE_TYPES,
+            others: window.SERVICE_TYPES.filter(t => !window.PRIMARY_SERVICE_TYPES.includes(t)),
+            current: null,     // {service_type, couple_name, wedding_part} or null when nothing chosen
+            locked: false,     // a recording is running — selection can't change
+            loaded: false,
+            pickerOpen: false,
+            showMore: false,   // "Weitere" section in the picker
+            draft: {service_type: null, couple_name: '', wedding_part: 1},
+            error: null,
+
+            init() {
+                this.load();
+                setInterval(() => { if (!this.pickerOpen) this.load(); }, 5000);
+            },
+            async load() {
+                try {
+                    const r = await fetch('/api/service/current');
+                    if (!r.ok) return;
+                    const d = await r.json();
+                    this.current = d.service_type
+                        ? {service_type: d.service_type, couple_name: d.couple_name,
+                           wedding_part: d.wedding_part, thema: d.thema}
+                        : null;
+                    this.locked = Boolean(d.locked);
+                    this.loaded = true;
+                } catch (_) { /* offline-first: keep last known */ }
+            },
+            label() {
+                if (!this.loaded) return '…';
+                if (!this.current) return 'Gottesdienst wählen';
+                const c = this.current;
+                const teile = [c.service_type];
+                if (c.wedding_part) teile.push(`Teil ${c.wedding_part}`);
+                if (c.thema) teile.push(c.thema);
+                return teile.join(' · ');
+            },
+            isWedding() {
+                return this.draft.service_type === 'Hochzeit';
+            },
+            isOther() {
+                return this.others.includes(this.draft.service_type);
+            },
+            openPicker() {
+                if (this.locked) return;
+                const c = this.current || {};
+                this.draft = {
+                    service_type: c.service_type || null,
+                    couple_name: c.couple_name || '',
+                    wedding_part: c.wedding_part || 1,
+                    thema: c.thema || '',
+                };
+                this.showMore = this.isOther();  // current choice is hidden under "Weitere" → open it
+                this.error = null;
+                this.pickerOpen = true;
+            },
+            async save() {
+                const wedding = this.isWedding();
+                try {
+                    const r = await fetch('/api/service/current', {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            service_type: this.draft.service_type,
+                            couple_name: wedding ? (this.draft.couple_name || null) : null,
+                            wedding_part: wedding ? this.draft.wedding_part : null,
+                            thema: this.draft.thema || null,
+                        }),
+                    });
+                    const d = await r.json().catch(() => ({}));
+                    if (!r.ok) {
+                        this.error = typeof d.detail === 'string' ? d.detail : 'Speichern fehlgeschlagen (' + r.status + ')';
+                        return;
+                    }
+                    this.current = {service_type: d.service_type, couple_name: d.couple_name,
+                                    wedding_part: d.wedding_part, thema: d.thema};
+                    this.pickerOpen = false;
+                    window.dispatchEvent(new CustomEvent('service:changed', {detail: d}));
+                    // Picking a service starts the run: the checklist is the next step, the
+                    // dashboard comes after it. Already on the checklist → stay and reload it.
+                    window.location.href = '/checkliste';
+                } catch (e) {
+                    this.error = 'Netzwerkfehler: ' + e.message;
+                }
+            },
+        });
+
+        // Mithören — play the stream bus (Dante 46+47) straight from the audio service.
+        // Deliberately not the Icecast stream: that detour costs 10-20 seconds and only works
+        // while sending, whereas the input is open all the time.
+        // The <audio> element stays out of the store: only the flags below drive the UI.
+        let monitorAudio = null;
+        Alpine.store('monitor', {
+            inputOk: false,    // audio input delivering — nothing to hear otherwise
+            playing: false,
+            volume: 0.3,       // start quiet: the speaker may be next to the mics
+            warningOpen: false,
+
+            init() {
+                try {
+                    const stored = parseFloat(localStorage.getItem('monitor:volume'));
+                    if (stored >= 0 && stored <= 1) this.volume = stored;
+                } catch (_) { /* Safari private mode throws on storage access */ }
+                this.load();
+                setInterval(() => this.load(), 5000);
+            },
+            async load() {
+                try {
+                    const r = await fetch('/api/sessions/status');
+                    if (!r.ok) return;
+                    const d = await r.json();
+                    this.inputOk = Boolean(d.input_available);
+                    if (this.playing && !this.available) this.stop();
+                } catch (_) { /* offline-first: keep last known */ }
+            },
+            get available() {
+                return this.inputOk;
+            },
+            title() {
+                if (this.playing) return 'Mithören beenden';
+                if (!this.inputOk) return 'Kein Eingangssignal — Audio-Dienst oder Dante prüfen';
+                return 'Stream-Signal mithören (nur mit Kopfhörer)';
+            },
+            toggle() {
+                if (this.playing) { this.stop(); return; }
+                if (!this.available) return;
+                let warned = false;
+                try { warned = Boolean(sessionStorage.getItem('monitor:warned')); } catch (_) { }
+                if (!warned) { this.warningOpen = true; return; }
+                this.play();
+            },
+            confirmWarning() {
+                try { sessionStorage.setItem('monitor:warned', '1'); } catch (_) { }
+                this.warningOpen = false;
+                this.play();  // still inside the click gesture — autoplay policy allows it
+            },
+            play() {
+                // Cache buster: without it the browser may replay a buffered older slice
+                // instead of joining the stream live.
+                monitorAudio = new Audio('/api/sessions/monitor.mp3?t=' + Date.now());
+                monitorAudio.volume = this.volume;
+                monitorAudio.addEventListener('error', () => this.stop());
+                monitorAudio.play()
+                    .then(() => { this.playing = true; })
+                    .catch(() => this.stop());
+            },
+            stop() {
+                if (monitorAudio) {
+                    monitorAudio.pause();
+                    monitorAudio.src = '';  // drop the connection, not just the playback
+                    monitorAudio = null;
+                }
+                this.playing = false;
+            },
+            setVolume(value) {
+                this.volume = parseFloat(value);
+                if (monitorAudio) monitorAudio.volume = this.volume;
+                try { localStorage.setItem('monitor:volume', String(this.volume)); } catch (_) { }
+            },
+        });
+    });
+    </script>
+    <script src="{{ static_url('htmx.min.js') }}" defer></script>
+    <script src="{{ static_url('alpine.min.js') }}" defer></script>
+</head>
+<body class="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
+    {% set path = request.url.path %}
+    <header class="sticky top-0 z-40 border-b border-white/5 bg-zinc-950/80 backdrop-blur-xl pt-[env(safe-area-inset-top)]">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 py-2 sm:py-0 sm:h-14 flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2">
+            <a href="/" class="flex items-center gap-2.5 shrink-0">
+                <span class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_12px_2px_rgba(239,68,68,0.45)]"></span>
+                <span class="hidden sm:inline text-[15px] font-semibold tracking-tight">Tontechnik</span>
+            </a>
+
+            <!-- Current service — tap to change -->
+            <button type="button" x-data
+                    @click="$store.service.openPicker()"
+                    :disabled="$store.service.locked"
+                    :title="$store.service.locked ? 'Während einer Aufnahme nicht änderbar' : 'Gottesdienst ändern'"
+                    :class="$store.service.current || !$store.service.loaded
+                        ? 'border-white/10 bg-white/[0.06] text-zinc-100 hover:bg-white/10'
+                        : 'border-amber-400/30 bg-amber-400/10 text-amber-300 hover:bg-amber-400/15'"
+                    class="min-h-9 min-w-0 flex-1 sm:flex-none inline-flex items-center gap-2 rounded-full border px-3.5
+                           text-sm font-medium transition-colors disabled:cursor-default">
+                <span class="truncate" x-text="$store.service.label()">…</span>
+                <svg x-show="!$store.service.locked" class="w-3.5 h-3.5 shrink-0 text-zinc-500" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 6l4 4 4-4"/>
+                </svg>
+                <svg x-show="$store.service.locked" x-cloak class="w-3.5 h-3.5 shrink-0 text-zinc-500" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M5 7V5a3 3 0 0 1 6 0v2h.5A1.5 1.5 0 0 1 13 8.5v5a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 13.5v-5A1.5 1.5 0 0 1 4.5 7H5zm1.5 0h3V5a1.5 1.5 0 0 0-3 0v2z"/>
+                </svg>
+            </button>
+
+            <!-- Mithören — check by ear whether the stream bus really carries audio -->
+            <div x-data class="shrink-0 flex items-center gap-1.5">
+                <button type="button"
+                        @click="$store.monitor.toggle()"
+                        :disabled="!$store.monitor.available && !$store.monitor.playing"
+                        :title="$store.monitor.title()"
+                        :aria-label="$store.monitor.title()"
+                        :aria-pressed="$store.monitor.playing"
+                        :class="$store.monitor.playing
+                            ? 'border-white/10 bg-white/10 text-emerald-400 hover:bg-white/[0.12]'
+                            : ($store.monitor.available
+                                ? 'border-white/10 bg-white/[0.06] text-zinc-300 hover:bg-white/10'
+                                : 'border-white/5 bg-white/[0.02] text-zinc-600')"
+                        class="min-h-11 w-11 inline-flex items-center justify-center rounded-full border
+                               transition-colors disabled:cursor-default">
+                    <svg class="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+                        <path fill="currentColor" stroke="none" d="M8.2 3.1 5.3 5.6H3.2A1.2 1.2 0 0 0 2 6.8v2.4a1.2 1.2 0 0 0 1.2 1.2h2.1l2.9 2.5a.55.55 0 0 0 .9-.42V3.52a.55.55 0 0 0-.9-.42z"/>
+                        {# x-show, not x-if: a <template> inside <svg> is parsed as an SVG element and has no content #}
+                        <g x-show="$store.monitor.playing" x-cloak stroke-linecap="round">
+                            <path d="M11 6.3a2.6 2.6 0 0 1 0 3.4"/>
+                            <path d="M12.8 4.6a5.1 5.1 0 0 1 0 6.8"/>
+                        </g>
+                        <g x-show="!$store.monitor.playing" stroke-linecap="round">
+                            <path d="M11.2 6.2 14.2 9.8"/>
+                            <path d="M14.2 6.2 11.2 9.8"/>
+                        </g>
+                    </svg>
+                </button>
+                <input type="range" min="0" max="1" step="0.05"
+                       x-show="$store.monitor.playing" x-cloak
+                       :value="$store.monitor.volume"
+                       @input="$store.monitor.setVolume($event.target.value)"
+                       aria-label="Mithör-Lautstärke"
+                       title="Mithör-Lautstärke"
+                       class="w-20 h-11 accent-emerald-400">
+            </div>
+
+            <nav class="w-full sm:w-auto sm:ml-auto flex items-center justify-between sm:justify-end gap-0.5 sm:gap-1 text-sm">
+                {% for href, label in [("/checkliste", "Checkliste"), ("/", "Dashboard"), ("/archiv", "Archiv"), ("/settings", "Einstellungen")] %}
+                <a href="{{ href }}"
+                   class="px-2.5 sm:px-3 py-1.5 rounded-lg transition-colors
+                          {% if path == href %}bg-white/10 text-zinc-100{% else %}text-zinc-400 hover:text-zinc-100 hover:bg-white/5{% endif %}">
+                    {{ label }}
+                </a>
+                {% endfor %}
+            </nav>
+        </div>
+    </header>
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {% block content %}{% endblock %}
+    </main>
+    {% include "partials/service_picker.html" %}
+
+    {# Feedback guard: the machine sits in the room with the mics — speakers would loop back into the recording #}
+    <div x-data x-show="$store.monitor.warningOpen" x-cloak x-transition.opacity
+         @keydown.escape.window="$store.monitor.warningOpen = false"
+         @click.self="$store.monitor.warningOpen = false"
+         class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div class="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-900 p-6 shadow-2xl">
+            <h2 class="text-lg font-semibold">Nur mit Kopfhörer</h2>
+            <p class="mt-2 text-sm text-zinc-400">
+                Über Lautsprecher koppelt der Ton in die Mikrofone zurück und landet in der Aufnahme.
+            </p>
+            <div class="mt-6 grid grid-cols-2 gap-3">
+                <button type="button" @click="$store.monitor.warningOpen = false"
+                        class="btn bg-white/[0.06] text-zinc-200 hover:bg-white/10">Abbrechen</button>
+                <button type="button" @click="$store.monitor.confirmWarning()"
+                        class="btn bg-zinc-100 text-zinc-900 hover:bg-white">Mithören</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

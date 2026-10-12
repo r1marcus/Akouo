@@ -1,0 +1,20 @@
+#!/bin/bash
+# Startskript der Akouo-Web-API. Wird vom LaunchDaemon de.akouo.api aufgerufen.
+# autostart/install.sh erzeugt daraus die fertige Fassung.
+
+# Absoluter Pfad, bewusst: der Default in api/database.py ist relativ zum
+# Arbeitsverzeichnis, und ein aus einem Unterordner gestarteter Dienst legt dann
+# eine zweite, leere Datenbank an statt die vorhandene zu benutzen.
+export DATABASE_URL="DATABASE_URL_PLACEHOLDER"
+export AUDIO_SERVICE_URL="AUDIO_SERVICE_URL_PLACEHOLDER"
+
+cd "REPO_DIR_PLACEHOLDER" || exit 1
+
+# --timeout-graceful-shutdown 3 ist nicht optional: jedes offene Dashboard haelt
+# eine Dauerverbindung fuer die Pegelanzeige. Ohne Zeitlimit wartet uvicorn beim
+# Beenden endlos darauf und der Neustart haengt.
+exec ./.venv/bin/uvicorn main:app \
+    --app-dir api \
+    --host LISTEN_HOST_PLACEHOLDER \
+    --port 8000 \
+    --timeout-graceful-shutdown 3

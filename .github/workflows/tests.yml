@@ -1,0 +1,96 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python 3.12 einrichten
+        uses: actions/setup-python@v5
+        with:
+          # Nicht neuer: pydub importiert audioop, das in Python 3.13 aus der
+          # Standardbibliothek entfernt wurde.
+          python-version: "3.12"
+          cache: pip
+
+      - name: Systemabhängigkeiten
+        run: |
+          sudo apt-get update
+          # ffmpeg bringt auch ffprobe mit, das test_mp3_export direkt aufruft.
+          # libportaudio2 wird nur für "import sounddevice" gebraucht — die Geräte
+          # selbst sind in allen Tests gemockt, es ist keine Hardware nötig.
+          sudo apt-get install -y --no-install-recommends ffmpeg libportaudio2
+
+      - name: Python-Abhängigkeiten
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check api audio-service tests conftest.py migrations
+
+      - name: Alembic — genau ein Head
+        run: |
+          heads=$(alembic heads 2>/dev/null | grep -c '(head)' || true)
+          if [ "$heads" -ne 1 ]; then
+            echo "Erwartet genau einen Alembic-Head, gefunden: $heads"
+            alembic heads
+            exit 1
+          fi
+
+      - name: Alembic — Migration von null auf head
+        run: |
+          mkdir -p data
+          DATABASE_URL="sqlite+aiosqlite:///$PWD/data/ci.db" alembic upgrade head
+
+      # Zwei Aufrufe, weil api/main.py und audio-service/main.py beide "main" heißen
+      # und sich in einem Prozess gegenseitig verdecken. Siehe CONTRIBUTING.md.
+      - name: Tests — API
+        env:
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+          # Discard-Port: die Lifespan der API schiebt die Erkennungskonfiguration zum
+          # Audio-Dienst. Kein Testlauf darf einen echten Dienst erreichen.
+          AUDIO_SERVICE_URL: "http://127.0.0.1:9"
+        run: |
+          pytest -q \
+            tests/test_archive.py tests/test_current_service.py tests/test_database.py \
+            tests/test_segments_api.py tests/test_service_types.py tests/test_session_api.py \
+            tests/test_settings_api.py tests/test_uploads_api.py tests/test_ui_phase5.py \
+            tests/test_typen.py tests/test_konfiguration_api.py tests/test_nas_pfad.py \
+            --deselect tests/test_ui_phase5.py::test_waveform
+
+      - name: Tests — Audio-Service
+        env:
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+          TRANSCRIBE_ENABLED: "0"
+          AUDIO_SERVICE_URL: "http://127.0.0.1:9"
+        run: |
+          pytest -q \
+            tests/test_boundaries.py tests/test_continuous_recording.py tests/test_insights.py \
+            tests/test_mp3_export.py tests/test_nas_client.py tests/test_nas_push.py \
+            tests/test_recording.py tests/test_segment_export.py tests/test_stream_adapter.py \
+            tests/test_ui_phase5.py::test_waveform tests/test_erkennung_uebernahme.py
+
+      - name: Keine Betriebsdaten im Repository
+        run: |
+          if git ls-files | grep -E '\.(db|sqlite|sqlite3|wav|mp3|m4a|vtt)$'; then
+            echo "FEHLER: Aufnahmen oder Datenbanken sind versioniert."
+            exit 1
+          fi
+          echo "OK: keine Audio- oder Datenbankdateien im Index."
+
+      - name: Keine internen Adressen oder Zugangsdaten
+        run: |
+          muster='192\.168\.|10\.[0-9]+\.[0-9]+\.[0-9]+|100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\.|\.ts\.net|evch\.audio'
+          if git grep -nIE "$muster" -- . ':(exclude).github/workflows/*'; then
+            echo "FEHLER: interne Adresse gefunden. Platzhalter verwenden."
+            exit 1
+          fi
+          echo "OK: keine internen Adressen."

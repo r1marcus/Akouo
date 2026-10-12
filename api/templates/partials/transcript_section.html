@@ -1,0 +1,73 @@
+<!-- Live-Transkript: whisper-server verschriftet die laufende Aufnahme in ~6-Sekunden-Häppchen -->
+<section class="card lg:col-span-3" x-data="transcriptPanel()"
+         x-show="lines.length > 0 || running" x-cloak>
+  <div class="flex items-center justify-between gap-3 mb-3">
+    <div class="flex items-center gap-2.5">
+      <span class="w-2 h-2 rounded-full" :class="running ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-600'"></span>
+      <span class="eyebrow">Live-Transkript</span>
+    </div>
+    <div class="flex items-center gap-3 text-xs text-zinc-500">
+      <span x-show="error" x-cloak class="text-amber-400" x-text="error"></span>
+      <span x-text="lines.length + ' Abschnitte'"></span>
+      <button @click="follow = !follow"
+              class="px-2 py-1 rounded-lg transition-colors"
+              :class="follow ? 'bg-white/10 text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'">
+        <span x-text="follow ? 'folgt' : 'frei'">folgt</span>
+      </button>
+    </div>
+  </div>
+
+  <div x-ref="box" class="max-h-72 overflow-y-auto pr-1 space-y-2 text-[15px] leading-relaxed">
+    <template x-for="(l, i) in lines" :key="i">
+      <p class="flex gap-3">
+        <span class="font-mono text-xs text-zinc-600 tabular-nums pt-1 shrink-0" x-text="fmt(l.start)"></span>
+        <span class="text-zinc-200" x-text="l.text"></span>
+      </p>
+    </template>
+    <p x-show="lines.length === 0" class="text-sm text-zinc-500">Warte auf die ersten Worte…</p>
+  </div>
+</section>
+
+<script>
+function transcriptPanel() {
+  return {
+    lines: [],
+    next: 0,
+    running: false,
+    error: null,
+    follow: true,
+
+    init() {
+      this.tick();
+      setInterval(() => this.tick(), 3000);
+      // new session → audio-service starts a fresh transcript
+      window.addEventListener('session:started', () => { this.lines = []; this.next = 0; });
+    },
+    async tick() {
+      try {
+        const r = await fetch('/api/sessions/transcript?since=' + this.next);
+        if (!r.ok) return;
+        const d = await r.json();
+        this.running = Boolean(d.running);
+        this.error = d.enabled === false ? 'Transkription ausgeschaltet' : (d.error || null);
+        if (typeof d.next === 'number' && d.next < this.next) {   // service restarted or new session
+          this.lines = [];
+          this.next = 0;
+          return;
+        }
+        if (Array.isArray(d.lines) && d.lines.length) {
+          this.lines.push(...d.lines);
+          this.next = d.next;
+          if (this.follow) {
+            this.$nextTick(() => { const b = this.$refs.box; if (b) b.scrollTop = b.scrollHeight; });
+          }
+        }
+      } catch (_) { /* offline-first: keep what we have */ }
+    },
+    fmt(seconds) {
+      const s = Math.max(0, Math.floor(seconds || 0));
+      return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+    },
+  };
+}
+</script>

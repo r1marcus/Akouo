@@ -1,0 +1,164 @@
+import asyncio
+from contextlib import asynccontextmanager
+from pathlib import Path
+from fastapi import FastAPI, Request, Depends
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
+import automode_sync
+from database import AsyncSessionLocal, engine, get_db
+from models import Base, ChecklistTemplate, ChecklistItem
+from routers import recordings, health, settings, streaming, checklists, sessions, segments, uploads, service, insights, konfiguration
+import typen
+
+BASE_DIR = Path(__file__).parent
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    # Gottesdienst- und Beitragsarten einmal laden. Danach hält typen.py sie im Speicher
+    # und meldet jede Änderung an die Template-Globals weiter.
+    async with AsyncSessionLocal() as db:
+        await typen.neu_laden(db)
+    # Dem Audio-Dienst gleich mitgeben, was er für die Erkennung braucht. Ist er noch
+    # nicht da, holt die Hintergrundschleife es nach.
+    await typen.an_audio_dienst_schieben()
+    # Überträgt erkannte Beiträge in Marker — tut nichts, solange der Automodus aus ist.
+    sync = asyncio.create_task(automode_sync.schleife())
+    yield
+    sync.cancel()
+
+
+app = FastAPI(title="Tontechnik API", version="1.0.0", lifespan=lifespan)
+
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+
+def static_url(path: str) -> str:
+    """Static asset URL with an mtime version so browsers/tablets never keep a stale app.css."""
+    try:
+        version = int((BASE_DIR / "static" / path).stat().st_mtime)
+    except OSError:
+        version = 0
+    return f"/static/{path}?v={version}"
+
+
+templates.env.globals["static_url"] = static_url
+
+
+def _typen_in_templates(t: "typen.Typen") -> None:
+    """Die Listen als Template-Globals bereitstellen.
+
+    Sie stehen in jedem Seitenaufbau (Gottesdienst-Auswahl im Kopf, Track-Knöpfe während
+    der Aufnahme). Statt sie pro Request zu übergeben, werden die Globals nach jedem
+    Neuladen überschrieben — die Templates bleiben dadurch unverändert.
+    """
+    templates.env.globals["service_types"] = t.gottesdienstarten
+    templates.env.globals["primary_service_types"] = t.haupt_gottesdienstarten
+    templates.env.globals["marker_types"] = t.beitragsarten
+
+
+typen.bei_aenderung(_typen_in_templates)
+_typen_in_templates(typen.aktuell)   # Rückfallwerte, bis der Start die Datenbank gelesen hat
+
+app.include_router(health.router)
+app.include_router(recordings.router)
+app.include_router(settings.router)
+app.include_router(streaming.router)
+app.include_router(checklists.router)
+app.include_router(sessions.router)
+app.include_router(segments.router)
+app.include_router(uploads.router)
+app.include_router(service.router)
+app.include_router(konfiguration.router)
+app.include_router(insights.router)
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """Browsers ask for this by default — without it every page logs a 404."""
+    return FileResponse(BASE_DIR / "static" / "icon-180.png", media_type="image/png")
+
+
+@app.get("/", response_class=HTMLResponse)
+async def dashboard(request: Request):
+    return templates.TemplateResponse(
+        "dashboard.html",
+        {"request": request},   # service_types kommt als Template-Global
+    )
+
+
+@app.get("/checkliste", response_class=HTMLResponse)
+async def checklist_run_page(request: Request):
+    """The preparation step between picking a service and the dashboard.
+
+    Renders empty and fills itself from /api/checklists/active — no server-side state here,
+    so the page also works when the operator lands on it with no checklist mapped.
+    """
+    return templates.TemplateResponse("checkliste.html", {"request": request})
+
+
+@app.get("/archiv", response_class=HTMLResponse)
+async def archiv_page(request: Request):
+    """Frühere Aufnahmen ansehen und nachbearbeiten. Füllt sich selbst über
+    /api/sessions/archiv — hier wird nichts vorberechnet."""
+    return templates.TemplateResponse("archiv.html", {"request": request})
+
+
+@app.get("/einstellungen", include_in_schema=False)
+async def einstellungen_umleitung():
+    """Deutsche Adresse, weitergeleitet auf die kanonische.
+
+    Zwei Routen auf dasselbe Template wären fast gleich, aber nicht ganz: die
+    Navigation hebt den Menüpunkt anhand des Pfades hervor und markiert nur /settings.
+    """
+    return RedirectResponse("/settings", status_code=307)
+
+
+@app.get("/settings", response_class=HTMLResponse)
+async def einstellungen_page(request: Request):
+    """Alles, was einstellbar ist, an einer Stelle.
+
+    Füllt sich selbst aus /api/konfiguration — kein serverseitiger Zustand, dieselbe
+    Bauart wie checkliste.html. Die Zahlen- und Schalterfelder werden aus der
+    Felderliste erzeugt, die der Server mitliefert: eine neue Einstellung braucht
+    deshalb nur einen Eintrag in api/einstellungen.py und kein neues Formular.
+
+    /settings bleibt als Adresse bestehen, weil die Navigation und ältere Lesezeichen
+    darauf zeigen.
+    """
+    return templates.TemplateResponse("einstellungen.html", {"request": request})
+
+
+@app.get("/checklists", response_class=HTMLResponse)
+async def checklists_page(request: Request, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(ChecklistTemplate).order_by(ChecklistTemplate.created_at.desc())
+    )
+    templates_list = result.scalars().all()
+
+    templates_data = []
+    for tpl in templates_list:
+        items_result = await db.execute(
+            select(ChecklistItem)
+            .where(ChecklistItem.template_id == tpl.id)
+            .order_by(ChecklistItem.sort_order)
+        )
+        items = items_result.scalars().all()
+        templates_data.append({
+            "id": tpl.id,
+            "name": tpl.name,
+            "item_list": [{"id": i.id, "text": i.text, "sort_order": i.sort_order} for i in items],
+            "item_count": len(items),
+        })
+    return templates.TemplateResponse(
+        "checklists.html",
+        {"request": request, "templates": templates_data}
+    )

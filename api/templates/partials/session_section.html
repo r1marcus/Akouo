@@ -1,0 +1,552 @@
+<!-- Aufnahme: state, dual timer (UI-08/09), level meter (UI-06) — the control card next to the stream card. -->
+<!-- Track & marker live in track_marker_section.html; both share the sessionPanel() scope opened in dashboard.html. -->
+<section class="card lg:col-span-2 flex flex-col">
+
+  <div class="flex items-center justify-between gap-3">
+    <div class="flex items-center gap-2.5">
+      <span class="w-2.5 h-2.5 rounded-full"
+            :class="{
+              'bg-red-500 animate-pulse shadow-[0_0_12px_2px_rgba(239,68,68,0.5)]': state === 'recording',
+              'bg-amber-400': state === 'paused' || state === 'offline',
+              'bg-zinc-600': state === 'idle',
+            }"></span>
+      <span class="eyebrow"
+            :class="{ 'text-red-400': state === 'recording', 'text-amber-400': state === 'paused' || state === 'offline' }"
+            x-text="stateLabel()">Aufnahme</span>
+    </div>
+    <span x-show="serviceType && (state === 'recording' || state === 'paused')" x-cloak
+          class="rounded-full bg-white/[0.06] px-3 py-1 text-xs font-medium text-zinc-300"
+          x-text="serviceType"></span>
+  </div>
+
+  <!-- Timers -->
+  <div class="mt-4 font-mono text-6xl sm:text-7xl font-medium tracking-tight tabular-nums transition-colors"
+       :class="state === 'recording' ? 'text-zinc-50' : (state === 'paused' ? 'text-amber-300' : 'text-zinc-700')"
+       x-text="formatTime(elapsed)">00:00</div>
+  <div class="mt-2 flex gap-6 text-sm text-zinc-500">
+    <span>Track <span class="ml-1 font-mono tabular-nums text-zinc-300" x-text="formatTime(trackElapsed())">00:00</span></span>
+    <span>Gesamt <span class="ml-1 font-mono tabular-nums text-zinc-300" x-text="formatTime(elapsed)">00:00</span></span>
+  </div>
+
+  <!-- Level meter (dBFS, -60 … 0) — always live while the Focusrite is connected -->
+  <div class="mt-6">
+    <div class="mb-2 flex items-center justify-between gap-3">
+      <span class="eyebrow">Pegel · Kanal 1+2</span>
+      <span class="flex items-center gap-1.5 text-xs" :class="inputOk ? 'text-zinc-400' : 'text-amber-400'">
+        <span class="w-1.5 h-1.5 rounded-full" :class="inputOk ? 'bg-emerald-500' : 'bg-amber-400'"></span>
+        <span x-text="inputOk ? 'Eingang verbunden' : 'Kein Eingang'">Kein Eingang</span>
+      </span>
+    </div>
+    <canvas x-ref="meter" class="block w-full h-3"></canvas>
+    <div class="relative mt-1.5 h-3 font-mono text-[10px] leading-none text-zinc-600">
+      <span class="absolute left-0">-60</span>
+      <span class="absolute -translate-x-1/2 hidden sm:block" style="left: 40%">-36</span>
+      <span class="absolute -translate-x-1/2" style="left: 60%">-24</span>
+      <span class="absolute -translate-x-1/2" style="left: 80%">-12</span>
+      <span class="absolute -translate-x-1/2 hidden sm:block" style="left: 90%">-6</span>
+      <span class="absolute right-0">0 dB</span>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="mt-6 grid gap-3" :class="(state === 'recording' || state === 'paused') ? 'grid-cols-2' : 'grid-cols-1'">
+    <button x-show="state === 'idle' || state === 'offline'"
+            @click="startSession()"
+            :disabled="state === 'offline'"
+            class="btn min-h-14 text-base bg-red-600 text-white hover:bg-red-500">
+      <span class="w-3 h-3 rounded-full bg-white"></span>
+      Aufnahme starten
+    </button>
+    <button x-show="state === 'recording'" x-cloak @click="pause()"
+            class="btn min-h-14 text-base bg-white/[0.06] text-zinc-100 hover:bg-white/10">
+      <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="2.5" width="3.5" height="11" rx="1"/><rect x="9.5" y="2.5" width="3.5" height="11" rx="1"/></svg>
+      Pause
+    </button>
+    <button x-show="state === 'paused'" x-cloak @click="resume()"
+            class="btn min-h-14 text-base bg-amber-400 text-zinc-950 hover:bg-amber-300">
+      <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9.5-5.5z"/></svg>
+      Fortsetzen
+    </button>
+    <button x-show="state === 'recording' || state === 'paused'" x-cloak @click="stop()" :disabled="busy"
+            :class="confirmStop ? 'bg-red-600 text-white hover:bg-red-500' : 'bg-white/[0.06] text-zinc-100 hover:bg-white/10'"
+            class="btn min-h-14 text-base">
+      <span class="w-3 h-3 rounded-sm" :class="confirmStop ? 'bg-white' : 'bg-zinc-300'"></span>
+      <span x-text="busy ? 'Wird gestoppt…' : (confirmStop ? 'Wirklich stoppen?' : 'Stoppen')">Stoppen</span>
+    </button>
+  </div>
+  <p x-show="state === 'offline'" x-cloak class="mt-3 text-sm text-amber-400/90">
+    Audio-Service nicht erreichbar — läuft der Dienst auf dem Mac?
+  </p>
+
+  <!-- Automatik: erkennt Beiträge selbst und setzt Marker. Nie von allein an. -->
+  <div x-show="state === 'recording' || state === 'paused'" x-cloak
+       class="mt-5 flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3 py-2.5">
+    <div class="min-w-0">
+      <div class="eyebrow" :class="auto.aktiv && 'text-emerald-400'">Automatik</div>
+      <div class="mt-0.5 text-xs text-zinc-500"
+           x-text="auto.fehler ? auto.fehler
+                   : (auto.aktiv ? 'setzt Marker selbständig — Typ jederzeit änderbar'
+                                 : 'aus — Tracks von Hand markieren')"></div>
+    </div>
+    <button type="button" @click="toggleAuto()" :disabled="autoBusy"
+            :aria-pressed="auto.aktiv"
+            :class="auto.aktiv ? 'bg-emerald-600' : 'bg-white/[0.12]'"
+            class="relative shrink-0 h-9 w-16 rounded-full transition-colors disabled:opacity-50">
+      <span class="absolute top-1 h-7 w-7 rounded-full bg-white transition-all"
+            :class="auto.aktiv ? 'left-8' : 'left-1'"></span>
+    </button>
+  </div>
+</section>
+
+<script>
+function sessionPanel() {
+  return {
+    state: 'idle',        // idle | recording | paused | offline
+    serviceType: null,
+    elapsed: 0,
+    baseElapsed: 0,
+    baseAt: 0,
+    busy: false,
+    confirmStop: false,
+    confirmTimer: null,
+    es: null,
+    esRetry: null,
+    inputOk: false,
+    lastDb: -Infinity,
+    peakDb: -60,
+    markers: [],
+    pendingTracks: [],
+    markerTypes: window.MARKER_TYPES || [],
+    busyTrack: false,
+
+    // Level curve of the running recording: peak dBFS per block, read from the growing WAV.
+    // Fetched once for what already exists, then only the tail — a poll costs a few hundred
+    // bytes, and a page reload gets the full curve back instead of starting from nothing.
+    levels: [],
+    levelBlock: 0.25,
+    levelFloor: -60,
+
+    // Automodus: wird ausdrücklich eingeschaltet, läuft nie von selbst an.
+    auto: {aktiv: false, beitraege: [], fehler: null},
+    autoBusy: false,
+
+    async init() {
+      await this.poll();
+      await this.loadMarkers();
+      this.drawMeter(-Infinity);
+      this.openMeter();  // meter is always live — not tied to a running session
+      setInterval(() => this.tick(), 250);
+      setInterval(() => this.poll(), 2000);
+      setInterval(() => this.pollLevels(), 2000);
+      setInterval(() => this.pollAuto(), 3000);
+      // Marker regelmäßig nachladen, solange aufgenommen wird. Der Abgleich in poll()
+      // reicht nicht: der zählt gegen marker_count des Audio-Dienstes, und der kennt
+      // die Marker des Automodus nicht — die entstehen in der Datenbank. Ohne das hier
+      // blieb die Liste leer, bis jemand die Seite neu lud.
+      setInterval(() => {
+        if (this.state === 'recording' || this.state === 'paused') this.loadMarkers();
+      }, 5000);
+      this.pollLevels();
+      this.pollAuto();
+      window.addEventListener('resize', () => { this.drawMeter(this.lastDb); this.drawCurves(); });
+
+      window.addEventListener('session:started', (ev) => {
+        this.pendingTracks = Array.isArray(ev.detail.track_sequence) ? [...ev.detail.track_sequence] : [];
+        this.levels = [];
+        this.poll();
+        this.loadMarkers();
+        this.pollLevels();
+      });
+      window.addEventListener('marker:placed', () => this.loadMarkers());
+    },
+
+    // ── State ────────────────────────────────────────────────────────────
+    async poll() {
+      try {
+        const r = await fetch('/api/sessions/status');
+        if (!r.ok) { this.setState('offline'); return; }
+        const d = await r.json();
+        const next = (d.state === 'recording' || d.state === 'paused') ? d.state : 'idle';
+        if (next === 'recording') this.syncElapsed(d.elapsed_seconds || 0);
+        if (next !== 'idle') this.serviceType = d.service_type || null;
+        // Another device (e.g. an iPad) may have placed markers — resync the list
+        if (typeof d.marker_count === 'number' && d.marker_count !== this.markers.length) this.loadMarkers();
+        this.setState(next);
+      } catch (e) {
+        this.setState('offline');
+      }
+    },
+    setState(next) {
+      const was = this.state;
+      if (next === was) return;
+      this.state = next;
+      const active = s => s === 'recording' || s === 'paused';
+      if (next === 'idle' && active(was)) {
+        this.elapsed = 0;
+        this.levels = [];              // next session starts its own curve
+        this.pendingTracks = [];
+        this.confirmStop = false;
+        this.loadMarkers();
+        window.dispatchEvent(new CustomEvent('session:stopped'));
+      }
+    },
+    stateLabel() {
+      return {recording: 'Aufnahme läuft', paused: 'Pausiert', offline: 'Audio-Service offline'}[this.state] || 'Aufnahme';
+    },
+    syncElapsed(seconds) {
+      this.baseElapsed = seconds;
+      this.baseAt = Date.now();
+      this.elapsed = seconds;
+    },
+    tick() {
+      if (this.state === 'recording') {
+        this.elapsed = this.baseElapsed + Math.floor((Date.now() - this.baseAt) / 1000);
+      }
+    },
+    trackElapsed() {
+      const last = this.markers[this.markers.length - 1];
+      if (!last || this.state === 'idle') return this.elapsed;
+      return Math.max(0, this.elapsed - Math.floor(last.placed_at_ts + (last.start_nudge || 0)));
+    },
+
+    // ── Actions ──────────────────────────────────────────────────────────
+    notifyError(msg) {
+      window.dispatchEvent(new CustomEvent('toast', {detail: msg}));
+    },
+    async post(url, body) {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: body ? {'Content-Type': 'application/json'} : {},
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail || ('Fehler ' + r.status));
+      }
+      return r.json();
+    },
+    async pause() {
+      try { await this.post('/api/sessions/pause'); this.state = 'paused'; }
+      catch (e) { this.notifyError('Pause fehlgeschlagen: ' + e.message); }
+    },
+    async resume() {
+      try { await this.post('/api/sessions/resume'); await this.poll(); }
+      catch (e) { this.notifyError('Fortsetzen fehlgeschlagen: ' + e.message); }
+    },
+    async stop() {
+      // First tap arms, second tap within 3s stops — protects against accidental stops mid-service.
+      if (!this.confirmStop) {
+        this.confirmStop = true;
+        clearTimeout(this.confirmTimer);
+        this.confirmTimer = setTimeout(() => { this.confirmStop = false; }, 3000);
+        return;
+      }
+      clearTimeout(this.confirmTimer);
+      this.confirmStop = false;
+      this.busy = true;
+      try {
+        await this.post('/api/sessions/stop');
+        this.setState('idle');
+      } catch (e) {
+        this.notifyError('Stoppen fehlgeschlagen: ' + e.message);
+      } finally {
+        this.busy = false;
+      }
+    },
+
+    // ── Markers ──────────────────────────────────────────────────────────
+    async loadMarkers() {
+      try {
+        const r = await fetch('/api/sessions/markers');
+        if (r.ok) this.markers = await r.json();
+      } catch (e) { /* offline-first */ }
+    },
+    async nudge(marker, field, delta) {
+      try {
+        const r = await fetch(`/api/sessions/markers/${marker.id}/nudge`, {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({field: field, delta_seconds: delta}),
+        });
+        if (!r.ok) throw new Error('Fehler ' + r.status);
+        const body = await r.json();
+        if (field === 'start') marker.start_nudge = body.start_nudge;
+        else marker.end_nudge = body.end_nudge;
+      } catch (e) {
+        this.notifyError('Marker verschieben fehlgeschlagen: ' + e.message);
+      }
+    },
+    openMarker() {
+      // the track currently running = newest marker without an end
+      return this.markers.find(m => m.ended_at_ts === null || m.ended_at_ts === undefined) || null;
+    },
+    async startTrack() {
+      // Big button first — the type is chosen afterwards while the track already runs.
+      this.busyTrack = true;
+      try {
+        await this.post('/api/sessions/marker', {marker_type: 'Unbenannt'});
+        await this.loadMarkers();
+        window.dispatchEvent(new CustomEvent('marker:placed'));
+      } catch (e) {
+        this.notifyError('Track starten fehlgeschlagen: ' + e.message);
+      } finally {
+        this.busyTrack = false;
+      }
+    },
+    async setTrackType(trackType) {
+      const open = this.openMarker();
+      if (!open) return;
+      this.busyTrack = true;
+      try {
+        const r = await fetch(`/api/sessions/markers/${open.id}/type`, {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({marker_type: trackType}),
+        });
+        if (!r.ok) throw new Error('Fehler ' + r.status);
+        const idx = this.pendingTracks.indexOf(trackType);
+        if (idx >= 0) this.pendingTracks.splice(idx, 1);
+        await this.loadMarkers();
+      } catch (e) {
+        this.notifyError('Typ setzen fehlgeschlagen: ' + e.message);
+      } finally {
+        this.busyTrack = false;
+      }
+    },
+    async endTrack() {
+      this.busyTrack = true;
+      try {
+        await this.post('/api/sessions/marker/end');
+        await this.loadMarkers();
+      } catch (e) {
+        this.notifyError('Track beenden fehlgeschlagen: ' + e.message);
+      } finally {
+        this.busyTrack = false;
+      }
+    },
+
+    formatTime(sec) {
+      sec = Math.max(0, Math.floor(sec || 0));
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      const pad = n => String(n).padStart(2, '0');
+      return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+    },
+
+    // ── Level meter ──────────────────────────────────────────────────────
+    openMeter() {
+      if (this.es) return;
+      this.es = new EventSource('/api/sessions/audio-level');
+      this.es.onmessage = (e) => {
+        try {
+          const { rms, input } = JSON.parse(e.data);
+          this.inputOk = input === undefined ? rms > 0 : Boolean(input);
+          this.drawMeter(rms > 0 ? 20 * Math.log10(rms) : -Infinity);
+        } catch (_) {}
+      };
+      this.es.onerror = () => {
+        this.inputOk = false;
+        this.peakDb = -60;
+        this.drawMeter(-Infinity);
+        // EventSource reconnects by itself unless the connection was closed for good
+        if (this.es && this.es.readyState === EventSource.CLOSED) {
+          this.es = null;
+          clearTimeout(this.esRetry);
+          this.esRetry = setTimeout(() => this.openMeter(), 3000);
+        }
+      };
+    },
+    // ── Automodus ────────────────────────────────────────────────────────
+    async pollAuto() {
+      try {
+        const r = await fetch('/api/sessions/automode');
+        if (r.ok) this.auto = await r.json();
+      } catch (e) { /* offline-first */ }
+    },
+    async toggleAuto() {
+      this.autoBusy = true;
+      const ziel = this.auto.aktiv ? 'stop' : 'start';
+      try {
+        const r = await fetch(`/api/sessions/automode/${ziel}`, {method: 'POST'});
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}));
+          throw new Error(d.detail || 'Fehler ' + r.status);
+        }
+        this.auto = await r.json();
+      } catch (e) {
+        this.notifyError('Automatik: ' + e.message);
+      } finally {
+        this.autoBusy = false;
+      }
+    },
+    // Der laufende Beitrag, so wie die Automatik ihn gerade einschätzt
+    autoOffen() {
+      return (this.auto.beitraege || []).find(b => b.ende_s === null) || null;
+    },
+    // Erkanntes, das bewusst nicht exportiert wird — nur zur Anzeige
+    autoUebergangen() {
+      return (this.auto.beitraege || []).filter(b => !b.exportieren);
+    },
+    async deleteMarker(marker) {
+      // Ohne Rückfrage: die Aufnahme läuft weiter, der Ton ist nicht weg, und ein
+      // Dialog mitten im Gottesdienst kostet mehr als ein versehentlicher Klick.
+      try {
+        const r = await fetch(`/api/sessions/markers/${marker.id}`, {method: 'DELETE'});
+        if (!r.ok) throw new Error('Fehler ' + r.status);
+        this.markers = this.markers.filter(m => m.id !== marker.id);
+        this.drawCurves();
+      } catch (e) {
+        this.notifyError('Marker entfernen fehlgeschlagen: ' + e.message);
+      }
+    },
+    async setTypeOf(marker, typ) {
+      if (!typ || typ === marker.marker_type) return;
+      try {
+        const r = await fetch(`/api/sessions/markers/${marker.id}/type`, {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({marker_type: typ}),
+        });
+        if (!r.ok) throw new Error('Fehler ' + r.status);
+        marker.marker_type = typ;     // sofort sichtbar, der Poll bestätigt gleich
+      } catch (e) {
+        this.notifyError('Typ ändern fehlgeschlagen: ' + e.message);
+      }
+    },
+
+    // ── Level curve ──────────────────────────────────────────────────────
+    async pollLevels() {
+      if (this.state !== 'recording' && this.state !== 'paused') return;
+      const from = this.levels.length * this.levelBlock;
+      try {
+        const r = await fetch(`/api/sessions/levels?from_seconds=${from}&block_ms=${Math.round(this.levelBlock * 1000)}`);
+        if (!r.ok) return;                       // 409 right after start: no WAV yet
+        const d = await r.json();
+        this.levelBlock = d.block_seconds || this.levelBlock;
+        if (typeof d.floor_dbfs === 'number') this.levelFloor = d.floor_dbfs;
+        if (d.levels && d.levels.length) this.levels.push(...d.levels);
+        this.drawCurves();
+      } catch (e) { /* offline-first: keep the curve we have */ }
+    },
+
+    // Peak dBFS over a time range, or null when the range holds no data yet.
+    levelAt(fromSeconds, toSeconds) {
+      const a = Math.max(0, Math.floor(fromSeconds / this.levelBlock));
+      const b = Math.min(this.levels.length, Math.ceil(toSeconds / this.levelBlock));
+      let peak = null;
+      for (let i = a; i < b; i++) if (peak === null || this.levels[i] > peak) peak = this.levels[i];
+      return peak;
+    },
+
+    // Effective bounds of a marker — the nudges are what the export will actually cut.
+    markerRange(m) {
+      const start = m.placed_at_ts + (m.start_nudge || 0);
+      const end = (m.ended_at_ts === null || m.ended_at_ts === undefined ? this.elapsed : m.ended_at_ts)
+                  + (m.end_nudge || 0);
+      return [start, Math.max(end, start + 0.1)];
+    },
+
+    sizeCanvas(canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.round(canvas.clientWidth * dpr);
+      const h = Math.round(canvas.clientHeight * dpr);
+      if (!w || !h) return null;
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, w, h);
+      return {ctx, w, h, dpr};
+    },
+
+    // Symmetric envelope around the middle — one bar per pixel column.
+    drawEnvelope(ctx, w, h, fromSeconds, toSeconds, color) {
+      const span = toSeconds - fromSeconds;
+      if (span <= 0) return;
+      const range = -this.levelFloor;
+      ctx.fillStyle = color;
+      for (let x = 0; x < w; x++) {
+        const t0 = fromSeconds + (x / w) * span;
+        const t1 = fromSeconds + ((x + 1) / w) * span;
+        const db = this.levelAt(t0, Math.max(t1, t0 + this.levelBlock));
+        if (db === null) continue;
+        const amp = Math.max(0, (db - this.levelFloor) / range);
+        const bar = Math.max(1, amp * h);
+        ctx.fillRect(x, (h - bar) / 2, 1, bar);
+      }
+    },
+
+    drawCurves() {
+      this.drawBand();
+      this.drawSparklines();
+    },
+
+    drawBand() {
+      const canvas = this.$refs.band;
+      if (!canvas) return;
+      const c = this.sizeCanvas(canvas);
+      if (!c) return;
+      const {ctx, w, h} = c;
+      const total = Math.max(this.elapsed, this.levels.length * this.levelBlock, 1);
+      const x = t => (t / total) * w;
+
+      // Track regions first, so the curve sits on top of them.
+      for (const m of this.markers) {
+        const [start, end] = this.markerRange(m);
+        const open = m.ended_at_ts === null || m.ended_at_ts === undefined;
+        ctx.fillStyle = open ? 'rgba(56,189,248,0.14)' : 'rgba(255,255,255,0.05)';
+        ctx.fillRect(x(start), 0, Math.max(1, x(end) - x(start)), h);
+        ctx.fillStyle = open ? 'rgba(56,189,248,0.7)' : 'rgba(255,255,255,0.22)';
+        ctx.fillRect(x(start), 0, 1, h);
+      }
+
+      this.drawEnvelope(ctx, w, h, 0, total, 'rgba(228,228,231,0.55)');
+
+      // Playhead — only meaningful while something is actually being written.
+      if (this.state === 'recording' || this.state === 'paused') {
+        ctx.fillStyle = this.state === 'recording' ? '#ef4444' : '#fbbf24';
+        ctx.fillRect(Math.min(w - 1, x(this.elapsed)), 0, 1, h);
+      }
+    },
+
+    drawSparklines() {
+      for (const canvas of document.querySelectorAll('canvas[data-marker-id]')) {
+        const m = this.markers.find(x => String(x.id) === canvas.dataset.markerId);
+        if (!m) continue;
+        const c = this.sizeCanvas(canvas);
+        if (!c) continue;
+        const [start, end] = this.markerRange(m);
+        const open = m.ended_at_ts === null || m.ended_at_ts === undefined;
+        this.drawEnvelope(c.ctx, c.w, c.h, start, end,
+                          open ? 'rgba(56,189,248,0.75)' : 'rgba(161,161,170,0.75)');
+      }
+    },
+
+    drawMeter(db) {
+      const canvas = this.$refs.meter;
+      if (!canvas) return;
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.round(canvas.clientWidth * dpr);
+      const h = Math.round(canvas.clientHeight * dpr);
+      if (!w || !h) return;
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, w, h);
+
+      this.lastDb = db;
+      const level = Math.max(-60, Math.min(0, db));
+      this.peakDb = Math.max(level, this.peakDb - 0.8);
+      const N = 60;
+      const gap = 2 * dpr;
+      const segW = (w - gap * (N - 1)) / N;
+      const peakIdx = this.peakDb > -60 ? Math.min(N - 1, Math.floor((this.peakDb + 60) / 60 * N)) : -1;
+      for (let i = 0; i < N; i++) {
+        const segDb = -60 + (i / N) * 60;
+        const lit = db > -60 && level > segDb;
+        const color = segDb >= -3 ? '#ef4444' : (segDb >= -12 ? '#f59e0b' : '#10b981');
+        ctx.fillStyle = (lit || i === peakIdx) ? color : 'rgba(255,255,255,0.07)';
+        ctx.fillRect(i * (segW + gap), 0, segW, h);
+      }
+    },
+  };
+}
+</script>

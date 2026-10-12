@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Audio-Dienst (Port 8001) — Aufnahme, Transkription, Erkennung, Stream.
+
+  LaunchAgent, nicht LaunchDaemon: fuer den Zugriff auf das Audiogeraet braucht der
+  Dienst eine angemeldete Benutzersitzung. Die Web-API dagegen ist ein LaunchDaemon
+  und laeuft schon vor der Anmeldung.
+
+  Die Platzhalter setzt audio-service/install.sh ein. Ziel:
+  ~/Library/LaunchAgents/de.akouo.audio.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>de.akouo.audio</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>VENV_PYTHON_PLACEHOLDER</string>
+        <string>main.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>AUDIO_SERVICE_DIR_PLACEHOLDER</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!-- ffmpeg und ffprobe liegen bei Homebrew; launchd erbt die PATH der Shell
+             nicht. Beide Praefixe, weil Homebrew auf Apple Silicon unter
+             /opt/homebrew und auf Intel unter /usr/local installiert. -->
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>PYTHONPATH</key>
+        <string>AUDIO_SERVICE_DIR_PLACEHOLDER</string>
+    </dict>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>LOG_DIR_PLACEHOLDER/audio.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>LOG_DIR_PLACEHOLDER/audio-error.log</string>
+
+    <!-- Stirbt der Dienst beim Start (fehlendes Audiogeraet, Tippfehler im Code),
+         haelt KeepAlive ihn in einer Schleife. Zehn Sekunden Abstand halten das Log
+         lesbar. -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+</dict>
+</plist>

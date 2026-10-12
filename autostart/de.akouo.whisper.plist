@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>de.akouo.whisper</string>
+
+    <!-- whisper-server haelt das Modell im Speicher: ~0,35 s pro Haeppchen statt ~1 s pro Aufruf.
+         Alle Platzhalter setzt autostart/install.sh. Das Binary wird ueber "brew --prefix"
+         aufgeloest, weil Homebrew auf Intel unter /usr/local und auf Apple Silicon unter
+         /opt/homebrew liegt. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>WHISPER_BIN_PLACEHOLDER</string>
+        <string>-m</string>
+        <string>WHISPER_MODEL_PLACEHOLDER</string>
+        <string>-l</string>
+        <string>WHISPER_LANG_PLACEHOLDER</string>
+        <string>-t</string>
+        <string>WHISPER_THREADS_PLACEHOLDER</string>
+        <string>--host</string>
+        <string>127.0.0.1</string>
+        <string>--port</string>
+        <string>8090</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>LOG_DIR_PLACEHOLDER/whisper.log</string>
+    <key>StandardErrorPath</key>
+    <string>LOG_DIR_PLACEHOLDER/whisper.log</string>
+</dict>
+</plist>

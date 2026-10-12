@@ -1,0 +1,51 @@
+# ── Zugangsdaten ────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+audio-service/.env
+
+# ── Datenbank (Betriebsdaten, gehoert nicht ins Repo) ───────────────────────
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.bak-*
+*.sqlite
+*.sqlite3
+
+# ── Aufnahmen, Exporte, Transkripte ─────────────────────────────────────────
+# Der Normalfall ist ~/Recordings/Akouo ausserhalb des Repos. Diese Regeln
+# greifen, falls jemand RECORDINGS_DIR relativ zum Repo konfiguriert.
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.vtt
+transcript.txt
+transcript.jsonl
+marker.json
+ablauf.txt
+recordings/
+exports/
+uploads/
+
+# ── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# ── Werkzeuge und Systemkram ────────────────────────────────────────────────
+# Tailwind-Standalone-Binary, ~76 MB. Bezugsquelle steht in CONTRIBUTING.md.
+tailwindcss-macos-arm64
+tailwindcss-*
+.planning/
+.claude/
+.idea/
+.vscode/
+*.log
+logs/
+.DS_Store

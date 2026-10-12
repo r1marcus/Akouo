@@ -1,0 +1,17 @@
+{# Legacy single-shot recorder status (GET /api/recordings/status). The dashboard uses session_section.html instead. #}
+<div class="flex items-center gap-3">
+    <span class="w-2.5 h-2.5 rounded-full shrink-0
+        {% if status == 'recording' %}bg-red-500 animate-pulse
+        {% elif status == 'error' %}bg-amber-400
+        {% else %}bg-zinc-600{% endif %}">
+    </span>
+    <span class="text-zinc-300 font-medium">
+        {% if status == 'recording' %}
+            Aufnahme läuft{% if elapsed_seconds %} &mdash; {{ elapsed_seconds }}s{% endif %}
+        {% elif status == 'error' %}
+            Fehler{% if error_message %}: {{ error_message }}{% endif %}
+        {% else %}
+            Bereit
+        {% endif %}
+    </span>
+</div>

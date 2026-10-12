@@ -1,0 +1,91 @@
+{# Context variables expected: instance (obj|None), items (list), unchecked_count (int) #}
+{# Defaults for graceful initial server-side render before HTMX polling starts #}
+{# Collapse state `open` lives in the wrapping <section x-data> in dashboard.html, #}
+{# so the 2s polling swap of this partial does not reset it. #}
+{% set instance = instance | default(None) %}
+{% set items = items | default([]) %}
+{% set unchecked_count = unchecked_count | default(0) %}
+{% set total = items | length %}
+{% set done = total - unchecked_count %}
+
+{% if instance is none %}
+    <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+        <div class="flex-1">
+            <div class="eyebrow">Checkliste</div>
+            <p class="mt-1 text-sm text-zinc-400">Keine Checkliste aktiv</p>
+        </div>
+        {% if available_templates %}
+        <div x-data="{ tid: {{ available_templates[0].id }} }" class="flex gap-2 sm:w-96">
+            <select x-model="tid" class="field flex-1">
+                {% for t in available_templates %}
+                <option value="{{ t.id }}">{{ t.name }}</option>
+                {% endfor %}
+            </select>
+            <button @click="htmx.ajax('POST', '/api/checklists/activate/' + tid, {target: '#checklist-section', swap: 'innerHTML'})"
+                    class="btn min-h-11 bg-zinc-100 text-zinc-900 hover:bg-white">
+                Starten
+            </button>
+        </div>
+        {% else %}
+        <a href="/checklists" class="text-sm text-zinc-400 underline underline-offset-4 hover:text-zinc-100">Vorlage erstellen</a>
+        {% endif %}
+    </div>
+{% else %}
+    <!-- Header: tap to collapse / expand -->
+    <button type="button" @click="open = !open" :aria-expanded="open"
+            class="w-full min-h-11 flex items-center gap-3 sm:gap-4 text-left">
+        <svg class="w-4 h-4 text-zinc-500 transition-transform duration-200 shrink-0"
+             :class="open && 'rotate-90'" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 3.5 10.5 8 6 12.5"/>
+        </svg>
+        <span class="eyebrow text-zinc-300">Checkliste</span>
+        <span class="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+            <span class="block h-full rounded-full transition-all duration-500
+                         {% if unchecked_count == 0 %}bg-emerald-500{% else %}bg-amber-400{% endif %}"
+                  style="width: {{ ((done / total) * 100) | round(1) if total else 0 }}%"></span>
+        </span>
+        {% if unchecked_count == 0 and total > 0 %}
+            <span class="text-sm font-medium text-emerald-400">Alles erledigt</span>
+        {% else %}
+            <span class="font-mono text-sm tabular-nums text-zinc-300">{{ done }}<span class="text-zinc-600">/{{ total }}</span></span>
+        {% endif %}
+    </button>
+
+    <!-- Items, grouped by "[Gruppe] Text" prefix -->
+    <ul x-show="open" x-cloak class="mt-3 border-t border-white/5 pt-2">
+        {% set ns = namespace(group=None) %}
+        {% for item in items %}
+            {% if item.text.startswith('[') and '] ' in item.text %}
+                {% set group, label = item.text[1:].split('] ', 1) %}
+            {% else %}
+                {% set group, label = None, item.text %}
+            {% endif %}
+            {% if group != ns.group %}
+                {% set ns.group = group %}
+                {% if group %}
+                <li class="eyebrow pt-4 pb-1 px-2">{{ group }}</li>
+                {% endif %}
+            {% endif %}
+            <li>
+                <button
+                    class="w-full min-h-11 flex items-center gap-3 px-2 rounded-lg text-left
+                           hover:bg-white/[0.03] active:bg-white/[0.06] transition-colors"
+                    hx-patch="/api/checklists/items/{{ item.id }}/toggle?instance_id={{ instance.id }}"
+                    hx-target="#checklist-section"
+                    hx-swap="innerHTML">
+                    {% if item.checked %}
+                        <span class="w-5 h-5 rounded-md bg-emerald-500 shrink-0 flex items-center justify-center">
+                            <svg class="w-3 h-3 text-zinc-950" fill="none" viewBox="0 0 12 12" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2 6l3 3 5-5"/>
+                            </svg>
+                        </span>
+                        <span class="text-[15px] text-zinc-500 line-through decoration-zinc-600">{{ label }}</span>
+                    {% else %}
+                        <span class="w-5 h-5 rounded-md border-2 border-zinc-600 shrink-0"></span>
+                        <span class="text-[15px] text-zinc-200">{{ label }}</span>
+                    {% endif %}
+                </button>
+            </li>
+        {% endfor %}
+    </ul>
+{% endif %}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-2xl">
+    <h1 class="text-2xl font-semibold tracking-tight mb-6">Checklisten-Vorlagen</h1>
+
+    <!-- Create new template form -->
+    <section class="card mb-6">
+        <div class="eyebrow mb-3">Neue Vorlage</div>
+        <form hx-post="/api/checklists"
+              hx-target="#template-list"
+              hx-swap="afterbegin"
+              class="flex flex-col sm:flex-row gap-3">
+            <input
+                type="text"
+                name="name"
+                placeholder="z.B. Sonntags-Gottesdienst"
+                required
+                class="field flex-1">
+            <button type="submit" class="btn bg-zinc-100 text-zinc-900 hover:bg-white">
+                Vorlage erstellen
+            </button>
+        </form>
+    </section>
+
+    <!-- Template list -->
+    <div id="template-list" class="flex flex-col gap-3">
+        {% for tpl in templates %}
+        {% include "partials/template_row.html" %}
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
