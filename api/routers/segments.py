@@ -145,6 +145,17 @@ async def _build_segments(session: RecordingSession, db: AsyncSession) -> list[d
                 "uploaded_at": existing.uploaded_at.isoformat() if existing.uploaded_at else None,
             },
         })
+
+    # Auf dem NAS zählt das Archiv fortlaufend — Track-01, -02, … ohne Lücken für
+    # Gemeindegesang, Gebet und Ansagen, die beim Sammel-Export nicht mitgehen. Wer so
+    # einen Beitrag doch einzeln exportiert, bekommt eine Nummer hinter allen regulären,
+    # damit er keinem von ihnen den Platz wegnimmt.
+    nas_nr = 0
+    for nur_regulaere in (True, False):
+        for seg in segments:
+            if seg["exportieren"] is nur_regulaere:
+                nas_nr += 1
+                seg["nas_nr"] = nas_nr
     return segments
 
 
@@ -383,7 +394,7 @@ async def export_segment(
             pass                              # upload will fail and report it on its own
         session.nas_folder = folder
         await db.commit()
-    remote_subpath = f"{folder}/{_nas_track_name(seg['index'])}"
+    remote_subpath = f"{folder}/{_nas_track_name(seg['nas_nr'])}"
     # Defence in depth — never trust constructed path either
     if ".." in PurePosixPath(remote_subpath).parts:
         raise HTTPException(status_code=400, detail="invalid remote_subpath")
@@ -408,7 +419,7 @@ async def export_segment(
         "tags": {
             "title": marker.marker_type,
             "album": PurePosixPath(folder).name,
-            "track": str(seg["index"]),
+            "track": str(seg["nas_nr"]),
             "date": started.strftime("%Y-%m-%d"),
             "genre": session.service_type,
         },

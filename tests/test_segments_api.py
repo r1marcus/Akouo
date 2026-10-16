@@ -549,3 +549,61 @@ def test_nas_folder_sonstiges_eigener_bereich():
     """'Sonstiges' gehört nicht zu den Gottesdiensten, sondern in den eigenen Jahresbereich."""
     assert _pfad(_Sess("Sonstiges"), datetime(2026, 2, 3, 14, 0)) == \
         "Sonstige Aufnahmen/2026/2026-02-03"
+
+
+# ─── Tests: fortlaufende Nummer auf dem NAS ────────────────────────────────
+
+async def _gottesdienst_mit_luecken(db):
+    """Orchester, Gemeindegesang, Predigt, Gebet, Chorlied — zwei davon gehen nicht mit."""
+    started = datetime(2026, 10, 18, 9, 30, 0)
+    sess = await _make_session(db, started_at=started, stopped_at=started + timedelta(seconds=400),
+                               service_type="Sonntagmorgen")
+    marker = {}
+    for typ, ts in [("Orchester", 10.0), ("Gemeindegesang", 60.0), ("Predigt", 120.0),
+                    ("Gebet", 200.0), ("Chorlied", 260.0)]:
+        marker[typ] = await _make_marker(db, sess.id, typ, placed_at_ts=ts)
+    return sess, marker
+
+
+@pytest.mark.asyncio
+async def test_nas_nummer_fortlaufend_ohne_luecken(db_session):
+    """Das Archiv zählt Track-01, -02, … ohne Lücken; nicht exportierte Beiträge stehen dahinter."""
+    from routers.segments import _build_segments
+
+    sess, _ = await _gottesdienst_mit_luecken(db_session)
+    segs = await _build_segments(sess, db_session)
+
+    assert [s["index"] for s in segs] == [1, 2, 3, 4, 5]
+    assert {s["marker_type"]: s["nas_nr"] for s in segs} == {
+        "Orchester": 1, "Predigt": 2, "Chorlied": 3,
+        "Gemeindegesang": 4, "Gebet": 5,
+    }
+
+
+@pytest.mark.asyncio
+async def test_export_nutzt_nas_nummer_fuer_track_und_id3(db_session):
+    """Auf dem NAS Track-02 samt ID3-Nummer 2; die lokale Datei behält ihre Markernummer 03."""
+    from routers.segments import export_segment
+
+    sess, marker = await _gottesdienst_mit_luecken(db_session)
+    sess.nas_folder = "Gottesdienste/2026-10-18 Sonntag 1. morgens"
+    await db_session.commit()
+
+    audio_resp = {
+        "export": {"mp3_path": "/exports/x.mp3", "duration_ms": 5000, "frame_rate": 48000},
+        "nas": {"status": "skipped", "error": None, "nas_path": None, "uploaded_at": None},
+        "mp3_filename": "x.mp3",
+        "mp3_path": "/exports/x.mp3",
+    }
+    client = _mock_audio_client(audio_resp)
+    mock_request = MagicMock()
+    mock_request.headers = {}
+
+    with patch("httpx.AsyncClient", return_value=client):
+        await export_segment(session_id=sess.id, marker_id=marker["Predigt"].id,
+                             request=mock_request, db=db_session)
+
+    payload = client.post.call_args.kwargs["json"]
+    assert payload["remote_subpath"] == "Gottesdienste/2026-10-18 Sonntag 1. morgens/Track-02.mp3"
+    assert payload["tags"]["track"] == "2"
+    assert "_03_Predigt" in payload["mp3_filename"]
