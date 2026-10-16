@@ -109,6 +109,8 @@ function sessionPanel() {
     busy: false,
     confirmStop: false,
     confirmTimer: null,
+    confirmDeleteId: null,
+    confirmDeleteTimer: null,
     es: null,
     esRetry: null,
     inputOk: false,
@@ -389,8 +391,16 @@ function sessionPanel() {
       return (this.auto.beitraege || []).filter(b => !b.exportieren);
     },
     async deleteMarker(marker) {
-      // Ohne Rückfrage: die Aufnahme läuft weiter, der Ton ist nicht weg, und ein
-      // Dialog mitten im Gottesdienst kostet mehr als ein versehentlicher Klick.
+      // Zwei Tipps wie beim Stoppen: der erste färbt den Knopf rot, der zweite binnen 3 s
+      // löscht. Kein Dialog — der kostet mitten im Gottesdienst mehr als er schützt.
+      if (this.confirmDeleteId !== marker.id) {
+        this.confirmDeleteId = marker.id;
+        clearTimeout(this.confirmDeleteTimer);
+        this.confirmDeleteTimer = setTimeout(() => { this.confirmDeleteId = null; }, 3000);
+        return;
+      }
+      clearTimeout(this.confirmDeleteTimer);
+      this.confirmDeleteId = null;
       try {
         const r = await fetch(`/api/sessions/markers/${marker.id}`, {method: 'DELETE'});
         if (!r.ok) throw new Error(tr('Fehler') + ' ' + r.status);

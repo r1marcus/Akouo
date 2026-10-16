@@ -153,9 +153,11 @@
             <button @click="nudge(m, 'end', -1)" class="h-9 min-w-9 px-2 rounded-lg bg-white/[0.05] font-mono text-zinc-300 hover:bg-white/10 active:scale-95">−1</button>
             <button @click="nudge(m, 'end', 1)" class="h-9 min-w-9 px-2 rounded-lg bg-white/[0.05] font-mono text-zinc-300 hover:bg-white/10 active:scale-95">+1</button>
             <button @click="deleteMarker(m)" :title="trf('Marker {typ} entfernen', {typ: anzBeitrag(m.marker_type)})"
-                    class="ml-1 h-9 w-9 shrink-0 grid place-items-center rounded-lg text-zinc-600
-                           hover:bg-red-500/15 hover:text-red-400 active:scale-95">
-              <svg class="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+                    class="ml-1 h-9 shrink-0 grid place-items-center rounded-lg active:scale-95"
+                    :class="confirmDeleteId === m.id ? 'px-3 bg-red-600 text-white font-medium hover:bg-red-500'
+                                                     : 'w-9 text-zinc-600 hover:bg-red-500/15 hover:text-red-400'">
+              <span x-text="confirmDeleteId === m.id ? tr('Löschen?') : ''"></span>
+              <svg :class="confirmDeleteId === m.id && 'hidden'" class="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
                 <path stroke-linecap="round" d="M3 4.5h10M6.5 4.5V3h3v1.5M5 4.5l.5 8h5l.5-8"/>
               </svg>
             </button>
