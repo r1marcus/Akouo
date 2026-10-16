@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="{{ sprache_aktuell() }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -15,6 +15,32 @@
     <title>Akouo</title>
     <link rel="stylesheet" href="{{ static_url('app.css') }}">
     <script>
+    // Derselbe Katalog wie serverseitig, fuer die Texte, die erst im Browser entstehen
+    // (Fehlermeldungen, Alpine-Beschriftungen). Auf Deutsch ist er leer — die Saetze
+    // stehen dort schon im Quelltext, und ein Woerterbuch, das jeden Satz auf sich selbst
+    // abbildet, waere nur Ballast auf dem Tablet.
+    window.AKOUO_T = {{ sprach_katalog() | tojson }};
+    // Heisst tr() und nicht t(): die Templates nutzen x-for="t in …", und der
+    // Schleifenname ueberdeckt im Alpine-Bereich jede gleichnamige Funktion. Ein
+    // t('…') innerhalb einer solchen Schleife wuerde versuchen, eine Zeichenkette
+    // aufzurufen — und zwar genau dort, wo die Track-Knoepfe entstehen.
+    function tr(s) { return (window.AKOUO_T && window.AKOUO_T[s]) || s; }
+
+    // Fuer Saetze mit eingesetzten Werten. Aus Bruchstuecken zusammengeklebte Texte
+    // ('Vorschlag: ' + x) lassen sich nicht uebersetzen, ohne die Wortstellung
+    // kaputtzumachen — im Russischen steht das Verb woanders als im Deutschen.
+    // Deshalb der ganze Satz als Schluessel, mit {name} als Platzhalter.
+    function trf(s, werte) {
+        return tr(s).replace(/\{(\w+)\}/g, (treffer, name) =>
+            Object.prototype.hasOwnProperty.call(werte, name) ? werte[name] : treffer);
+    }
+
+    // Anzeigenamen der Arten in der aktiven Sprache. Der Wert, der an die API geht,
+    // bleibt ueberall der deutsche Name — das hier ist nur die Beschriftung.
+    window.AKOUO_ANZEIGE = {{ anzeige_katalog() | tojson }};
+    function anzGottesdienst(name) { return (window.AKOUO_ANZEIGE.gottesdienst || {})[name] || name; }
+    function anzBeitrag(name) { return (window.AKOUO_ANZEIGE.beitrag || {})[name] || name; }
+
     window.SERVICE_TYPES = {{ service_types | tojson }};
     window.PRIMARY_SERVICE_TYPES = {{ primary_service_types | tojson }};
     window.MARKER_TYPES = {{ marker_types | tojson }};
@@ -52,10 +78,12 @@
             },
             label() {
                 if (!this.loaded) return '…';
-                if (!this.current) return 'Gottesdienst wählen';
+                if (!this.current) return tr('Gottesdienst wählen');
                 const c = this.current;
-                const teile = [c.service_type];
-                if (c.wedding_part) teile.push(`Teil ${c.wedding_part}`);
+                // Der Name in der Kopfzeile ist Anzeige; gespeichert und an die API
+                // geschickt wird weiterhin c.service_type, der deutsche Name.
+                const teile = [anzGottesdienst(c.service_type)];
+                if (c.wedding_part) teile.push(`${tr('Teil')} ${c.wedding_part}`);
                 if (c.thema) teile.push(c.thema);
                 return teile.join(' · ');
             },
@@ -93,7 +121,7 @@
                     });
                     const d = await r.json().catch(() => ({}));
                     if (!r.ok) {
-                        this.error = typeof d.detail === 'string' ? d.detail : 'Speichern fehlgeschlagen (' + r.status + ')';
+                        this.error = typeof d.detail === 'string' ? d.detail : tr('Speichern fehlgeschlagen (') + r.status + ')';
                         return;
                     }
                     this.current = {service_type: d.service_type, couple_name: d.couple_name,
@@ -104,7 +132,7 @@
                     // dashboard comes after it. Already on the checklist → stay and reload it.
                     window.location.href = '/checkliste';
                 } catch (e) {
-                    this.error = 'Netzwerkfehler: ' + e.message;
+                    this.error = trf('Netzwerkfehler: {fehler}', {fehler: e.message});
                 }
             },
         });
@@ -141,9 +169,9 @@
                 return this.inputOk;
             },
             title() {
-                if (this.playing) return 'Mithören beenden';
-                if (!this.inputOk) return 'Kein Eingangssignal — Audio-Dienst oder Dante prüfen';
-                return 'Stream-Signal mithören (nur mit Kopfhörer)';
+                if (this.playing) return tr('Mithören beenden');
+                if (!this.inputOk) return tr('Kein Eingangssignal — Audio-Dienst oder Dante prüfen');
+                return tr('Stream-Signal mithören (nur mit Kopfhörer)');
             },
             toggle() {
                 if (this.playing) { this.stop(); return; }
@@ -189,8 +217,10 @@
 </head>
 <body class="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
     {% set path = request.url.path %}
+    {# Mit Abfragezeichenkette, sonst verliert ein Sprachwechsel die Filter der Seite #}
+    {% set ziel = path ~ ('?' ~ request.url.query if request.url.query else '') %}
     <header class="sticky top-0 z-40 border-b border-white/5 bg-zinc-950/80 backdrop-blur-xl pt-[env(safe-area-inset-top)]">
-        <div class="max-w-5xl mx-auto px-4 sm:px-6 py-2 sm:py-0 sm:h-14 flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 py-2 lg:py-0 lg:h-14 flex flex-wrap lg:flex-nowrap items-center gap-x-3 gap-y-2">
             <a href="/" class="flex items-center gap-2.5 shrink-0">
                 <span class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_12px_2px_rgba(239,68,68,0.45)]"></span>
                 <span class="hidden sm:inline text-[15px] font-semibold tracking-tight">Akouo</span>
@@ -200,11 +230,11 @@
             <button type="button" x-data
                     @click="$store.service.openPicker()"
                     :disabled="$store.service.locked"
-                    :title="$store.service.locked ? 'Während einer Aufnahme nicht änderbar' : 'Gottesdienst ändern'"
+                    :title="$store.service.locked ? tr('Während einer Aufnahme nicht änderbar') : tr('Gottesdienst ändern')"
                     :class="$store.service.current || !$store.service.loaded
                         ? 'border-white/10 bg-white/[0.06] text-zinc-100 hover:bg-white/10'
                         : 'border-amber-400/30 bg-amber-400/10 text-amber-300 hover:bg-amber-400/15'"
-                    class="min-h-9 min-w-0 flex-1 sm:flex-none inline-flex items-center gap-2 rounded-full border px-3.5
+                    class="min-h-9 min-w-0 flex-1 sm:flex-initial sm:min-w-40 sm:max-w-56 inline-flex items-center gap-2 rounded-full border px-3.5
                            text-sm font-medium transition-colors disabled:cursor-default">
                 <span class="truncate" x-text="$store.service.label()">…</span>
                 <svg x-show="!$store.service.locked" class="w-3.5 h-3.5 shrink-0 text-zinc-500" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
@@ -247,9 +277,23 @@
                        x-show="$store.monitor.playing" x-cloak
                        :value="$store.monitor.volume"
                        @input="$store.monitor.setVolume($event.target.value)"
-                       aria-label="Mithör-Lautstärke"
-                       title="Mithör-Lautstärke"
+                       aria-label="{{ t('Mithör-Lautstärke') }}"
+                       title="{{ t('Mithör-Lautstärke') }}"
                        class="w-20 h-11 accent-emerald-400">
+            </div>
+
+            {# Sprache dieses Geraets. Als Links und nicht als Alpine-Menue: der Umschalter
+               muss auch dann gehen, wenn ein Skript haengt — und wer die Oberflaeche in einer
+               Sprache vorfindet, die er nicht liest, braucht etwas, das ohne Lesen erkennbar
+               ist. Deshalb Kuerzel statt Sprachnamen. #}
+            <div class="shrink-0 inline-flex items-center gap-0.5 rounded-full border border-white/10 bg-white/[0.04] p-0.5 text-[11px] font-medium">
+                {% for code in sprachen %}
+                <a href="/sprache/{{ code }}?weiter={{ ziel | urlencode }}"
+                   hreflang="{{ code }}"
+                   title="{{ sprach_namen.get(code, code) }}"
+                   class="min-h-11 min-w-11 justify-center px-2 inline-flex items-center rounded-full uppercase tracking-wide transition-colors
+                          {% if sprache_aktuell() == code %}bg-white/10 text-zinc-100{% else %}text-zinc-500 hover:text-zinc-200{% endif %}">{{ code }}</a>
+                {% endfor %}
             </div>
 
             <nav class="w-full sm:w-auto sm:ml-auto flex items-center justify-between sm:justify-end gap-0.5 sm:gap-1 text-sm">
@@ -257,7 +301,7 @@
                 <a href="{{ href }}"
                    class="px-2.5 sm:px-3 py-1.5 rounded-lg transition-colors
                           {% if path == href %}bg-white/10 text-zinc-100{% else %}text-zinc-400 hover:text-zinc-100 hover:bg-white/5{% endif %}">
-                    {{ label }}
+                    {{ t(label) }}
                 </a>
                 {% endfor %}
             </nav>
@@ -274,15 +318,15 @@
          @click.self="$store.monitor.warningOpen = false"
          class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
         <div class="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-900 p-6 shadow-2xl">
-            <h2 class="text-lg font-semibold">Nur mit Kopfhörer</h2>
+            <h2 class="text-lg font-semibold">{{ t("Nur mit Kopfhörer") }}</h2>
             <p class="mt-2 text-sm text-zinc-400">
-                Über Lautsprecher koppelt der Ton in die Mikrofone zurück und landet in der Aufnahme.
+                {{ t("Über Lautsprecher koppelt der Ton in die Mikrofone zurück und landet in der Aufnahme.") }}
             </p>
             <div class="mt-6 grid grid-cols-2 gap-3">
                 <button type="button" @click="$store.monitor.warningOpen = false"
-                        class="btn bg-white/[0.06] text-zinc-200 hover:bg-white/10">Abbrechen</button>
+                        class="btn bg-white/[0.06] text-zinc-200 hover:bg-white/10">{{ t("Abbrechen") }}</button>
                 <button type="button" @click="$store.monitor.confirmWarning()"
-                        class="btn bg-zinc-100 text-zinc-900 hover:bg-white">Mithören</button>
+                        class="btn bg-zinc-100 text-zinc-900 hover:bg-white">{{ t("Mithören") }}</button>
             </div>
         </div>
     </div>

@@ -149,6 +149,56 @@ Log: `~/Library/Logs/Akouo/dashboard.log`
 
 ---
 
+## 2a. Sprache der Oberfläche
+
+Das Dashboard spricht **Deutsch, Englisch und Russisch**. Umgeschaltet wird oben in der
+Kopfzeile über die drei Kürzel `DE EN RU`.
+
+**Die Wahl gilt pro Gerät, nicht für die Anlage.** Das ist der Unterschied zur
+Gottesdienst-Auswahl: Die gilt überall gleich, weil alle denselben Gottesdienst aufnehmen.
+Die Sprache ist persönlich — zwei Leute können dieselbe Aufnahme bedienen, einer auf
+Deutsch, einer auf Russisch. Gespeichert wird sie in einem Cookie, ein Jahr lang; ein neues
+Tablet beginnt auf Deutsch.
+
+Die Browsersprache wird bewusst **nicht** ausgewertet. Ein Tablet, das auf Englisch steht,
+würde die Oberfläche beim ersten Aufruf englisch machen — und wer dann Deutsch sucht, sucht
+es in einer Sprache, die er nicht erwartet hat.
+
+**Was nicht übersetzt wird**, und warum:
+
+| | |
+|---|---|
+| Transkript, Themen, KI-Zusammenfassungen | Die stehen in der Sprache, in der gesprochen wurde. Eine Übersetzung wäre eine Behauptung über den Inhalt. |
+| Namen der Gottesdienst- und Beitragsarten | An ihnen hängt Logik — Anker der Zuordnung, Ansage-Regeln, NAS-Vorlagen. Übersetzt wird nur der **Anzeigename**, siehe unten. |
+| Checklistenpunkte | Selbst eingegebener Text. Er steht so da, wie er eingetippt wurde. |
+| Meldungen des Audio-Dienstes | Der Dienst kennt die Sprache des Geräts nicht. Was über die API kommt, ist deutsch. |
+
+### Anzeigenamen der Arten
+
+Auf der Einstellungsseite hat jede Gottesdienst- und Beitragsart neben ihrem Namen zwei
+kleine Felder, `EN` und `RU`. Dort steht nur die Beschriftung; der Name links bleibt
+deutsch und trägt die Logik. Deshalb sind die beiden Felder auch bei **geschützten** Arten
+änderbar — geschützt ist der Name, nicht die Beschriftung daneben.
+
+Leer heißt: den deutschen Namen anzeigen. Eine selbst angelegte Art beginnt leer und zeigt
+überall ihren deutschen Namen, bis jemand eine Übersetzung einträgt.
+
+### Eine Übersetzung ändern
+
+Die Texte stehen in `api/sprachen/de.json`, `en.json` und `ru.json`. Deutsch ist die
+Ausgangssprache **und zugleich der Schlüssel**: Links steht der deutsche Satz, rechts die
+Übersetzung. Fehlt ein Eintrag, erscheint Deutsch — nie ein Platzhalter.
+
+Die Dateien werden bei jeder Änderung neu gelesen, ein Dienst-Neustart ist nicht nötig.
+Ein Tippfehler in der Sprachdatei macht die Oberfläche nicht kaputt: Lässt sich die Datei
+nicht lesen, gilt Deutsch.
+
+> **Die russische Fassung stammt nicht von einem Muttersprachler** und ist noch nicht
+> gegengelesen. Wer sie prüft, ändert die Werte in `ru.json` — die Schlüssel links bleiben
+> unangetastet, sonst findet die Oberfläche den Satz nicht mehr.
+
+---
+
 ## 3. Konfiguration
 
 | Variable | Wo | Standard | Zweck |
@@ -614,7 +664,7 @@ make lint        # ruff
 schiebt die API ihre Erkennungskonfiguration zum Audio-Dienst — ein Testlauf ohne diese
 Umleitung würde den **produktiv laufenden** Dienst umkonfigurieren.
 
-Stand 12.10.2026: **164 Tests grün** (102 API, 62 Audio-Dienst).
+Stand 12.10.2026: **218 Tests grün** (156 API, 62 Audio-Dienst).
 
 ---
 
@@ -675,16 +725,16 @@ launchctl bootout gui/$(id -u)/com.tontechnik.audio
 #    Zweig: Templates sind heiss, und sobald eines t("…") aufruft, braucht es die
 #    neue Python-Fassung — sonst steht das Dashboard sofort, bis zu genau diesem
 #    Neustart. Deshalb erst jetzt, wo die Dienste ohnehin stehen.
-#    Nach dem Zusammenfuehren ist das Migrationsziel 015, nicht 014.
 git merge --no-ff i18n-oberflaeche -m "merge: dreisprachige Oberflaeche"
 
-# 4. Migrieren, solange nichts schreibt
+# 4. Migrieren, solange nichts schreibt. Jetzt bis 015 — 014 bringt die Arten in die
+#    Datenbank, 015 die Anzeigenamen je Sprache.
 DATABASE_URL="sqlite+aiosqlite:///$PWD/data/tontechnik.db" .venv/bin/alembic upgrade head
 
-# 4. CSS neu bauen — die Einstellungsseite ist neu und bringt neue Tailwind-Klassen mit
+# 5. CSS neu bauen — Einstellungsseite und Sprachumschalter bringen neue Klassen mit
 make css
 
-# 5. Die neuen Dienste einrichten und starten. Die Installer entladen die alten
+# 6. Die neuen Dienste einrichten und starten. Die Installer entladen die alten
 #    whisper- und Dashboard-Labels selbst und benutzen die vorhandene Datenbank.
 AKOUO_WHISPER_MODEL=~/ai/models/ggml-large-v3-turbo.bin bash autostart/install.sh
 bash audio-service/install.sh
@@ -694,10 +744,12 @@ Danach prüfen, ob die Einstellbarkeit wirklich angekommen ist — das ist der P
 Übung:
 
 ```bash
-sqlite3 data/tontechnik.db "SELECT version_num FROM alembic_version;"  # 014
+sqlite3 data/tontechnik.db "SELECT version_num FROM alembic_version;"  # 015
 curl -s -o /dev/null -w "%{http_code}\n" localhost:8001/api/config/erkennung  # 200, nicht 404
-launchctl list | grep -c akouo                                          # 3 (api, whisper, dashboard)
-                                                                        # + de.akouo.audio
+curl -s -o /dev/null -w "%{http_code}\n" localhost:8000/sprache/ru            # 303
+# launchctl list zeigt als Benutzer NUR die Agents, nie den System-Daemon der API.
+# Drei sind also richtig — die API steckt in der healthz-Zeile darueber.
+launchctl list | grep -c akouo                                          # 3: audio, whisper, dashboard
 ```
 
 Und erst wenn das steht, kann `api/templates/settings.html` weg — bis zum Neustart erwartet die
@@ -820,12 +872,12 @@ ollama list                                    # installierte Sprachmodelle
 | Aufnahmen | `~/Recordings/Tontechnik/sessions/<Datum>_<Typ>_<Nr>/` |
 | Logs | alle unter `~/Library/Logs/Akouo/`: `api.log`, `audio.log`, `audio-error.log`, `whisper.log`, `dashboard.log` |
 | Konfiguration | `audio-service/.env`, `~/run-akouo-api.sh`, Einstellungsseite |
-| Datenbank | `data/tontechnik.db` — Alembic-Stand **013**, Ziel 014 (Abschnitt 8a) |
+| Datenbank | `data/tontechnik.db` — Alembic-Stand **013**, Ziel 015 (Abschnitt 8a) |
 | Ablauf je Aufnahme | `marker.json` und `ablauf.txt` im Session-Ordner |
 | whisper-Modelle | `~/ai/models/ggml-large-v3-turbo.bin` |
 
 **Tests**
 
 ```bash
-make test        # 164 Tests, beide Gruppen
+make test        # 218 Tests, beide Gruppen
 ```

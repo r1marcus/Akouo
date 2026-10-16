@@ -16,6 +16,7 @@ from database import get_db
 from models import RecordingSession, Setting
 from service_types import CURRENT_SERVICE_KEY, ensure_checklist_for_service
 import typen
+from sprache import uebersetze
 
 AUDIO_SERVICE_URL = os.environ.get("AUDIO_SERVICE_URL", "http://127.0.0.1:8001")
 
@@ -68,7 +69,7 @@ async def put_current_service(req: CurrentServiceRequest, db: AsyncSession = Dep
     if req.service_type not in typen.aktuell.gottesdienstarten:
         raise HTTPException(status_code=422, detail=f"Unbekannter Gottesdiensttyp: {req.service_type}")
     if await _active_session(db) is not None:
-        raise HTTPException(status_code=409, detail="Während einer Aufnahme kann der Gottesdienst nicht geändert werden")
+        raise HTTPException(status_code=409, detail=uebersetze("Während einer Aufnahme kann der Gottesdienst nicht geändert werden"))
 
     wedding = req.service_type == "Hochzeit"
     current = {

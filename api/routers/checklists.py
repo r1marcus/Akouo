@@ -4,7 +4,6 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -13,7 +12,8 @@ from database import get_db
 from models import ChecklistTemplate, ChecklistItem, ChecklistInstance, ChecklistCheck
 
 BASE_DIR = Path(__file__).parent.parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+from vorlagen import templates   # die eine Jinja-Umgebung, siehe api/vorlagen.py
+from sprache import uebersetze
 
 router = APIRouter(prefix="/api/checklists", tags=["checklists"])
 
@@ -123,7 +123,7 @@ async def activate_template(template_id: int, db: AsyncSession = Depends(get_db)
     )
     template = result.scalar_one_or_none()
     if template is None:
-        raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
+        raise HTTPException(status_code=404, detail=uebersetze("Vorlage nicht gefunden"))
 
     instance = ChecklistInstance(
         template_id=template_id,
@@ -248,7 +248,7 @@ async def create_template(
 ):
     """Create a new checklist template."""
     if not name.strip():
-        raise HTTPException(status_code=422, detail="name must be non-empty")
+        raise HTTPException(status_code=422, detail=uebersetze("Der Name darf nicht leer sein"))
 
     tpl = ChecklistTemplate(name=name.strip())
     db.add(tpl)
@@ -279,10 +279,10 @@ async def add_item(
         select(ChecklistTemplate).where(ChecklistTemplate.id == template_id)
     )
     if tpl_result.scalar_one_or_none() is None:
-        raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
+        raise HTTPException(status_code=404, detail=uebersetze("Vorlage nicht gefunden"))
 
     if not text.strip():
-        raise HTTPException(status_code=422, detail="text must be non-empty")
+        raise HTTPException(status_code=422, detail=uebersetze("Der Text darf nicht leer sein"))
 
     # Determine next sort_order
     max_result = await db.execute(
@@ -330,10 +330,10 @@ async def edit_item(
     )
     item = result.scalar_one_or_none()
     if item is None:
-        raise HTTPException(status_code=404, detail=f"Item {item_id} not found")
+        raise HTTPException(status_code=404, detail=uebersetze("Punkt nicht gefunden"))
 
     if not text.strip():
-        raise HTTPException(status_code=422, detail="text must be non-empty")
+        raise HTTPException(status_code=422, detail=uebersetze("Der Text darf nicht leer sein"))
 
     item.text = text.strip()
     await db.commit()
@@ -379,7 +379,7 @@ async def delete_item(item_id: int, request: Request, db: AsyncSession = Depends
     )
     item = result.scalar_one_or_none()
     if item is None:
-        raise HTTPException(status_code=404, detail=f"Item {item_id} not found")
+        raise HTTPException(status_code=404, detail=uebersetze("Punkt nicht gefunden"))
 
     template_id = item.template_id
     await db.delete(item)
@@ -405,14 +405,14 @@ async def move_item(
     Non-HX     → returns JSON.
     """
     if direction not in ("up", "down"):
-        raise HTTPException(status_code=422, detail="direction must be 'up' or 'down'")
+        raise HTTPException(status_code=422, detail=uebersetze("Richtung muss „nach oben“ oder „nach unten“ sein"))
 
     result = await db.execute(
         select(ChecklistItem).where(ChecklistItem.id == item_id)
     )
     item = result.scalar_one_or_none()
     if item is None:
-        raise HTTPException(status_code=404, detail=f"Item {item_id} not found")
+        raise HTTPException(status_code=404, detail=uebersetze("Punkt nicht gefunden"))
 
     template_id = item.template_id
 
@@ -427,15 +427,15 @@ async def move_item(
     # Find position of current item in sorted list
     idx = next((i for i, s in enumerate(siblings) if s.id == item_id), None)
     if idx is None:
-        raise HTTPException(status_code=404, detail="Item not found in siblings")
+        raise HTTPException(status_code=404, detail=uebersetze("Punkt nicht gefunden"))
 
     if direction == "up":
         if idx == 0:
-            raise HTTPException(status_code=400, detail="Item is already at the top")
+            raise HTTPException(status_code=400, detail=uebersetze("Der Punkt steht schon ganz oben"))
         neighbor = siblings[idx - 1]
     else:
         if idx == len(siblings) - 1:
-            raise HTTPException(status_code=400, detail="Item is already at the bottom")
+            raise HTTPException(status_code=400, detail=uebersetze("Der Punkt steht schon ganz unten"))
         neighbor = siblings[idx + 1]
 
     # Swap sort_order values
@@ -455,7 +455,7 @@ async def _render_template_row(template_id: int, request: Request, db: AsyncSess
     )
     tpl = tpl_result.scalar_one_or_none()
     if tpl is None:
-        raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
+        raise HTTPException(status_code=404, detail=uebersetze("Vorlage nicht gefunden"))
 
     items_result = await db.execute(
         select(ChecklistItem)

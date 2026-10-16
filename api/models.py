@@ -203,6 +203,11 @@ class ServiceType(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    # Anzeigenamen je Sprache. Der `name` traegt die Logik (Anker, Ansage-Regeln,
+    # NAS-Vorlagen) und bleibt deshalb deutsch; uebersetzt wird nur, was man liest.
+    # Leer heisst: den deutschen Namen anzeigen.
+    anzeige_en: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    anzeige_ru: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Die vier grossen Kacheln auf der Startseite
     is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -239,6 +244,11 @@ class MarkerType(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    # Anzeigenamen je Sprache. Der `name` traegt die Logik (Anker, Ansage-Regeln,
+    # NAS-Vorlagen) und bleibt deshalb deutsch; uebersetzt wird nur, was man liest.
+    # Leer heisst: den deutschen Namen anzeigen.
+    anzeige_en: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    anzeige_ru: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Geht dieser Typ beim Sammel-Export mit? Einzeln exportieren bleibt immer moeglich.

@@ -11,8 +11,8 @@
 {% if instance is none %}
     <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
         <div class="flex-1">
-            <div class="eyebrow">Checkliste</div>
-            <p class="mt-1 text-sm text-zinc-400">Keine Checkliste aktiv</p>
+            <div class="eyebrow">{{ t("Checkliste") }}</div>
+            <p class="mt-1 text-sm text-zinc-400">{{ t("Keine Checkliste aktiv") }}</p>
         </div>
         {% if available_templates %}
         <div x-data="{ tid: {{ available_templates[0].id }} }" class="flex gap-2 sm:w-96">
@@ -23,11 +23,11 @@
             </select>
             <button @click="htmx.ajax('POST', '/api/checklists/activate/' + tid, {target: '#checklist-section', swap: 'innerHTML'})"
                     class="btn min-h-11 bg-zinc-100 text-zinc-900 hover:bg-white">
-                Starten
+                {{ t("Starten") }}
             </button>
         </div>
         {% else %}
-        <a href="/checklists" class="text-sm text-zinc-400 underline underline-offset-4 hover:text-zinc-100">Vorlage erstellen</a>
+        <a href="/checklists" class="text-sm text-zinc-400 underline underline-offset-4 hover:text-zinc-100">{{ t("Vorlage erstellen") }}</a>
         {% endif %}
     </div>
 {% else %}
@@ -38,14 +38,14 @@
              :class="open && 'rotate-90'" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 3.5 10.5 8 6 12.5"/>
         </svg>
-        <span class="eyebrow text-zinc-300">Checkliste</span>
+        <span class="eyebrow text-zinc-300">{{ t("Checkliste") }}</span>
         <span class="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
             <span class="block h-full rounded-full transition-all duration-500
                          {% if unchecked_count == 0 %}bg-emerald-500{% else %}bg-amber-400{% endif %}"
                   style="width: {{ ((done / total) * 100) | round(1) if total else 0 }}%"></span>
         </span>
         {% if unchecked_count == 0 and total > 0 %}
-            <span class="text-sm font-medium text-emerald-400">Alles erledigt</span>
+            <span class="text-sm font-medium text-emerald-400">{{ t("Alles erledigt") }}</span>
         {% else %}
             <span class="font-mono text-sm tabular-nums text-zinc-300">{{ done }}<span class="text-zinc-600">/{{ total }}</span></span>
         {% endif %}

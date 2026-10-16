@@ -3,12 +3,12 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Request, Depends
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 import automode_sync
+import sprache
 from database import AsyncSessionLocal, engine, get_db
 from models import Base, ChecklistTemplate, ChecklistItem
 from routers import recordings, health, settings, streaming, checklists, sessions, segments, uploads, service, insights, konfiguration
@@ -38,35 +38,54 @@ app = FastAPI(title="Akouo API", version="1.0.0", lifespan=lifespan)
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+from vorlagen import templates   # die eine Jinja-Umgebung, siehe api/vorlagen.py
 
 
-def static_url(path: str) -> str:
-    """Static asset URL with an mtime version so browsers/tablets never keep a stale app.css."""
-    try:
-        version = int((BASE_DIR / "static" / path).stat().st_mtime)
-    except OSError:
-        version = 0
-    return f"/static/{path}?v={version}"
+# ─── Sprache ────────────────────────────────────────────────────────────────
+# Die Sprache steht nicht im Template-Kontext, sondern in einer ContextVar, die diese
+# Middleware je Request setzt. Dadurch bleiben alle TemplateResponse-Aufrufe unveraendert
+# und niemand kann vergessen, die Sprache mitzugeben — ein vergessener Aufruf faellt sonst
+# erst auf, wenn jemand genau diese Seite auf Russisch oeffnet.
+#
+# Bewusst eine reine ASGI-Middleware und NICHT @app.middleware("http"): Letztere ist eine
+# BaseHTTPMiddleware, und die ruft den nachgelagerten Teil in einer eigenen Task auf. Eine
+# davor gesetzte ContextVar kommt dort nicht an — die Oberflaeche blieb deutsch, obwohl das
+# Cookie richtig stand. Hier laeuft alles in derselben Task.
+class SpracheMiddleware:
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "http":
+            sprache.setzen(sprache.aus_request(Request(scope)))
+        await self.app(scope, receive, send)
 
 
-templates.env.globals["static_url"] = static_url
+app.add_middleware(SpracheMiddleware)
 
 
-def _typen_in_templates(t: "typen.Typen") -> None:
-    """Die Listen als Template-Globals bereitstellen.
+@app.get("/sprache/{code}", include_in_schema=False)
+async def sprache_waehlen(code: str, request: Request) -> RedirectResponse:
+    """Sprache dieses Geraets umstellen und zurueck, wo man war.
 
-    Sie stehen in jedem Seitenaufbau (Gottesdienst-Auswahl im Kopf, Track-Knöpfe während
-    der Aufnahme). Statt sie pro Request zu übergeben, werden die Globals nach jedem
-    Neuladen überschrieben — die Templates bleiben dadurch unverändert.
+    Als Server-Route und nicht als JavaScript: Der Umschalter muss auch dann funktionieren,
+    wenn ein Skript haengt — und das Cookie soll der Browser schreiben, nicht die Seite.
     """
-    templates.env.globals["service_types"] = t.gottesdienstarten
-    templates.env.globals["primary_service_types"] = t.haupt_gottesdienstarten
-    templates.env.globals["marker_types"] = t.beitragsarten
+    ziel = request.query_params.get("weiter", "/")
+    # Nur eigene Pfade. Ohne diese Pruefung waere der Umschalter eine offene
+    # Weiterleitung. Der Backslash muss mit: Browser normalisieren ihn nach WHATWG zu
+    # "/", aus "/\example.invalid" wird also "//example.invalid" — und damit doch ein
+    # fremder Host.
+    if not ziel.startswith("/") or ziel.startswith("//") or "\\" in ziel:
+        ziel = "/"
+    antwort = RedirectResponse(ziel, status_code=303)
+    antwort.set_cookie(
+        sprache.COOKIE, sprache.gueltig(code),
+        max_age=60 * 60 * 24 * 365, samesite="lax", httponly=False,
+    )
+    return antwort
 
 
-typen.bei_aenderung(_typen_in_templates)
-_typen_in_templates(typen.aktuell)   # Rückfallwerte, bis der Start die Datenbank gelesen hat
 
 app.include_router(health.router)
 app.include_router(recordings.router)

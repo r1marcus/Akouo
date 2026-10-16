@@ -11,8 +11,8 @@ Gottesdienst — auf einem einzigen Mac im Haus.**
 
 > **Zur Sprache.** Die Betriebsdokumentation unter [`docs/`](docs/) ist deutsch — ihre Zielgruppe
 > ist der Tontechniker, nicht der Entwickler. [`README.md`](README.md) und
-> [`ARCHITECTURE.md`](ARCHITECTURE.md) sind englisch. Die Oberfläche spricht deutsch; Englisch und
-> Russisch sind in Arbeit.
+> [`ARCHITECTURE.md`](ARCHITECTURE.md) sind englisch. Die Oberfläche selbst spricht **deutsch,
+> englisch und russisch** — umschaltbar pro Gerät.
 >
 > *Akouo* — vom griechischen ἀκούω, „ich höre".
 
@@ -87,7 +87,8 @@ Und die ehrlichen Einschränkungen im Betrieb:
 ## Wie es aussieht
 
 Die Oberfläche ist für ein Tablet neben dem Pult gebaut — große Flächen, kein Hover, nichts, wofür
-man eine zweite Hand braucht.
+man eine zweite Hand braucht. Sie spricht deutsch, englisch und russisch; die Wahl gilt pro Gerät,
+zwei Leute können dieselbe Aufnahme also in verschiedenen Sprachen bedienen.
 
 ![Gottesdienst wählen: vier große Kacheln für die regelmäßigen Dienste, der Rest unter „Weitere",
 dazu ein freies Themenfeld](docs/bilder/gottesdienst-waehlen.png)
