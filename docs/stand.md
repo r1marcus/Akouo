@@ -1,6 +1,6 @@
 # Projektstand Akouo
 
-Stand: 12. Oktober 2026. Was funktioniert, was belegt ist, was fehlt.
+Stand: 18. Oktober 2026. Was funktioniert, was belegt ist, was fehlt.
 Betriebsanleitung: [betrieb.md](betrieb.md) · Nächste Schritte: [roadmap.md](roadmap.md) · Architektur: [../ARCHITECTURE.md](../ARCHITECTURE.md)
 
 ---
@@ -17,41 +17,25 @@ Seit dem 27. September kann das System die Programmpunkte auch **selbst erkennen
 zuschaltbarer Automodus setzt die Marker, rät den Typ und schärft ihn nach, während der Beitrag
 läuft. Der Tontechniker korrigiert statt zu markieren.
 
-Offen sind vor allem die Schritte *nach* dem Schnitt: Archivansicht, NAS-Upload, Streaming,
-Veröffentlichung — und die Anmeldung.
+Seit dem 16. Oktober landen die Segmente **auf dem NAS**, seit dem 18. Oktober mit Typ im
+Dateinamen, vollständigen Tags und Cover — und zusätzlich im CopyCenter. Offen sind vor allem
+eine gleichmäßige Lautheit über alle Tracks, die Veröffentlichung und die Anmeldung.
 
 ---
 
-## 1a. Gebaut, aber noch nicht in Betrieb — offene Entscheidung
+## 1a. Aktivierung — erledigt am 16. Oktober 2026
 
-**Am 11. Oktober wurde einiges gebaut, das noch nicht wirkt.** Der Code liegt im Repository,
-die Dienste laufen aber unverändert weiter: Python ist kalt, und die Datenbank steht noch auf
-Migrationsstand 013.
+Was am 11. Oktober gebaut wurde, ist in Betrieb: Gottesdienst- und Beitragsarten stehen in der
+Datenbank und sind in der Oberfläche editierbar, die Einstellungsseite deckt alle Werte ab,
+Ansage-Regeln und NAS-Ordnervorlagen sind editierbar. Die Dienste heißen `de.akouo.*`, die
+alten `de.tontechnik.*`/`com.tontechnik.audio` sind entladen. Datenbank (`data/tontechnik.db`)
+und venv (`~/tontechnik-audio-venv`) haben ihre Namen behalten.
 
-Nachprüfbar:
+Migrationsstand seit dem 18. Oktober: **017**. Nachprüfbar:
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" localhost:8001/api/config/erkennung
-# 404 = alter Code läuft noch · 200 = neue Fassung ist aktiv
-
-sqlite3 data/tontechnik.db "SELECT version_num FROM alembic_version;"
-# 013 = noch nicht migriert · 015 = aktiv
+sqlite3 data/tontechnik.db "SELECT version_num FROM alembic_version;"   # 017
 ```
-
-### Was mit der Aktivierung dazukommt
-
-- **Gottesdienstarten und Beitragsarten stehen in der Datenbank** statt im Code und lassen sich
-  in der Oberfläche anlegen, umbenennen, sortieren und ausblenden. Mitgewandert ist, was die
-  Erkennung über einen Typ weiß — Klangklasse, typische Dauer, Ankerfunktion. Ein selbst
-  angelegter Typ nimmt dadurch an der automatischen Erkennung teil, statt ignoriert zu werden.
-- **Die Einstellungsseite deckt alles ab**: 19 Werte in fünf Bereichen (Export, Erkennung,
-  Schnittkanten, Livestream, NAS-Ablage) statt bisher zwei Felder.
-- **Die Ansage-Regeln sind editierbar**, mit Probe an einem Beispielsatz vor dem Speichern.
-- **Das NAS-Ordnerlayout ist eine Vorlage** statt fest verdrahtet, mit Vorschau.
-- Eine bestehende Fehlerquelle ist beseitigt: die Liste der Beitragsarten gab es **zweimal**
-  (`api/service_types.py` und `audio-service/recorder.py`), und die beiden wichen bereits
-  voneinander ab — der Audio-Dienst kannte `Unbenannt`, die API nicht. In der Datenbank steht
-  ein solcher Marker, dessen Wert das Auswahlfeld im Dashboard nicht anzeigen konnte.
 
 ### Geschützte Namen
 
@@ -64,24 +48,6 @@ oder löschen** — die Oberfläche nennt beim Versuch den Grund:
 | `Chorlied`, `Jugendchor`, `Gedicht`, `Kindergeschichte`, `Gemeindegesang` | kommen in den Ansage-Regeln vor |
 | `Hochzeit` | schaltet die Brautpaar-Felder und das NAS-Layout `Hochzeiten/…` frei |
 | `Sonstiges` | eigenes NAS-Layout |
-
-### Was zu tun ist
-
-Der Ablauf steht in [betrieb.md, Abschnitt 8a](betrieb.md), im Unterabschnitt *Der erste Lauf*.
-Kurz: sichern, beide Dienste anhalten, `alembic upgrade head`, `make css`, dann die beiden
-Installer laufen lassen. Dauert etwa eine Viertelstunde.
-**Nicht an einem Gottesdienst-Wochenende und nicht bei laufender Aufnahme.**
-
-**Der Umstieg auf die Akouo-Dienstnamen hängt mit dran.** Der Rechner trägt noch die Labels
-`de.tontechnik.api`, `com.tontechnik.audio`, `de.tontechnik.whisper`, `de.tontechnik.dashboard`;
-die Installer im Repository richten `de.akouo.*` ein und entladen die Vorgänger dabei selbst.
-Beides in einem Zug zu machen, spart den zweiten Dienst-Neustart. Datenbank
-(`data/tontechnik.db`) und venv (`~/tontechnik-audio-venv`) behalten ihre Namen — der
-Autostart-Installer erkennt eine vorhandene Datenbank und benutzt sie, statt eine leere
-`akouo.db` anzulegen.
-
-Danach kann `api/templates/settings.html` gelöscht werden — die Datei wird seit dem Umbau nicht
-mehr gerendert und liegt nur noch da, weil die laufende API sie bis zum Neustart erwartet.
 
 ### Noch nicht gebaut
 
@@ -423,6 +389,51 @@ ist nicht von einem Muttersprachler gegengelesen.
 
 ---
 
+## 2h. NAS, Export und Nacherkennung (16. bis 18. Oktober 2026)
+
+### NAS-Upload in Betrieb
+- Das Dienstkonto bekam nach mehreren Runden **Lesen/Schreiben** auf der Freigabe `Aufnahmen`.
+  Gelernt: Ein „Kein Zugriff" beim Konto oder einer seiner Gruppen sperrt es aus, auch als
+  Admin. Admin-Rechte wurden wieder entzogen.
+- Vor dem Scharfschalten gegen das Handarchiv geprüft: alle 151 Ordner unter `Gottesdienste`
+  passen auf die Vorlage. Die vier Gottesdienste, die lokal geschnitten vorlagen, waren dort
+  schon von Hand abgelegt — nachgeladen wurde deshalb nichts.
+- Erster echter Upload am 18. Oktober: 13 Tracks des Sonntagmorgens.
+
+### Dateinamen und Metadaten
+- **Fortlaufende Nummern** auf dem NAS: Gemeindegesang, Gebet und Ansagen reißen keine Lücken
+  mehr. Das Handarchiv zählte schon so (149 von 150 Ordnern).
+- **Typ im Dateinamen:** `Track-03 - Kinderchor.mp3`.
+- **ID3v2.3-Tags:** Titel, Interpret (Einstellung *Export → Interpret*), Album, Track `3/18`,
+  Datum, Genre, Sprache, Kommentar aus der KI-Auswertung, wenn vorhanden.
+- **Cover** aus `EXPORT_COVER` in der `.env` des Audio-Dienstes. Das Logo liegt in
+  `data/cover.jpg` und ist vom Repository ausgenommen.
+- **CopyCenter:** Jeder Gottesdienst geht zusätzlich nach
+  `CopyCenter/2026_mp3/Gottesd_261018_So_mp3_a/`, mit leerer Textdatei als Beschriftung.
+  Im Code standardmäßig aus, hier per Einstellung an.
+
+### Automodus
+- **„Neu erkennen"** nach dem Stopp rechnet die ganze Aufnahme mit vollem Transkript neu und
+  ersetzt nur die Marker, die die Automatik gesetzt und niemand angefasst hat. Woher ein Marker
+  kommt, steht seitdem in `auto_markers`. Probelauf am 11. Oktober: Grenzen 20 von 21, Typen
+  etwa die Hälfte — die Grenzen werden besser, die Typen nicht.
+- Klargestellt: Der Automodus schaut beim Einschalten zurück bis Sekunde 0, Ansagen aber nur
+  150 Sekunden.
+
+### Behobene Fehler
+- **Ein Typ ohne typische Dauer schlug jede Predigt.** „Anspiel" hat keine Dauer in der
+  Datenbank; der Rückfall (0, ∞) passte auf jede Länge, und weil es in der Liste vorn stand,
+  gewann es jeden Gleichstand. Eine 22-minütige Predigt wurde zu „Anspiel".
+- Das Album-Tag war bei Hochzeiten „2. Teil", weil nur der letzte Ordnerteil genommen wurde.
+
+### Gemessen, noch nicht gelöst
+- **Lautheit:** Alle Tracks haben dieselbe Spitze (−3,2 dBFS), aber zwischen −16,9 und
+  −26,4 LUFS — die zweite Predigt war rund 9 dB leiser als die Lieder. Das Handarchiv vom
+  4. Oktober schwankt genauso (−10,5 bis −18,9 LUFS), liegt aber insgesamt etwa 5 dB lauter.
+  Vorschlag: −16 LUFS, Spitze höchstens −1 dBTP, umschaltbar. Zurückgestellt.
+
+---
+
 ## 3. Ablauf im Gottesdienst
 
 1. Oben den Gottesdienst wählen — die Seite springt auf die Checkliste.
@@ -432,9 +443,12 @@ ist nicht von einem Muttersprachler gegengelesen.
    **Track starten** → Typ wählen → **Track beenden**. Beides geht auch nebeneinander.
 5. **Stoppen** (zwei Tipps). Dabei werden die Schnittkanten nachgezogen — bei Markern, die von
    Hand verschoben wurden, bleibt die Handarbeit stehen.
-6. **Alle exportieren** — die MP3s landen im `exports`-Ordner der Aufnahme. Gemeindegesang,
-   Gebet, Ansagen und Vermeldungen werden dabei übersprungen.
-7. Bei Bedarf **KI-Auswertung** je Segment.
+6. Bei eingeschaltetem Automodus optional **Neu erkennen**, danach Marker und Typen prüfen —
+   der Typ steht im Dateinamen.
+7. **Alle exportieren** — die MP3s landen im `exports`-Ordner der Aufnahme, auf dem NAS und im
+   CopyCenter. Gemeindegesang, Gebet, Ansagen und Vermeldungen werden dabei übersprungen.
+   Erst alle Marker fertig machen, dann einmal exportieren.
+8. Bei Bedarf **KI-Auswertung** je Segment.
 
 Der Ablauf liegt danach als `ablauf.txt` und `marker.json` im Session-Ordner.
 
@@ -446,9 +460,9 @@ Der Ablauf liegt danach als `ablauf.txt` und `marker.json` im Session-Ordner.
 | Thema | Stand |
 |---|---|
 | **Gesamtaufnahme als MP3** | Es gibt nur Segmente. Die vollständige Aufnahme bleibt als WAV liegen (ca. 0,7 GB/Stunde) und wird nie aufgeräumt. |
-| **NAS-Upload** | Wartet auf eine Berechtigung. Das NAS ist erreichbar, die Anmeldung als Dienstkonto geprüft — aber die Freigabe `Aufnahmen` verweigert dem Konto den Zutritt. Zugangsdaten liegen auskommentiert in `audio-service/.env`, Prüfskript unter `audio-service/scripts/check_nas.py`. Sobald freigeschaltet: Zeilen einkommentieren, prüfen, Audio-Dienst neu starten. |
-| **Rechte des NAS-Kontos** | Das Dienstkonto kann die Freigabe `homes` öffnen und sieht die Privatordner aller 25 Benutzer. Für einen Dienst, der MP3s ablegt, deutlich zu viel. |
+| **Rechte des NAS-Kontos** | Das Dienstkonto kann die Freigabe `homes` öffnen und sieht die Privatordner aller Benutzer (am 18.10.2026: 26 Einträge). Für einen Dienst, der MP3s ablegt, deutlich zu viel. Das Passwort ist außerdem noch zu erneuern, siehe Abschnitt 2e. |
 | **Aussteuerung** | Eingangspegel rund −24 dBFS Spitze. Der Export normalisiert auf −3 dB und hebt dabei das Grundrauschen mit an. Besser am Pult anheben. |
+| **Lautheit** | Normalisiert wird nur die Spitze, nicht die Lautheit — Predigten sind bis zu 9 dB leiser als Lieder. Siehe Abschnitt 2h. |
 
 ### B — bald
 | Thema | Stand |
@@ -492,13 +506,15 @@ Der Ablauf liegt danach als `ablauf.txt` und `marker.json` im Session-Ordner.
 | Aufnahme | Dante 44+45 → WAV, Stereo, 48 kHz, 16 Bit, ein Ordner je Session |
 | Transkription | whisper.cpp large-v3-turbo über whisper-server auf Port 8090 (LaunchAgent) |
 | KI-Auswertung | Ollama lokal, Modellwahl über `OLLAMA_MODELS` |
-| Export | MP3 192 kbit/s, 48 kHz, −3 dBFS, je 1 s Blende |
+| Export | MP3 192 kbit/s, 48 kHz, Spitze −3 dBFS, je 1 s Blende, ID3v2.3 mit Cover; auf das NAS nach `Gottesdienste/…` und ins CopyCenter |
 | Web | `http://<rechner>.local:8000` — immer über den Namen, die IP wechselt per DHCP. Von unterwegs über Tailscale: `http://<tailscale-adresse>:8000` |
 | Stream | Icecast `<icecast-host>:8000/<mount>`, Quelle = Dante 46+47 |
-| Datenbank | SQLite, Alembic-Stand **013** — Ziel 015, siehe Abschnitt 1a |
-| Tests | **218 Tests** in zwei Umgebungen (156 API, 62 Audio-Dienst), dazu CI auf ubuntu-24.04 |
+| Datenbank | SQLite, Alembic-Stand **017** |
+| Tests | **235 Tests** in zwei Umgebungen (168 API, 67 Audio-Dienst), dazu CI auf ubuntu-24.04 |
 
-**Committet und gepusht:** alles — siehe Abschnitt 2f zu den beiden Repositories. Nicht im Repo:
+**Committet, noch nicht gepusht** (Stand 18.10.2026): die Arbeit vom 16. bis 18. Oktober liegt
+auf `main`, das öffentliche `origin` ist noch nicht nachgezogen — siehe Abschnitt 2f zu den
+beiden Repositories. Nicht im Repo:
 die laufende Datenbank `data/tontechnik.db`, die Aufnahmen selbst und `audio-service/.env`
 (enthält das Icecast-Passwort).
 
@@ -519,8 +535,7 @@ Schnellreferenz und Fehlersuche.
    (`curl -s localhost:8001/api/session/status`). Ein Neustart beendet sie.
 
 **Nächste sinnvolle Schritte, nach Nutzen sortiert:**
-1. **NAS-Upload aktivieren** — Code ist fertig, es fehlen `NAS_SERVER`, `NAS_SHARE`, `NAS_USER`,
-   `NAS_PASSWORD` in `audio-service/.env`. Damit erfüllt sich EXP-02.
+1. **Lautheit angleichen** — −16 LUFS über alle Tracks, siehe Abschnitt 2h.
 2. **Zugriffsschutz** — das Dashboard ist ohne Anmeldung im ganzen WLAN erreichbar.
 3. **Aussteuerung** — Eingangspegel liegt rund 15 dB zu niedrig; besser am Pult anheben als
    nachträglich normalisieren.

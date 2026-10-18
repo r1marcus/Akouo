@@ -162,7 +162,9 @@ FELDER: tuple[Feld, ...] = (
     # Die Standardwerte kommen aus nas_pfad.py und reproduzieren die gewachsene
     # Ablage genau — ein Test vergleicht sie gegen die frühere, fest verdrahtete
     # Fassung. In [] stehende Gruppen fallen weg, wenn ein Wert darin fehlt.
-    Feld("nas_copycenter", "NAS-Ablage", "Zusätzlich ins CopyCenter", "bool", True,
+    # Standard aus: das CopyCenter ist eine gewachsene Ablage dieser einen Gemeinde.
+    # Eine andere Installation bekäme sonst ungefragt einen fremden Ordner auf ihr NAS.
+    Feld("nas_copycenter", "NAS-Ablage", "Zusätzlich ins CopyCenter", "bool", False,
          hilfe="Legt jeden Track eines Gottesdienstes ein zweites Mal unter CopyCenter ab, "
                "im dortigen Schema: 2026_mp3/Gottesd_261018_So_mp3_a mit einer leeren "
                "Textdatei als Beschriftung. Hochzeiten und Sonstiges gehen nicht mit."),

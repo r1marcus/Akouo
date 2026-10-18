@@ -7,9 +7,8 @@ Was als Nächstes gebaut werden soll, nach Nutzen sortiert. Was heute läuft, st
 
 Die Reihenfolge ist damit festgelegt, bis sie jemand ändert:
 
-1. **Aktivierung** (stand.md 1a) — zusammen mit dem Umstieg auf die `de.akouo.*`-Dienstnamen
-   und dem Zusammenführen der dreisprachigen Oberfläche. Der Ablauf steht vollständig in
-   [betrieb.md, Abschnitt 8a](betrieb.md) unter *Der erste Lauf*.
+1. ~~**Aktivierung**~~ — erledigt am 16. Oktober 2026, samt `de.akouo.*`-Dienstnamen und
+   dreisprachiger Oberfläche. Siehe [stand.md, Abschnitt 1a](stand.md).
 2. **Umbenennung `audio-service` → `audio_service`** — danach, als eigener Schritt. Sie fasst
    Importe, Tests, Plists, Makefile, Installer und Doku gleichzeitig an; mit in die Aktivierung
    genommen, würde sie deren Befehle ungültig machen (`bash audio-service/install.sh` gibt es
@@ -23,21 +22,23 @@ Die Reihenfolge ist damit festgelegt, bis sie jemand ändert:
 Anmeldung, und `SECURITY.md` benennt das offen. Die Entscheidung gilt für ein Netz, in dem nur
 Technikteam und Gemeinde sind — sie ist neu zu treffen, sobald Gäste ins selbe WLAN kommen.
 
-**Keine Vorarbeit fürs NAS**, solange die Freigabe fehlt: der EBADF-Fehler des Shares ist offen,
-und Vorbereitung auf Vermutungen hin kann in die falsche Richtung laufen.
+**NAS läuft seit dem 16. Oktober 2026**, mit fortlaufender Nummerierung, Typ im Dateinamen,
+Tags, Cover und zusätzlicher Ablage im CopyCenter — siehe [stand.md, Abschnitt 2h](stand.md).
+Die schon vorher geschnittenen Segmente wurden nicht nachgeladen: Sie lagen im Archiv bereits
+von Hand abgelegt.
 
-**Davor steht eine Entscheidung, kein Entwicklungsschritt.** Am 11. Oktober wurde die
-Einstellbarkeit gebaut — Gottesdienst- und Beitragsarten aus der Datenbank, eine
-Einstellungsseite über alle Werte, editierbare Ansage-Regeln, NAS-Vorlagen. **Nichts davon
-wirkt**, solange die Dienste nicht neu gestartet und die Datenbank nicht auf Stand 014
-migriert ist. Der Ablauf steht in [betrieb.md, Abschnitt 8a](betrieb.md), der Umfang in
-[stand.md, Abschnitt 1a](stand.md). Eine Viertelstunde, nicht an einem Gottesdienst-Wochenende.
+**Dazugekommen am 18. Oktober 2026**, noch ohne festen Platz in der Reihenfolge:
 
-**Vor allem anderen wartet das NAS auf eine Freigabe.** 63 geschnittene Segmente liegen auf der
-Platte, keines auf dem Server. Das ist kein Entwicklungspunkt — es fehlt die Berechtigung für
-das Dienstkonto auf der NAS-Freigabe. Sobald sie da ist: Zeilen in
-`audio-service/.env` einkommentieren, `audio-service/scripts/check_nas.py` laufen lassen,
-Audio-Dienst neu starten. Danach die vorhandenen Segmente nachträglich hochladen.
+- **Lautheit angleichen.** Der Export normalisiert nur die Spitze. Predigten liegen dadurch bis
+  zu 9 dB unter den Liedern — gemessen am 18. Oktober (−16,9 bis −26,4 LUFS), und das alte
+  Handarchiv schwankt genauso. Vorschlag: −16 LUFS, Spitze höchstens −1 dBTP, als Einstellung
+  zwischen Spitze und Lautheit umschaltbar. Technisch: `loudnorm` von FFmpeg in zwei Durchgängen
+  im Exporter, die Werte über `laufzeit.EXPORT` geschoben wie Bitrate und Blende.
+- **Rechte des NAS-Kontos einschränken.** Es sieht noch alle Privatordner unter `homes`.
+  Das ist Sache der NAS-Verwaltung, kein Entwicklungspunkt.
+- **Typen der Erkennung.** „Neu erkennen" trifft die Grenzen fast immer, die Typen nur etwa zur
+  Hälfte: Prosa gegen Predigt und Orchester gegen Chorlied mit Begleitung trennt der Klang nicht.
+  Kandidat für Punkt 3 unten.
 
 ---
 
@@ -196,5 +197,7 @@ können. Deutlich als Archiv kennzeichnen, und die Automatik rührt sie nicht an
 - **Karteileichen.** Session 12 zeigt auf fremdes Audio (ihr Ordner wurde gelöscht und der Name
   neu vergeben), Session 16 ist eine 0-Minuten-Aufnahme.
 - **Aussteuerung.** Eingangspegel rund 15 dB zu niedrig; der Export normalisiert auf −3 dB und
-  hebt dabei das Grundrauschen mit an. Besser am Pult anheben.
+  hebt dabei das Grundrauschen mit an. Besser am Pult anheben. Hängt mit der Lautheit oben
+  zusammen: Wird auf Lautheit normalisiert, wird das Rauschen leiser Predigten noch weiter
+  angehoben.
 - **Alte Aufnahme-Endpunkte.** Der Einzelaufnahme-Recorder läuft parallel mit und verwirrt.

@@ -6,7 +6,7 @@ wie Dashboard und Pegelanzeige funktionieren — und was bei Problemen zu tun is
 > `README.md` beschreibt den Aufbau allgemein, für einen beliebigen Mac. Hier steht, wie
 > **dieser** Rechner eingerichtet ist, mit seinen Pfaden und seinen Eigenheiten.
 
-Stand: 12. Oktober 2026.
+Stand: 18. Oktober 2026.
 
 ---
 
@@ -298,7 +298,8 @@ CopyCenter/2026_mp3/Gottesd_261018_So_mp3_b/
 - Ins CopyCenter kommt ein Track nur, wenn der Haupt-Upload geklappt hat.
 - Scheitert nur das CopyCenter, bleibt der Track als *hochgeladen* stehen, der Fehler steht
   gelb dahinter. Ein erneuter Export ersetzt dann beide eigenen Dateien.
-- Abschaltbar unter *Einstellungen → NAS-Ablage → Zusätzlich ins CopyCenter*.
+- Im Code **standardmäßig aus** — eine andere Gemeinde hat kein CopyCenter. Hier eingeschaltet
+  unter *Einstellungen → NAS-Ablage → Zusätzlich ins CopyCenter*.
 
 ---
 
@@ -614,7 +615,8 @@ angelegt wurde. Erkennbar an gleichem Ende bei verschiedenem Anfang. Beiträge w
 
 Jede Marker-Zeile hat ein Auswahlfeld für den Typ und einen Papierkorb. Sobald ein Typ von Hand
 geändert wurde, fasst die Automatik ihn nicht mehr an. Dasselbe gilt für verschobene Grenzen.
-Der Papierkorb löscht ohne Rückfrage — die Aufnahme läuft weiter, der Ton ist nicht weg.
+Der Papierkorb löscht nach zwei Tipps: Der erste färbt ihn rot, der zweite binnen drei Sekunden
+löscht. Kein Dialog — der kostet mitten im Gottesdienst mehr, als er schützt.
 
 **Nicht alles wird exportiert**
 
@@ -751,7 +753,7 @@ make lint        # ruff
 schiebt die API ihre Erkennungskonfiguration zum Audio-Dienst — ein Testlauf ohne diese
 Umleitung würde den **produktiv laufenden** Dienst umkonfigurieren.
 
-Stand 12.10.2026: **218 Tests grün** (156 API, 62 Audio-Dienst).
+Stand 18.10.2026: **235 Tests grün** (168 API, 67 Audio-Dienst).
 
 ---
 
@@ -794,9 +796,8 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/de.akouo.audio.plist
 
 ### Der erste Lauf — zugleich der Umstieg auf die Akouo-Namen
 
-**Dieser Rechner hat den Schritt noch vor sich** (Stand 12.10.2026, siehe Abschnitt 1). Er läuft
-unter den alten Labels, und die Datenbank steht auf 013 statt 014. Beim ersten Mal weicht die
-Reihenfolge deshalb ab: angehalten werden die **alten** Dienste, gestartet werden die **neuen** —
+**Auf diesem Rechner erledigt am 16.10.2026.** Für einen Rechner, der noch unter den alten
+Labels `de.tontechnik.*` läuft, gilt weiter: Beim ersten Mal weicht die Reihenfolge ab: angehalten werden die **alten** Dienste, gestartet werden die **neuen** —
 durch die Installer, nicht von Hand.
 
 ```bash
@@ -959,12 +960,12 @@ ollama list                                    # installierte Sprachmodelle
 | Aufnahmen | `~/Recordings/Tontechnik/sessions/<Datum>_<Typ>_<Nr>/` |
 | Logs | alle unter `~/Library/Logs/Akouo/`: `api.log`, `audio.log`, `audio-error.log`, `whisper.log`, `dashboard.log` |
 | Konfiguration | `audio-service/.env`, `~/run-akouo-api.sh`, Einstellungsseite |
-| Datenbank | `data/tontechnik.db` — Alembic-Stand **013**, Ziel 015 (Abschnitt 8a) |
+| Datenbank | `data/tontechnik.db` — Alembic-Stand **017** |
 | Ablauf je Aufnahme | `marker.json` und `ablauf.txt` im Session-Ordner |
 | whisper-Modelle | `~/ai/models/ggml-large-v3-turbo.bin` |
 
 **Tests**
 
 ```bash
-make test        # 218 Tests, beide Gruppen
+make test        # 235 Tests, beide Gruppen
 ```

@@ -132,9 +132,17 @@ marker or a filename. A wrong type is visible in a dropdown and gets corrected; 
 travels silently into the archive. Bible references get a second pass that checks each one back
 against the transcript, because the model invents plausible ones.
 
+**Live, then once more afterwards.** Live, the automation only knows what has happened so far: the
+noise floor is still settling at the start, and a finished item is never moved again so nothing
+jumps under the operator's finger. After the stop, "Neu erkennen" runs the same pipeline over the
+whole file in one go — floor over the whole service, full transcript, announcements fed in the
+same order as live — and replaces only the markers the automation placed that nobody has touched
+since. Measured on one service: boundaries 20 of 21, types about half. Better edges, not better
+types.
+
 ## Data
 
-SQLite via SQLAlchemy's async session, schema versioned with Alembic (currently 14 migrations,
+SQLite via SQLAlchemy's async session, schema versioned with Alembic (currently 17 migrations,
 strictly linear). One operator will never hit SQLite's concurrency limits, and a single file is
 exactly the right shape for an offline-first appliance.
 
@@ -151,6 +159,12 @@ Two caveats worth knowing:
   batch mode for SQLite copies tables and drops the original, and a concurrent write during that
   window can fail or be lost. Migrate with the services stopped.
 
+Since migration 016, new state goes into **new tables rather than new columns** — `auto_markers`
+(which markers the automation placed, and with which type) and `copycenter_ablage` (which
+second-archive folder a session was assigned). `create_all` adds missing tables at startup but
+never missing columns, so an API restart without `alembic upgrade` keeps working. Those migrations
+create their table only if it is not there yet.
+
 Audio does **not** live in the database. A session folder holds everything about one service and is
 designed to be readable without any of this software:
 
@@ -165,6 +179,13 @@ sessions/2026-09-18_Gebetsstunde_003/
 ```
 
 That matters for an archive meant to outlive the software that produced it.
+
+On the NAS, exports follow the layout the parish had already grown by hand, not one of ours:
+`Gottesdienste/2026-10-18 Sonntag 1. morgens/Track-03 - Kinderchor.mp3`, numbered without gaps
+across the items that are exported, tagged ID3v2.3 (Windows Explorer and older car radios do not
+read 2.4). Nothing that was put there by hand is ever overwritten; a taken folder name gets a
+"2. Teil" sibling instead. An optional second copy goes to a legacy `CopyCenter` tree with its own
+naming scheme — off by default, because it is specific to one installation.
 
 ## Frontend
 

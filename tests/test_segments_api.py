@@ -794,11 +794,12 @@ def _export_aufrufe(client):
 @pytest.mark.asyncio
 async def test_copycenter_ordner_wird_einmal_entschieden(db_session):
     """Erster Track entscheidet den Ordner, der zweite bekommt denselben — ohne neue Suche."""
-    from models import CopyCenterAblage
+    from models import CopyCenterAblage, Setting
     from routers.segments import export_segment
 
     sess, marker = await _gottesdienst_mit_luecken(db_session)
     sess.nas_folder = "Gottesdienste/2026-10-18 Sonntag 1. morgens"
+    db_session.add(Setting(key="nas_copycenter", value="1"))
     await db_session.commit()
     mock_request = MagicMock()
     mock_request.headers = {}
@@ -822,11 +823,14 @@ async def test_copycenter_ordner_wird_einmal_entschieden(db_session):
 
 @pytest.mark.asyncio
 async def test_copycenter_nicht_fuer_hochzeit_und_nicht_wenn_abgeschaltet(db_session, tmp_path):
+    """Hochzeiten nie; Gottesdienste nur, wenn eingeschaltet — der Standard ist aus."""
     from models import Setting
     from routers.segments import export_segment
 
     mock_request = MagicMock()
     mock_request.headers = {}
+    db_session.add(Setting(key="nas_copycenter", value="1"))
+    await db_session.commit()
 
     hochzeit = await _make_session(db_session, started_at=datetime(2026, 6, 6, 14, 0),
                                    stopped_at=datetime(2026, 6, 6, 15, 0), service_type="Hochzeit",
@@ -840,7 +844,7 @@ async def test_copycenter_nicht_fuer_hochzeit_und_nicht_wenn_abgeschaltet(db_ses
 
     sess, marker = await _gottesdienst_mit_luecken(db_session)
     sess.nas_folder = "Gottesdienste/2026-10-18 Sonntag 1. morgens"
-    db_session.add(Setting(key="nas_copycenter", value="0"))
+    await db_session.delete(await db_session.get(Setting, "nas_copycenter"))   # zurück auf Standard
     await db_session.commit()
     client = _cc_client(_CC_EXPORT)
     with patch("httpx.AsyncClient", return_value=client):
@@ -852,11 +856,12 @@ async def test_copycenter_nicht_fuer_hochzeit_und_nicht_wenn_abgeschaltet(db_ses
 @pytest.mark.asyncio
 async def test_copycenter_fehler_ist_sichtbar_aber_archiv_bleibt_hochgeladen(db_session):
     from sqlalchemy import select
-    from models import SegmentExport
+    from models import SegmentExport, Setting
     from routers.segments import export_segment
 
     sess, marker = await _gottesdienst_mit_luecken(db_session)
     sess.nas_folder = "Gottesdienste/2026-10-18 Sonntag 1. morgens"
+    db_session.add(Setting(key="nas_copycenter", value="1"))
     await db_session.commit()
     kaputt = dict(_CC_EXPORT, copycenter={"status": "failed", "error": "kein Platz",
                                           "nas_path": None, "uploaded_at": None})
