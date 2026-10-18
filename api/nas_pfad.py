@@ -159,3 +159,41 @@ def vorschau(vorlage: str, werte: Optional[dict] = None) -> dict:
         }
     except VorlagenFehler as fehler:
         return {"gueltig": False, "fehler": str(fehler), "pfad": None, "ohne_optionale": None}
+
+
+# ─── CopyCenter: die zweite Ablage ──────────────────────────────────────────
+# Seit 2015 von Hand gepflegt, mit eigenem Schema — gemessen an 151 Ordnern aus 2026,
+# 148 davon exakt so:
+#
+#     CopyCenter/2026_mp3/Gottesd_261011_So_mp3_a/Track-01 … + Gottesdienst.txt
+#
+# a = morgens, b = abends; ein dritter Teil desselben Tages bekommt c. Die leere
+# Textdatei ist die Beschriftung, meist die Art des Gottesdienstes, an besonderen
+# Tagen das Thema.
+WOCHENTAGE_KURZ = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+
+# Wie die Gottesdienstart im CopyCenter heißt, wo es abweicht. Sonntage heißen dort
+# schlicht "Gottesdienst", die Gebetsstunde ohne Fugen-s.
+COPYCENTER_BESCHRIFTUNG = {
+    "Sonntagmorgen": "Gottesdienst",
+    "Sonntagabend": "Gottesdienst",
+    "Gebetsstunde": "Gebetstunde",
+}
+
+
+def copycenter_kandidaten(started: datetime) -> list[str]:
+    """Mögliche CopyCenter-Ordner in der Reihenfolge, in der sie belegt werden.
+
+    Ist der eigene Buchstabe schon vergeben, geht es mit c weiter, nie mit dem anderen
+    der beiden — b ist am Morgen schon für den Abend reserviert.
+    """
+    basis = (f"CopyCenter/{started:%Y}_mp3/"
+             f"Gottesd_{started:%y%m%d}_{WOCHENTAGE_KURZ[started.weekday()]}_mp3_")
+    eigener = "a" if started.hour < 12 else "b"
+    return [basis + b for b in [eigener, *"cdefgh"]]
+
+
+def copycenter_beschriftung(service_type: str, thema: Optional[str]) -> str:
+    """Name der leeren Textdatei: das Thema, sonst die Gottesdienstart."""
+    text = (thema or "").strip() or COPYCENTER_BESCHRIFTUNG.get(service_type, service_type)
+    return _segment_saeubern(text.replace("/", "-")) or "Gottesdienst"

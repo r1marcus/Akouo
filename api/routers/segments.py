@@ -14,7 +14,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models import AutoMarker, Marker, RecordingSession, SegmentExport, SegmentInsight
+from models import (AutoMarker, CopyCenterAblage, Marker, RecordingSession, SegmentExport,
+                    SegmentInsight)
 import einstellungen
 import nas_pfad
 import session_dokument
@@ -479,6 +480,28 @@ async def neu_erkennen(session_id: int, request: Request, db: AsyncSession = Dep
     return await list_segments(session_id, request, db)
 
 
+async def _copycenter_ordner(session: RecordingSession, started: datetime,
+                             db: AsyncSession) -> Optional[str]:
+    """Der CopyCenter-Ordner dieser Aufnahme — beim ersten Track entschieden, dann fest."""
+    gemerkt = await db.get(CopyCenterAblage, session.id)
+    if gemerkt is not None:
+        return gemerkt.ordner
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            r = await client.post(f"{AUDIO_SERVICE_URL}/api/session/nas-erster-freier",
+                                  json={"kandidaten": nas_pfad.copycenter_kandidaten(started)})
+    except httpx.ConnectError:
+        return None
+    if r.status_code != 200:
+        return None                 # lieber kein CopyCenter als ein geratener Ordner
+    ordner = r.json().get("folder")
+    if not ordner:
+        return None
+    db.add(CopyCenterAblage(session_id=session.id, ordner=ordner))
+    await db.commit()
+    return ordner
+
+
 @router.post("/{session_id}/segments/{marker_id}/export")
 async def export_segment(
     session_id: int,
@@ -577,6 +600,14 @@ async def export_segment(
         "allow_overwrite": allow_overwrite,
         "tags": tags,
     }
+    # Gottesdienste gehen zusätzlich ins CopyCenter — Hochzeiten und Sonstiges nicht,
+    # dort gibt es für sie keine Ablage.
+    if werte_db.get("nas_copycenter") and folder.startswith("Gottesdienste/"):
+        cc_ordner = await _copycenter_ordner(session, started, db)
+        if cc_ordner:
+            payload["copycenter_folder"] = cc_ordner
+            payload["copycenter_label"] = nas_pfad.copycenter_beschriftung(
+                session.service_type, session.thema)
 
     # 90-min sessions slice quickly; segments are <= session length so 180s is generous.
     async with httpx.AsyncClient(timeout=180.0) as client:
@@ -589,6 +620,13 @@ async def export_segment(
     data = r.json()
 
     nas = data.get("nas", {}) or {}
+    # Ein Fehler im CopyCenter ändert nichts daran, dass der Track im Archiv liegt —
+    # der Status bleibt "uploaded", sonst würde ein erneuter Export das eigene File
+    # nicht mehr ersetzen dürfen. Sichtbar wird er über den Fehlertext.
+    nas_fehler = nas.get("error")
+    copycenter = data.get("copycenter")
+    if copycenter and copycenter.get("status") != "uploaded":
+        nas_fehler = f"{uebersetze('CopyCenter fehlgeschlagen')}: {copycenter.get('error') or ''}"
     uploaded_at_str = nas.get("uploaded_at")
     uploaded_at_dt: Optional[datetime] = None
     if uploaded_at_str:
@@ -609,7 +647,7 @@ async def export_segment(
         existing.mp3_filename = data["mp3_filename"]
         existing.duration_ms = data["export"].get("duration_ms")
         existing.nas_status = nas.get("status", "skipped")
-        existing.nas_error = nas.get("error")
+        existing.nas_error = nas_fehler
         existing.nas_path = nas.get("nas_path")
         existing.uploaded_at = uploaded_at_dt
         existing.start_seconds = seg["start_seconds"]
@@ -627,7 +665,7 @@ async def export_segment(
             duration_ms=data["export"].get("duration_ms"),
             nas_path=nas.get("nas_path"),
             nas_status=nas.get("status", "skipped"),
-            nas_error=nas.get("error"),
+            nas_error=nas_fehler,
             uploaded_at=uploaded_at_dt,
         )
         db.add(row)

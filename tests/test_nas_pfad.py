@@ -142,3 +142,25 @@ def test_vorschau_meldet_fehler_statt_zu_werfen():
     assert v["gueltig"] is False
     assert v["fehler"]
     assert v["pfad"] is None
+
+
+# ─── CopyCenter ────────────────────────────────────────────────────────────
+
+def test_copycenter_ordner_wie_im_handarchiv():
+    from datetime import datetime
+    import nas_pfad
+    morgens = nas_pfad.copycenter_kandidaten(datetime(2026, 10, 11, 9, 55))
+    assert morgens[:2] == ["CopyCenter/2026_mp3/Gottesd_261011_So_mp3_a",
+                           "CopyCenter/2026_mp3/Gottesd_261011_So_mp3_c"]
+    abends = nas_pfad.copycenter_kandidaten(datetime(2026, 10, 16, 19, 3))
+    assert abends[0] == "CopyCenter/2026_mp3/Gottesd_261016_Fr_mp3_b"
+    assert "CopyCenter/2026_mp3/Gottesd_261016_Fr_mp3_a" not in abends
+
+
+def test_copycenter_beschriftung():
+    import nas_pfad
+    assert nas_pfad.copycenter_beschriftung("Sonntagmorgen", None) == "Gottesdienst"
+    assert nas_pfad.copycenter_beschriftung("Gebetsstunde", "") == "Gebetstunde"
+    assert nas_pfad.copycenter_beschriftung("Bibelstunde", None) == "Bibelstunde"
+    assert nas_pfad.copycenter_beschriftung("Sonntagmorgen", "Abendmahl") == "Abendmahl"
+    assert nas_pfad.copycenter_beschriftung("Erntedankfest", "Lob: und/Dank?") == "Lob- und-Dank-"

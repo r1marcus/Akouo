@@ -162,6 +162,10 @@ FELDER: tuple[Feld, ...] = (
     # Die Standardwerte kommen aus nas_pfad.py und reproduzieren die gewachsene
     # Ablage genau — ein Test vergleicht sie gegen die frühere, fest verdrahtete
     # Fassung. In [] stehende Gruppen fallen weg, wenn ein Wert darin fehlt.
+    Feld("nas_copycenter", "NAS-Ablage", "Zusätzlich ins CopyCenter", "bool", True,
+         hilfe="Legt jeden Track eines Gottesdienstes ein zweites Mal unter CopyCenter ab, "
+               "im dortigen Schema: 2026_mp3/Gottesd_261018_So_mp3_a mit einer leeren "
+               "Textdatei als Beschriftung. Hochzeiten und Sonstiges gehen nicht mit."),
     Feld("nas_vorlage_standard", "NAS-Ablage", "Ordnervorlage", "text",
          nas_pfad.STANDARD_VORLAGEN["nas_vorlage_standard"],
          hilfe="Gilt für alle Gottesdienstarten ohne eigene Vorlage. "

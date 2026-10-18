@@ -143,6 +143,7 @@
                 — NAS:
                 {% if seg.export.nas_status == 'uploaded' %}
                   {{ t("hochgeladen") }}{% if seg.export.uploaded_at %} ({{ seg.export.uploaded_at }}){% endif %}
+                  {% if seg.export.nas_error %}· <span class="text-amber-400">{{ seg.export.nas_error }}</span>{% endif %}
                 {% elif seg.export.nas_status == 'failed' %}
                   {{ t("Fehler") }}: {{ seg.export.nas_error }}
                 {% elif seg.export.nas_status == 'skipped' %}

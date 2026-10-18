@@ -3,6 +3,7 @@ import json
 import pathlib
 import queue
 import signal as _signal
+import tempfile
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 load_dotenv(pathlib.Path(__file__).parent / ".env")
@@ -459,6 +460,32 @@ async def neu_erkennen(req: NeuErkennenRequest):
     return {"beitraege": beitraege}
 
 
+class ErsterFreierRequest(BaseModel):
+    kandidaten: list[str]
+
+
+@app.post("/api/session/nas-erster-freier")
+async def nas_erster_freier(req: ErsterFreierRequest):
+    """Der erste Ordnername aus der Liste, der auf dem NAS noch nicht existiert.
+
+    Fürs CopyCenter, das belegte Namen nicht mit "2. Teil" weiterzählt, sondern mit dem
+    nächsten Buchstaben (_a, _b, _c). Die Reihenfolge bestimmt die API.
+    """
+    pfade = [k.replace("\\", "/").strip("/") for k in req.kandidaten]
+    if not pfade or any(".." in pathlib.PurePosixPath(k).parts or not k for k in pfade):
+        raise HTTPException(status_code=422, detail="kandidaten must be relative and contain no ..")
+    if not config.nas_server:
+        return {"folder": pfade[0], "taken": False}
+
+    def frei() -> dict:
+        for k in pfade:
+            if not nas_client.exists(k):
+                return {"folder": k, "taken": k != pfade[0]}
+        raise HTTPException(status_code=409, detail="Kein freier Ordnername")
+
+    return await asyncio.to_thread(frei)
+
+
 @app.get("/api/session/nas-folder")
 async def nas_free_folder(folder: str):
     """First free variant of a folder name on the NAS.
@@ -515,6 +542,10 @@ class SegmentExportRequest(BaseModel):
     remote_subpath: Optional[str] = None  # e.g. "Gottesdienste/2026-10-04 Sonntag 1. morgens/Track-03.mp3"
     allow_overwrite: bool = False          # only set when replacing our own earlier upload
     tags: Optional[dict] = None            # ID3: title, artist, album, track, comment, …
+    # Zweite Ablage für das CopyCenter: derselbe Track noch einmal, plus eine leere
+    # Textdatei, deren Name die Beschriftung ist ("Gottesdienst.txt").
+    copycenter_folder: Optional[str] = None
+    copycenter_label: Optional[str] = None
 
 
 @app.post("/api/session/export")
@@ -606,16 +637,46 @@ async def session_segment_export(req: SegmentExportRequest):
             "uploaded_at": None,
         }
 
+    copycenter_result = None
+    if req.copycenter_folder and nas_result["status"] == "uploaded":
+        copycenter_result = await asyncio.to_thread(
+            _copycenter_ablegen, mp3_path, req.copycenter_folder,
+            pathlib.PurePosixPath(sanitised).name, req.copycenter_label, req.allow_overwrite)
+
     # Serialise datetime for JSON
-    if nas_result.get("uploaded_at") is not None:
-        nas_result["uploaded_at"] = nas_result["uploaded_at"].isoformat()
+    for ergebnis in (nas_result, copycenter_result):
+        if ergebnis and ergebnis.get("uploaded_at") is not None:
+            ergebnis["uploaded_at"] = ergebnis["uploaded_at"].isoformat()
 
     return {
         "export": export_result,
         "nas": nas_result,
+        "copycenter": copycenter_result,
         "mp3_filename": safe_name,
         "mp3_path": str(mp3_path),
     }
+
+
+def _copycenter_ablegen(mp3_path: pathlib.Path, ordner: str, dateiname: str,
+                       beschriftung: Optional[str], allow_overwrite: bool) -> dict:
+    """Denselben Track ein zweites Mal ins CopyCenter legen.
+
+    Nur nach einem erfolgreichen Haupt-Upload — sonst läge im CopyCenter, was im Archiv
+    fehlt. Die Beschriftung ist eine leere Textdatei; existiert sie schon, bleibt sie.
+    """
+    ordner = ordner.replace("\\", "/").strip("/")
+    if ".." in pathlib.PurePosixPath(ordner).parts or not ordner:
+        return {"status": "failed", "error": "copycenter_folder must be relative and contain no ..",
+                "nas_path": None, "uploaded_at": None}
+    ergebnis = nas_client.upload_file(mp3_path, f"{ordner}/{dateiname}", allow_overwrite)
+    if ergebnis["status"] == "uploaded" and beschriftung:
+        txt = f"{ordner}/{beschriftung}.txt"
+        if not nas_client.exists(txt):
+            with tempfile.TemporaryDirectory() as tmp:
+                leer = pathlib.Path(tmp) / "leer.txt"
+                leer.touch()
+                nas_client.upload_file(leer, txt)
+    return ergebnis
 
 
 # ─── Phase 7 EXP-03: NAS-push helper for api/ uploads router ──────────────

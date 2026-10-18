@@ -760,3 +760,111 @@ async def test_export_tags_mit_interpret_und_ki_kommentar(db_session):
         await export_segment(session_id=sess.id, marker_id=marker["Orchester"].id,
                              request=mock_request, db=db_session)
     assert "comment" not in client.post.call_args.kwargs["json"]["tags"]
+
+
+# ─── Tests: CopyCenter ─────────────────────────────────────────────────────
+
+def _cc_client(export_resp: dict, freier_ordner: str = "CopyCenter/2026_mp3/Gottesd_261018_So_mp3_a"):
+    """Audio-Dienst-Attrappe: nas-erster-freier gibt einen Ordner, segment-export export_resp."""
+    mock_client = AsyncMock()
+
+    async def post(url, json=None, **_):
+        if url.endswith("/nas-erster-freier"):
+            return _mock_response(200, {"folder": freier_ordner})
+        return _mock_response(200, export_resp)
+    mock_client.post.side_effect = post
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    return mock_client
+
+
+_CC_EXPORT = {
+    "export": {"mp3_path": "/exports/x.mp3", "duration_ms": 5000, "frame_rate": 48000},
+    "nas": {"status": "uploaded", "error": None, "nas_path": "\\\\srv\\x", "uploaded_at": "2026-10-18T12:00:00"},
+    "copycenter": {"status": "uploaded", "error": None, "nas_path": "\\\\srv\\y", "uploaded_at": None},
+    "mp3_filename": "x.mp3",
+    "mp3_path": "/exports/x.mp3",
+}
+
+
+def _export_aufrufe(client):
+    return [c.kwargs["json"] for c in client.post.call_args_list if c.args[0].endswith("/segment-export")]
+
+
+@pytest.mark.asyncio
+async def test_copycenter_ordner_wird_einmal_entschieden(db_session):
+    """Erster Track entscheidet den Ordner, der zweite bekommt denselben — ohne neue Suche."""
+    from models import CopyCenterAblage
+    from routers.segments import export_segment
+
+    sess, marker = await _gottesdienst_mit_luecken(db_session)
+    sess.nas_folder = "Gottesdienste/2026-10-18 Sonntag 1. morgens"
+    await db_session.commit()
+    mock_request = MagicMock()
+    mock_request.headers = {}
+
+    client = _cc_client(_CC_EXPORT)
+    with patch("httpx.AsyncClient", return_value=client):
+        await export_segment(session_id=sess.id, marker_id=marker["Orchester"].id,
+                             request=mock_request, db=db_session)
+    erster = _export_aufrufe(client)[0]
+    assert erster["copycenter_folder"] == "CopyCenter/2026_mp3/Gottesd_261018_So_mp3_a"
+    assert erster["copycenter_label"] == "Gottesdienst"
+    assert (await db_session.get(CopyCenterAblage, sess.id)).ordner == erster["copycenter_folder"]
+
+    client = _cc_client(_CC_EXPORT, freier_ordner="CopyCenter/2026_mp3/FALSCH")
+    with patch("httpx.AsyncClient", return_value=client):
+        await export_segment(session_id=sess.id, marker_id=marker["Predigt"].id,
+                             request=mock_request, db=db_session)
+    assert _export_aufrufe(client)[0]["copycenter_folder"] == erster["copycenter_folder"]
+    assert not any(c.args[0].endswith("/nas-erster-freier") for c in client.post.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_copycenter_nicht_fuer_hochzeit_und_nicht_wenn_abgeschaltet(db_session, tmp_path):
+    from models import Setting
+    from routers.segments import export_segment
+
+    mock_request = MagicMock()
+    mock_request.headers = {}
+
+    hochzeit = await _make_session(db_session, started_at=datetime(2026, 6, 6, 14, 0),
+                                   stopped_at=datetime(2026, 6, 6, 15, 0), service_type="Hochzeit",
+                                   couple_name="A & B", wav_path=str(tmp_path / "h.wav"))
+    hochzeit.nas_folder = "Hochzeiten/2026/2026-06-06 A & B"
+    m = await _make_marker(db_session, hochzeit.id, "Predigt", placed_at_ts=10.0)
+    client = _cc_client(_CC_EXPORT)
+    with patch("httpx.AsyncClient", return_value=client):
+        await export_segment(session_id=hochzeit.id, marker_id=m.id, request=mock_request, db=db_session)
+    assert "copycenter_folder" not in _export_aufrufe(client)[0]
+
+    sess, marker = await _gottesdienst_mit_luecken(db_session)
+    sess.nas_folder = "Gottesdienste/2026-10-18 Sonntag 1. morgens"
+    db_session.add(Setting(key="nas_copycenter", value="0"))
+    await db_session.commit()
+    client = _cc_client(_CC_EXPORT)
+    with patch("httpx.AsyncClient", return_value=client):
+        await export_segment(session_id=sess.id, marker_id=marker["Predigt"].id,
+                             request=mock_request, db=db_session)
+    assert "copycenter_folder" not in _export_aufrufe(client)[0]
+
+
+@pytest.mark.asyncio
+async def test_copycenter_fehler_ist_sichtbar_aber_archiv_bleibt_hochgeladen(db_session):
+    from sqlalchemy import select
+    from models import SegmentExport
+    from routers.segments import export_segment
+
+    sess, marker = await _gottesdienst_mit_luecken(db_session)
+    sess.nas_folder = "Gottesdienste/2026-10-18 Sonntag 1. morgens"
+    await db_session.commit()
+    kaputt = dict(_CC_EXPORT, copycenter={"status": "failed", "error": "kein Platz",
+                                          "nas_path": None, "uploaded_at": None})
+    mock_request = MagicMock()
+    mock_request.headers = {}
+    with patch("httpx.AsyncClient", return_value=_cc_client(kaputt)):
+        await export_segment(session_id=sess.id, marker_id=marker["Predigt"].id,
+                             request=mock_request, db=db_session)
+    row = (await db_session.execute(select(SegmentExport))).scalars().one()
+    assert row.nas_status == "uploaded"
+    assert row.nas_error == "CopyCenter fehlgeschlagen: kein Platz"

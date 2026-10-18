@@ -275,6 +275,31 @@ Jede MP3 trägt ID3v2.3-Tags — 2.3, weil der Windows-Explorer und ältere Auto
 
 KI-Titel gehen bewusst nicht in die Tags: Von sechs vergebenen waren drei richtig.
 
+### Zweite Ablage: CopyCenter
+
+Jeder Track eines Gottesdienstes geht ein zweites Mal ins CopyCenter — dieselbe Datei, im
+Schema, das dort seit 2015 von Hand gepflegt wird:
+
+```
+CopyCenter/2026_mp3/Gottesd_261018_So_mp3_b/
+    Track-01 - Kinderchor.mp3
+    …
+    Gottesdienst.txt        ← leer, der Name ist die Beschriftung
+```
+
+| Teil | Regel |
+|---|---|
+| Ordner | `Gottesd_` + JJMMTT + Wochentag kurz + `_mp3_` + Buchstabe |
+| Buchstabe | `a` vor 12 Uhr, sonst `b`. Ist er belegt, `c`, `d` … — nie der andere der beiden |
+| Beschriftung | das Thema, wenn eines eingetragen ist; sonst die Gottesdienstart, wobei Sonntage `Gottesdienst` heißen und die Gebetsstunde `Gebetstunde` |
+| Wer mitgeht | alles, was unter `Gottesdienste/` liegt — Hochzeiten und Sonstiges nicht |
+
+- Der Ordner wird beim ersten Track entschieden und bleibt für alle weiteren derselbe.
+- Ins CopyCenter kommt ein Track nur, wenn der Haupt-Upload geklappt hat.
+- Scheitert nur das CopyCenter, bleibt der Track als *hochgeladen* stehen, der Fehler steht
+  gelb dahinter. Ein erneuter Export ersetzt dann beide eigenen Dateien.
+- Abschaltbar unter *Einstellungen → NAS-Ablage → Zusätzlich ins CopyCenter*.
+
 ---
 
 ## 4. Dashboard und Einstellungen

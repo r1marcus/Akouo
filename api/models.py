@@ -151,6 +151,20 @@ class AutoMarker(Base):
     typ: Mapped[str] = mapped_column(String, nullable=False)
 
 
+class CopyCenterAblage(Base):
+    """In welchen CopyCenter-Ordner eine Aufnahme geht — einmal entschieden, dann fest.
+
+    Ohne das sähe der zweite Track den Ordner, den der erste gerade angelegt hat, als
+    belegt an und wiche auf _c aus. Eigene Tabelle aus demselben Grund wie AutoMarker:
+    die API legt fehlende Tabellen beim Start selbst an.
+    """
+    __tablename__ = "copycenter_ablage"
+
+    session_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("recording_sessions.id"), primary_key=True)
+    ordner: Mapped[str] = mapped_column(String, nullable=False)
+
+
 class SegmentInsight(Base):
     """What the local language model extracted from a segment's transcript."""
     __tablename__ = "segment_insights"

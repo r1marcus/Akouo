@@ -340,3 +340,46 @@ def test_endpoint_legacy_flat_wav_uses_shared_exports(audio_client, monkeypatch,
     assert mp3_path.parent == shared_exports
     assert mp3_path.exists()
     assert not (sessions / "exports").exists(), "flat WAV must not grow a sibling exports folder"
+
+
+def test_endpoint_legt_zusaetzlich_ins_copycenter(audio_client, monkeypatch, tmp_path):
+    """Nach dem Haupt-Upload derselbe Track ins CopyCenter, dazu die leere Beschriftung —
+    und nichts davon, wenn schon der Haupt-Upload scheitert."""
+    client, audio_main, _ = audio_client
+    wav = tmp_path / "session6.wav"
+    _make_silent_wav(wav, duration_ms=10_000)
+    monkeypatch.setattr(audio_main.config, "nas_server", "srv")
+
+    hochgeladen = []
+    haupt_status = {"status": "uploaded"}
+
+    def fake_upload(local_path, remote_subpath, allow_overwrite=False):
+        hochgeladen.append((pathlib.Path(local_path).suffix, remote_subpath, allow_overwrite))
+        status = haupt_status["status"] if len(hochgeladen) == 1 else "uploaded"
+        return {"status": status, "error": None if status == "uploaded" else "kaputt",
+                "nas_path": "\\\\srv\\share\\" + remote_subpath, "uploaded_at": None}
+
+    monkeypatch.setattr(audio_main.nas_client, "upload_file", fake_upload)
+    monkeypatch.setattr(audio_main.nas_client, "exists", lambda pfad: False)
+
+    anfrage = {
+        "wav_path": str(wav), "start_seconds": 0.0, "end_seconds": 5.0,
+        "mp3_filename": "cc.mp3",
+        "remote_subpath": "Gottesdienste/2026-10-18 Sonntag 2. abends/Track-03 - Kinderchor.mp3",
+        "allow_overwrite": True,
+        "copycenter_folder": "CopyCenter/2026_mp3/Gottesd_261018_So_mp3_b",
+        "copycenter_label": "Gottesdienst",
+    }
+    body = client.post("/api/session/segment-export", json=anfrage).json()
+    assert body["copycenter"]["status"] == "uploaded"
+    assert hochgeladen == [
+        (".mp3", "Gottesdienste/2026-10-18 Sonntag 2. abends/Track-03 - Kinderchor.mp3", True),
+        (".mp3", "CopyCenter/2026_mp3/Gottesd_261018_So_mp3_b/Track-03 - Kinderchor.mp3", True),
+        (".txt", "CopyCenter/2026_mp3/Gottesd_261018_So_mp3_b/Gottesdienst.txt", False),
+    ]
+
+    hochgeladen.clear()
+    haupt_status["status"] = "failed"
+    body = client.post("/api/session/segment-export", json=anfrage).json()
+    assert body["copycenter"] is None
+    assert len(hochgeladen) == 1
