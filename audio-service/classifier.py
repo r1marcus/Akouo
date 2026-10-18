@@ -177,8 +177,13 @@ def _typ_vermutung(klasse: str, dauer_s: float, erwartet: Optional[list],
                 p += 3.0 if instrumental else -3.0
             elif instrumental:
                 p -= 2.0
-        von, bis = TYPISCHE_DAUER.get(typ, (0, 1e9))
-        if von <= dauer_s <= bis:
+        # Ohne bekannte Dauer weder Plus noch Minus. Vorher galt (0, ∞) — dann passte
+        # die Länge immer, und ein selbst angelegter Typ wie „Anspiel" schlug jede
+        # Predigt, nur weil er in der Liste weiter vorn stand.
+        von, bis = TYPISCHE_DAUER.get(typ, (None, None))
+        if von is None:
+            pass
+        elif von <= dauer_s <= bis:
             p += 2.0
         elif dauer_s > bis:
             p -= 1.5          # länger als je gesehen — spricht dagegen

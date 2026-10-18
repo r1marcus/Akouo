@@ -18,7 +18,7 @@ from sqlalchemy import select
 import session_dokument
 import typen
 from database import AsyncSessionLocal
-from models import Marker, RecordingSession
+from models import AutoMarker, Marker, RecordingSession
 
 AUDIO_SERVICE_URL = os.environ.get("AUDIO_SERVICE_URL", "http://127.0.0.1:8001")
 TAKT_S = 2.0
@@ -68,6 +68,7 @@ async def _abgleichen(zustand: dict):
                 db.add(marker)
                 await db.commit()
                 await db.refresh(marker)
+                db.add(AutoMarker(marker_id=marker.id, typ=marker.marker_type))
                 _bekannt[nr] = (marker.id, marker.marker_type)
                 continue
 
@@ -80,6 +81,9 @@ async def _abgleichen(zustand: dict):
             if marker.marker_type == zuletzt and b["typ"] not in ("?", zuletzt):
                 marker.marker_type = b["typ"]
                 _bekannt[nr] = (marker_id, b["typ"])
+                auto = await db.get(AutoMarker, marker_id)
+                if auto is not None:
+                    auto.typ = b["typ"]
 
             if b.get("ende_s") is not None and marker.ended_at_ts is None:
                 marker.ended_at_ts = b["ende_s"]

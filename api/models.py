@@ -133,6 +133,24 @@ class Marker(Base):
     )
 
 
+class AutoMarker(Base):
+    """Welche Marker die Automatik gesetzt hat — und mit welchem Typ zuletzt.
+
+    Daran hängt „Neu erkennen": ersetzt wird nur, was die Automatik selbst gesetzt
+    hat und seither niemand angefasst hat. Steht kein Eintrag da, hat ein Mensch
+    den Marker gesetzt. Weicht `typ` vom Typ des Markers ab, hat ein Mensch ihn
+    umbenannt. Beides bleibt stehen.
+
+    Eine eigene Tabelle statt einer Spalte an `markers`, weil die API beim Start
+    fehlende Tabellen von selbst anlegt, fehlende Spalten aber nicht: ein Neustart
+    ohne `alembic upgrade` bliebe damit lauffähig.
+    """
+    __tablename__ = "auto_markers"
+
+    marker_id: Mapped[int] = mapped_column(Integer, ForeignKey("markers.id"), primary_key=True)
+    typ: Mapped[str] = mapped_column(String, nullable=False)
+
+
 class SegmentInsight(Base):
     """What the local language model extracted from a segment's transcript."""
     __tablename__ = "segment_insights"

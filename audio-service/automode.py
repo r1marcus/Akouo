@@ -480,3 +480,49 @@ class AutoModus:
         except OSError:
             return ""
         return " ".join(teile)
+
+
+# ── Nachlauf: die ganze Aufnahme in einem Zug ───────────────────────────────
+def nachlauf(wav_path) -> list[dict]:
+    """Erkennt eine fertige Aufnahme noch einmal von vorn bis hinten.
+
+    Live muss der Modus mit dem auskommen, was bisher gelaufen ist: der Ruhepegel
+    pendelt sich am Anfang erst ein, ein fertiger Beitrag wird nie mehr verschoben,
+    und Ansagen von vor dem Einschalten bleiben ungelesen. Hinterher liegt alles
+    vor — Pegel über den ganzen Gottesdienst, das ganze Transkript.
+
+    Die Reihenfolge bleibt die des Live-Betriebs, damit die Warteliste der Ansagen
+    sich genauso füllt und leert: was vor einem Beitrag gesagt wurde, ist bekannt,
+    bevor er beginnt; bewertet wird er erst, wenn auch das gelesen ist, was während
+    ihm gesagt wurde. Nur eben mit fertigen Grenzen statt mitlaufenden.
+    """
+    modus = AutoModus(recorder=None)
+    modus._wav = pathlib.Path(wav_path)
+    grenzen = classifier.finde_beitraege(modus._wav)
+    gelesen_bis = 0.0
+
+    def ansagen_bis(bis_s: float) -> None:
+        nonlocal gelesen_bis
+        # Häppchen wie live: nie mehr als ANSAGE_MAX_S auf einmal ans Modell
+        while gelesen_bis < bis_s:
+            stueck_ende = min(bis_s, gelesen_bis + ANSAGE_MAX_S)
+            zeilen = [z for z in modus._transkript_zeilen(gelesen_bis, stueck_ende)
+                      if z.get("start", 0) < stueck_ende]
+            gelesen_bis = stueck_ende
+            if not PROGRAMM_AUTOMATISCH or not zeilen:
+                continue
+            text = " ".join(z.get("text", "").strip() for z in zeilen)
+            if not programm_modul.lohnt_anfrage(text):
+                continue
+            neue = programm_modul.lies_ansage(text)
+            if neue:
+                modus.programm.uebernehmen(neue, bei_s=zeilen[0].get("start", gelesen_bis))
+
+    for nr, (start, ende) in enumerate(grenzen, start=1):
+        ansagen_bis(start)
+        b = Beitrag(nr=nr, start_s=round(start, 2), ende_s=round(ende, 2))
+        modus._ansage_auswerten(b)
+        ansagen_bis(ende)
+        modus._einschaetzen(b)
+        modus.beitraege.append(b)
+    return [asdict(b) for b in modus.beitraege]

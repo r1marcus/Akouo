@@ -437,6 +437,28 @@ async def automode_stop():
     return await auto_modus.stop()
 
 
+class NeuErkennenRequest(BaseModel):
+    wav_path: str
+
+
+@app.post("/api/session/neu-erkennen")
+async def neu_erkennen(req: NeuErkennenRequest):
+    """Eine fertige Aufnahme von vorn bis hinten neu erkennen (automode.nachlauf).
+
+    Nur nach dem Stopp: an einer Datei, die noch wächst, gäbe es kein „hinterher",
+    und die Rechenarbeit soll nicht neben einer laufenden Aufnahme stattfinden.
+    """
+    wav = pathlib.Path(req.wav_path)
+    if not wav.is_file():
+        raise HTTPException(status_code=404, detail="WAV not found")
+    status = continuous_recorder.status()
+    if status.get("state") in ("recording", "paused") and \
+            pathlib.Path(status.get("wav_path") or "") == wav:
+        raise HTTPException(status_code=409, detail="Aufnahme läuft noch")
+    beitraege = await asyncio.to_thread(automode_modul.nachlauf, wav)
+    return {"beitraege": beitraege}
+
+
 @app.get("/api/session/nas-folder")
 async def nas_free_folder(folder: str):
     """First free variant of a folder name on the NAS.

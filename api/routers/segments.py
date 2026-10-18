@@ -1,6 +1,6 @@
 """Phase 7 segment listing + export router (EXP-01, EXP-02)."""
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import PurePosixPath
 from typing import NamedTuple, Optional
 
@@ -12,9 +12,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models import Marker, RecordingSession, SegmentExport
+from models import AutoMarker, Marker, RecordingSession, SegmentExport, SegmentInsight
 import einstellungen
 import nas_pfad
+import session_dokument
 import typen
 from routers.service import _stored_current
 from sprache import uebersetze
@@ -337,6 +338,114 @@ async def refine_segments(session_id: int, request: Request, db: AsyncSession = 
     if not session.wav_path:
         raise HTTPException(status_code=409, detail=uebersetze("Session hat keine Aufnahmedatei"))
     await refine_session(session, db)
+    return await list_segments(session_id, request, db)
+
+
+class NeuErkannt(NamedTuple):
+    """Ergebnis von „Neu erkennen": ersetzt, neu gesetzt, aus Rücksicht stehen gelassen."""
+    ersetzt: int
+    neu: int
+    behalten: int
+
+
+def _von_hand(marker: Marker, seg: dict, auto_typ: Optional[str]) -> bool:
+    """Hat ein Mensch diesen Marker gesetzt oder angefasst? Dann bleibt er stehen.
+
+    Schon exportierte zählen mit: ihre MP3 liegt vielleicht schon im Archiv, und ein
+    neuer Marker an ihrer Stelle bekäme eine zweite.
+    """
+    return (auto_typ is None                       # von Hand gesetzt
+            or auto_typ != marker.marker_type      # von Hand umbenannt
+            or marker.nudge_manual                 # von Hand verschoben
+            or seg["export"] is not None)          # schon geschnitten
+
+
+def _ueberdeckt(beitrag: dict, seg: dict, marker: Marker) -> bool:
+    """Liegt ein neu erkannter Beitrag auf einem Marker, der stehen bleibt?
+
+    Ein Marker ohne Ende reicht bis zum nächsten — welcher das nach dem Neuerkennen
+    ist, steht aber noch nicht fest. Er zählt deshalb nur mit seinem Anfang: ein
+    Beitrag, der ihn enthält, ist derselbe.
+    """
+    start = seg["start_seconds"]
+    ende = seg["end_seconds"] if marker.ended_at_ts is not None else start
+    return beitrag["start_s"] <= ende and start <= beitrag["ende_s"]
+
+
+async def neu_erkennen_session(session: RecordingSession, db: AsyncSession) -> NeuErkannt:
+    """Die fertige Aufnahme neu erkennen und die automatischen Marker ersetzen."""
+    async with httpx.AsyncClient(timeout=900.0) as client:
+        try:
+            r = await client.post(f"{AUDIO_SERVICE_URL}/api/session/neu-erkennen",
+                                  json={"wav_path": session.wav_path})
+        except httpx.ConnectError:
+            raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail=uebersetze("Neu erkennen ist fehlgeschlagen"))
+    beitraege = r.json().get("beitraege", [])
+
+    segments = await _build_segments(session, db)
+    markers_q = await db.execute(select(Marker).where(Marker.session_id == session.id))
+    markers = {m.id: m for m in markers_q.scalars().all()}
+    auto_q = await db.execute(select(AutoMarker).where(AutoMarker.marker_id.in_(list(markers))))
+    auto = {a.marker_id: a for a in auto_q.scalars().all()}
+
+    bleiben, weg = [], []
+    for seg in segments:
+        m = markers[seg["marker_id"]]
+        a = auto.get(m.id)
+        (bleiben if _von_hand(m, seg, a.typ if a else None) else weg).append((seg, m))
+
+    for _, m in weg:
+        insight = (await db.execute(
+            select(SegmentInsight).where(SegmentInsight.marker_id == m.id))).scalar_one_or_none()
+        if insight is not None:
+            await db.delete(insight)
+        if m.id in auto:
+            await db.delete(auto[m.id])
+        await db.delete(m)
+    await db.flush()
+
+    neu = 0
+    for b in beitraege:
+        # Wie live: Gemeindegesang, Gebet und Ansagen bekommen keinen Marker
+        if not b.get("exportieren", True) or b.get("ende_s") is None:
+            continue
+        if any(_ueberdeckt(b, seg, m) for seg, m in bleiben):
+            continue            # die Hand hat Vorrang
+        typ = b["typ"] if b.get("typ") not in (None, "?") else "Unbenannt"
+        marker = Marker(
+            session_id=session.id,
+            marker_type=typ,
+            placed_at_ts=b["start_s"],
+            placed_at_wall=session.started_at + timedelta(seconds=b["start_s"]),
+            ended_at_ts=b["ende_s"],
+        )
+        db.add(marker)
+        await db.flush()
+        db.add(AutoMarker(marker_id=marker.id, typ=typ))
+        neu += 1
+    await db.commit()
+
+    # Kanten wie nach jedem Stopp auf den echten Ton ziehen — von Hand Verschobenes
+    # lässt refine_session ohnehin in Ruhe.
+    await refine_session(session, db)
+    await session_dokument.schreiben(session.id, db)
+    return NeuErkannt(ersetzt=len(weg), neu=neu, behalten=len(bleiben))
+
+
+@router.post("/{session_id}/segments/neu-erkennen")
+async def neu_erkennen(session_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Knopf „Neu erkennen" in der Segmentansicht — nur nach dem Stopp."""
+    session = await db.get(RecordingSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+    if not session.wav_path:
+        raise HTTPException(status_code=409, detail=uebersetze("Session hat keine Aufnahmedatei"))
+    if session.status in ("recording", "paused"):
+        raise HTTPException(status_code=409,
+                            detail=uebersetze("Neu erkennen geht erst nach dem Stopp"))
+    await neu_erkennen_session(session, db)
     return await list_segments(session_id, request, db)
 
 

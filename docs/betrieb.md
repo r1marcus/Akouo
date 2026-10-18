@@ -561,6 +561,32 @@ Der Papierkorb löscht ohne Rückfrage — die Aufnahme läuft weiter, der Ton i
 vollständig dokumentiert ist, beim Sammel-Export aber übersprungen. Einzeln exportieren bleibt
 möglich.
 
+**Mitten im Gottesdienst einschalten**
+
+Geht. Der Automodus liest beim Einschalten die ganze Aufnahme ab der ersten Sekunde und setzt
+auch für Beiträge, die schon gelaufen sind, Marker auf den echten Anfang. Nur Ansagen liest er
+rückwirkend höchstens 150 Sekunden — was davor angesagt wurde, kennt er nicht, und der Typ der
+frühen Beiträge kommt dann allein aus dem Klang. Das holt „Neu erkennen" nach.
+
+**Neu erkennen — nach dem Gottesdienst**
+
+Live arbeitet der Modus mit dem, was bisher gelaufen ist: Der Ruhepegel muss sich am Anfang
+erst einpendeln, ein fertiger Beitrag wird nie mehr verschoben, damit nichts springt. Nach dem
+Stopp liegt alles vor. Der Knopf **„Neu erkennen"** in der Segment-Karte rechnet die ganze
+Aufnahme in einem Zug durch — Pegel über den ganzen Gottesdienst, das ganze Transkript mit allen
+Ansagen — und ersetzt die Marker, die die Automatik gesetzt hat. Zwei Tipps, wie beim Löschen.
+Danach laufen die Schnittkanten wie nach jedem Stopp.
+
+**Stehen bleibt**, was von Hand gesetzt, verschoben oder umbenannt ist, und was schon
+exportiert wurde. Ein neu erkannter Beitrag, der auf so einem Marker liegt, wird verworfen —
+die Hand hat Vorrang. Marker aus der Zeit vor dem 18. Oktober 2026 gelten alle als von Hand
+gesetzt: Woher ein Marker kommt, wird erst seitdem gespeichert.
+
+Dauer: rund eine Minute für zwei Stunden Gottesdienst, gemessen am 11. Oktober. Die Grenzen
+trafen dort 20 von 21 Beiträgen. Bei den Typen bleibt es bei dem, was der Klang kann — Prosa
+und Predigt, Orchester und Chorlied mit Begleitung verwechselt er, und die Korrektur von Hand
+bleibt nötig.
+
 ---
 
 ## 5e. Ablauf neben der Aufnahme

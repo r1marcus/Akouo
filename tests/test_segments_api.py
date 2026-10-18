@@ -607,3 +607,88 @@ async def test_export_nutzt_nas_nummer_fuer_track_und_id3(db_session):
     assert payload["remote_subpath"] == "Gottesdienste/2026-10-18 Sonntag 1. morgens/Track-02.mp3"
     assert payload["tags"]["track"] == "2"
     assert "_03_Predigt" in payload["mp3_filename"]
+
+
+# ─── Tests: Neu erkennen ───────────────────────────────────────────────────
+
+async def _auto(db, marker, typ=None):
+    from models import AutoMarker
+    db.add(AutoMarker(marker_id=marker.id, typ=typ or marker.marker_type))
+    await db.commit()
+
+
+async def _beende(db, marker, ende):
+    marker.ended_at_ts = ende
+    await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_neu_erkennen_ersetzt_nur_unberuehrte_automatik(db_session, tmp_path):
+    """Ersetzt wird nur, was die Automatik gesetzt und niemand angefasst hat."""
+    from sqlalchemy import select
+    from models import AutoMarker, Marker, SegmentExport
+    from routers.segments import neu_erkennen_session
+
+    started = datetime(2026, 10, 18, 9, 38, 0)
+    sess = await _make_session(db_session, started_at=started,
+                               stopped_at=started + timedelta(seconds=800),
+                               wav_path=str(tmp_path / "aufnahme.wav"), service_type="Sonntagmorgen")
+
+    auto = await _make_marker(db_session, sess.id, "Chorlied", placed_at_ts=10.0)
+    await _beende(db_session, auto, 90.0)
+    await _auto(db_session, auto)
+
+    await _make_marker(db_session, sess.id, "Chorlied", placed_at_ts=200.0)   # von Hand, ohne Ende
+
+    umbenannt = await _make_marker(db_session, sess.id, "Gedicht", placed_at_ts=400.0)
+    await _beende(db_session, umbenannt, 450.0)
+    await _auto(db_session, umbenannt, typ="Chorlied")
+
+    exportiert = await _make_marker(db_session, sess.id, "Predigt", placed_at_ts=500.0)
+    await _beende(db_session, exportiert, 550.0)
+    await _auto(db_session, exportiert)
+    db_session.add(SegmentExport(session_id=sess.id, marker_id=exportiert.id, marker_type="Predigt",
+                                 start_seconds=500.0, end_seconds=550.0,
+                                 mp3_path=str(tmp_path / "x.mp3"), mp3_filename="x.mp3"))
+    await db_session.commit()
+
+    erkannt = {"beitraege": [
+        {"start_s": 12.0, "ende_s": 95.0, "typ": "Orchester", "exportieren": True},
+        {"start_s": 195.0, "ende_s": 300.0, "typ": "Chorlied", "exportieren": True},     # auf der Hand
+        {"start_s": 310.0, "ende_s": 380.0, "typ": "?", "exportieren": True},
+        {"start_s": 600.0, "ende_s": 700.0, "typ": "Gemeindegesang", "exportieren": False},
+    ]}
+    with patch("httpx.AsyncClient", return_value=_mock_audio_client(erkannt)):
+        ergebnis = await neu_erkennen_session(sess, db_session)
+
+    assert ergebnis == (1, 2, 3)
+    marker = (await db_session.execute(
+        select(Marker).where(Marker.session_id == sess.id).order_by(Marker.placed_at_ts)
+    )).scalars().all()
+    assert [(m.placed_at_ts, m.ended_at_ts, m.marker_type) for m in marker] == [
+        (12.0, 95.0, "Orchester"),
+        (200.0, None, "Chorlied"),
+        (310.0, 380.0, "Unbenannt"),
+        (400.0, 450.0, "Gedicht"),
+        (500.0, 550.0, "Predigt"),
+    ]
+    assert auto.id not in {m.id for m in marker}
+    neue_auto = (await db_session.execute(select(AutoMarker))).scalars().all()
+    assert {a.typ for a in neue_auto if a.marker_id in {marker[0].id, marker[2].id}} == \
+        {"Orchester", "Unbenannt"}
+    # Der Ordner der Aufnahme erklärt sich weiter selbst
+    assert (tmp_path / "marker.json").exists()
+
+
+@pytest.mark.asyncio
+async def test_neu_erkennen_erst_nach_dem_stopp(db_session, tmp_path):
+    from fastapi import HTTPException
+    from routers.segments import neu_erkennen
+
+    sess = await _make_session(db_session, wav_path=str(tmp_path / "aufnahme.wav"),
+                               status="recording")
+    mock_request = MagicMock()
+    mock_request.headers = {}
+    with pytest.raises(HTTPException) as fehler:
+        await neu_erkennen(session_id=sess.id, request=mock_request, db=db_session)
+    assert fehler.value.status_code == 409

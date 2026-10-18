@@ -4,6 +4,9 @@
          x-data="{
             running: false,
             done: 0,
+            erkennt: false,
+            confirmNeu: false,
+            confirmNeuTimer: null,
             insights: {},          // marker_id -> {title, summary, bible_refs, keywords, speaker}
             busyInsight: null,
             {# Gemeindegesang, Gebet, Ansagen sind markiert, gehören aber nicht ins
@@ -31,6 +34,34 @@
                 } finally {
                     this.busyInsight = null;
                 }
+            },
+            {# Ersetzt nur, was die Automatik gesetzt hat — darum zwei Tipps wie beim
+               Löschen statt einer Rückfrage. #}
+            async neuErkennen() {
+                if (!this.confirmNeu) {
+                    this.confirmNeu = true;
+                    clearTimeout(this.confirmNeuTimer);
+                    this.confirmNeuTimer = setTimeout(() => { this.confirmNeu = false; }, 3000);
+                    return;
+                }
+                clearTimeout(this.confirmNeuTimer);
+                this.confirmNeu = false;
+                this.erkennt = true;
+                try {
+                    const r = await fetch('/api/sessions/{{ session_id }}/segments/neu-erkennen', {method: 'POST'});
+                    if (!r.ok) {
+                        const d = await r.json().catch(() => ({}));
+                        window.dispatchEvent(new CustomEvent('toast', {detail: d.detail || (tr('Fehler') + ' ' + r.status)}));
+                        return;
+                    }
+                } catch (e) {
+                    window.dispatchEvent(new CustomEvent('toast', {detail: tr('Neu erkennen ist fehlgeschlagen') + ': ' + e.message}));
+                    return;
+                } finally {
+                    this.erkennt = false;
+                }
+                htmx.ajax('GET', '/api/sessions/{{ session_id }}/segments',
+                          {target: '#segment-review-{{ session_id }}', swap: 'outerHTML'});
             },
             async exportAll() {
                 this.running = true;
@@ -61,6 +92,13 @@
             :disabled="running"
             class="btn min-h-9 px-4 text-sm bg-white/[0.06] text-zinc-200 hover:bg-white/10">
       {{ t("Kanten korrigieren") }}
+    </button>
+    <button @click="neuErkennen()" :disabled="running || erkennt"
+            :title="tr('Erkennt die ganze Aufnahme noch einmal und ersetzt die automatisch gesetzten Marker. Was du gesetzt, verschoben, umbenannt oder schon exportiert hast, bleibt.')"
+            class="btn min-h-9 px-4 text-sm"
+            :class="confirmNeu ? 'bg-amber-400 text-zinc-900 hover:bg-amber-300'
+                               : 'bg-white/[0.06] text-zinc-200 hover:bg-white/10'">
+      <span x-text="erkennt ? tr('Erkenne neu…') : (confirmNeu ? tr('Wirklich neu erkennen?') : tr('Neu erkennen'))">{{ t("Neu erkennen") }}</span>
     </button>
     <button @click="exportAll()" :disabled="running"
             class="btn min-h-9 px-4 text-sm bg-zinc-100 text-zinc-900 hover:bg-white">
