@@ -120,7 +120,7 @@ Be warned: the audio path has a **commercially licensed** component.
 | **Python 3.12 exactly** | **yes** | Not 3.13+: `pydub` imports `audioop`, removed from the stdlib in 3.13. Homebrew's default is now newer — install `python@3.12` explicitly. |
 | FFmpeg | **yes** | `brew install ffmpeg`. Not bundled — see [`NOTICE`](NOTICE). |
 | Audio input, ≥2 channels | **yes** | Default config uses one stereo pair for both recording and stream. |
-| **Dante Virtual Soundcard** | for the full setup | **A commercial licence from Audinate.** Needed only if your console feeds audio over Dante, as here (recording on channels 44/45, stream on 46/47). A multi-channel USB interface works instead — Focusrite is matched by default. |
+| **Dante Virtual Soundcard** | for the full setup | **A commercial licence from Audinate.** Needed only if your console feeds audio over Dante, as here (recording and stream both on channels 44/45). A multi-channel USB interface works instead — Focusrite is matched by default. |
 | Mixing console with two separate mixes | recommended | Otherwise recording and stream carry the same balance. |
 | whisper.cpp + a ggml model | optional | ~1.5 GB. Without it the transcript stays empty and the announcement-based detection goes quiet; recording is unaffected. |
 | Ollama + a model | optional | `qwen2.5:14b-instruct` is ~9 GB and wants 16 GB+ of RAM. Without it there are no AI summaries, and nothing crashes. |

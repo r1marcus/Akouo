@@ -127,9 +127,10 @@ async def session_stop():
     if result["status"] == "error":
         raise HTTPException(status_code=409, detail=result["message"])
     await transcriber.stop()
-    # Also stop streaming if active — single InputStream is shared
-    if stream_adapter.status()["status"] == "streaming":
-        await stream_adapter.stop()
+    # Livestream und Telefon laufen weiter: Nach dem letzten Lied wird oft noch gesprochen,
+    # und wer zuhört, soll nicht mit dem Stopp der Aufnahme abgeschnitten werden. Beide
+    # haben ihren eigenen Knopf. Früher wurden sie hier mitbeendet, weil Aufnahme und
+    # Stream an einem gemeinsamen Eingang hingen — der bleibt seit September dauerhaft offen.
     return result
 
 

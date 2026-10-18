@@ -41,7 +41,8 @@ Der Browser spricht nur mit Port 8000. Die API leitet Aufnahme-, Stream-, Pegel-
 KI-Anfragen an den Audio-Service weiter; dieser wiederum an whisper-server und Ollama.
 
 **Signalweg:** Mischpult → Dante → Dante Virtual Soundcard (64 Kanäle, 48 kHz) → Audio-Service.
-Kanal 44+45 werden aufgenommen und transkribiert, Kanal 46+47 gehen als Livestream an Icecast.
+Kanal 44+45 werden aufgenommen, transkribiert und gehen zugleich als Livestream an Icecast
+(seit 18.10.2026; vorher lief der Stream auf 46+47 mit eigener Mischung).
 
 ---
 
@@ -209,7 +210,7 @@ nicht lesen, gilt Deutsch.
 | `AUDIO_SAMPLE_RATE` | Umgebung des Audio-Service | `48000` | Abtastrate der Aufnahme; muss zur Einstellung der Soundkarte passen (Dante läuft mit 48000). |
 | `AUDIO_RECORD_CHANNELS` | `audio-service/.env` | `1,2` (hier: `44,45`) | Kanalpaar für die Aufnahme, 1-basiert wie in Dante Controller. |
 | `STREAM_URL` | `audio-service/.env` | leer | Icecast-Ziel **mit Zugangsdaten**, aktuell `icecast://…@<icecast-host>:8000/<mount>`. Gehört nicht ins Repo. Fehlt in den Einstellungen ein Ziel, nutzt die API dieses hier. |
-| `AUDIO_STREAM_CHANNELS` | `audio-service/.env` | `1,2` (hier: `46,47`) | Kanalpaar für den Livestream. Darf dasselbe Paar wie die Aufnahme sein. |
+| `AUDIO_STREAM_CHANNELS` | `audio-service/.env` | `1,2` (hier: `44,45`) | Kanalpaar für den Livestream. Darf dasselbe Paar wie die Aufnahme sein. |
 | `NAS_*` | `audio-service/.env` | leer (hier: gesetzt) | NAS über SMB, seit dem 16.10.2026 aktiv. Das Dienstkonto braucht auf der Freigabe **Lesen/Schreiben** — ein „Kein Zugriff“ bei ihm oder einer seiner Gruppen sperrt es aus, auch als Admin. Prüfen mit `audio-service/scripts/check_nas.py`. Ohne `NAS_SERVER` werden Exporte als *übersprungen* gemeldet. |
 | `EXPORT_COVER` | `audio-service/.env` | leer (hier: `data/cover.jpg`) | Bild, das jede MP3 als Cover trägt. Ein PNG mit durchsichtigem Grund zeigen viele Player schwarz, deshalb auf Weiß als JPEG. `data/cover.*` ist vom Repository ausgenommen. |
 | `auto_refine_boundaries` | Einstellungsseite (DB) | an | Schnittkanten beim Stoppen automatisch korrigieren |
@@ -390,7 +391,8 @@ zwischen „Stream starten" und „Stream stoppen" anhand des echten Zustands vo
 - Die Zugangsdaten stehen in `audio-service/.env`; das Dashboard und die Logs zeigen die Adresse
   immer ohne Passwort.
 - Ist in den Einstellungen kein Ziel hinterlegt, sendet der Audio-Service an das Ziel aus der `.env`.
-- Das Stoppen einer Aufnahme beendet auch einen laufenden Stream.
+- Das Stoppen einer Aufnahme lässt einen laufenden Stream **weiterlaufen** (seit 18.10.2026) —
+  nach dem letzten Lied wird oft noch gesprochen. Der Stream hat seinen eigenen Knopf.
 
 ### Weitere Bereiche
 
@@ -408,8 +410,9 @@ für andere Systeme.
 ## 5. Pegelanzeige — immer aktiv
 
 Seit dem 18.09.2026 kommt der Ton über die **Dante Virtual Soundcard** (64 Kanäle, 48 kHz) statt
-über ein Focusrite-Interface. **Aufnahme auf Dante-Kanal 44+45, Livestream auf 46+47**
-(`AUDIO_RECORD_CHANNELS` / `AUDIO_STREAM_CHANNELS` in `audio-service/.env`; Stand 20.09.2026).
+über ein Focusrite-Interface. **Aufnahme und Livestream auf Dante-Kanal 44+45**
+(`AUDIO_RECORD_CHANNELS` / `AUDIO_STREAM_CHANNELS` in `audio-service/.env`; Stand 18.10.2026,
+vorher Stream auf 46+47).
 Der Stream-Mix lag zuletzt rund 10 dB leiser als der Aufnahme-Mix.
 PortAudio öffnet immer ab Kanal 1, für Kanal 45 werden also 45 Kanäle geöffnet und die richtigen
 Spalten herausgeschnitten. Kanäle ändern: Zeile in `.env` anpassen, dann
@@ -426,13 +429,13 @@ Spitzenwert-Haltung). Sie läuft **immer**, nicht nur während einer Aufnahme. R
 
 - Der Audio-Service öffnet beim Start **einen einzigen Stream** auf das Gerät und lässt ihn
   offen (`ContinuousRecorder.ensure_input()`). PortAudio öffnet immer ab Kanal 1, der Stream ist
-  also so breit wie das höchste benutzte Kanal — bei 46+47 sind das **47 Kanäle**, nicht vier.
+  also so breit wie das höchste benutzte Kanal — bei 44+45 sind das **45 Kanäle**, nicht vier.
   Zwei parallele Streams auf dasselbe Gerät würden sich stören; deshalb nutzen Pegel, Aufnahme
   und Livestream denselben.
 - Der Audio-Callback berechnet bei jedem Block den RMS-Wert des **Aufnahmepaars**.
 - Eine Aufnahme **schreibt nur mit** (das Aufnahmepaar in die WAV-Datei). Beim Stoppen bleibt
   der Eingang offen; die nächste Aufnahme nutzt ihn weiter.
-- Das **Streampaar** (hier 46+47) wird nur in die Stream-Warteschlange gelegt, **solange
+- Das **Streampaar** (hier 44+45, dasselbe wie die Aufnahme) wird nur in die Stream-Warteschlange gelegt, **solange
   tatsächlich gestreamt wird**
   (`stream_enabled`, gesetzt vom `StreamAdapter`). Vorher lief diese Warteschlange während jeder
   Aufnahme auch ohne Stream voll (~1,3 GB in 2 Stunden).
@@ -449,8 +452,8 @@ Spitzenwert-Haltung). Sie läuft **immer**, nicht nur während einer Aufnahme. R
   dauerhaft an. Das ist gewollt.
 - **Pegel bleibt bei Stille, obwohl „verbunden" steht:** Dann läuft der Stream, es ist nur nichts
   auf die benutzten Dante-Kanäle geroutet. In **Dante Controller** unter *Routing* die
-  Sender-Kanäle des Pults auf die Empfangskanäle **44–47** der *Dante Virtual Soundcard* setzen —
-  44+45 für die Aufnahme, 46+47 für den Stream. Welche es sind, steht in `audio-service/.env`.
+  Sender-Kanäle des Pults auf die Empfangskanäle **44+45** der *Dante Virtual Soundcard* setzen —
+  44+45 für Aufnahme und Stream. Welche es sind, steht in `audio-service/.env`.
 - Beim ersten Öffnen fragt macOS nach dem Mikrofonzugriff für
   `~/tontechnik-audio-venv/bin/python` — erlauben (Systemeinstellungen → Datenschutz & Sicherheit →
   Mikrofon).
@@ -673,7 +676,7 @@ geschrieben.
 
 ## 5f. Mithören
 
-Der Lautsprecher in der Kopfzeile gibt das **Stream-Signal** (Dante 46+47) direkt aus dem
+Der Lautsprecher in der Kopfzeile gibt das **Stream-Signal** (Dante 44+45) direkt aus dem
 Audio-Dienst aus — nicht den Umweg über Icecast, der 10 bis 20 Sekunden kostet und nur
 funktioniert, während gesendet wird. So hört man auch vor dem Gottesdienst hinein.
 

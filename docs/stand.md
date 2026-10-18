@@ -426,6 +426,13 @@ ist nicht von einem Muttersprachler gegengelesen.
   gewann es jeden Gleichstand. Eine 22-minütige Predigt wurde zu „Anspiel".
 - Das Album-Tag war bei Hochzeiten „2. Teil", weil nur der letzte Ordnerteil genommen wurde.
 
+### Livestream
+- Der Stream läuft seit dem 18. Oktober auf **Dante 44+45**, derselben Mischung wie die
+  Aufnahme. Die eigene Stream-Mischung auf 46+47 lag rund 10 dB leiser.
+- **Aufnahme stoppen beendet den Stream nicht mehr.** Nach dem letzten Lied wird oft noch
+  gesprochen; der Stream hat seinen eigenen Knopf. Das Mitbeenden stammte aus der Zeit, als
+  Aufnahme und Stream an einem gemeinsamen Eingang hingen.
+
 ### Gemessen, noch nicht gelöst
 - **Lautheit:** Alle Tracks haben dieselbe Spitze (−3,2 dBFS), aber zwischen −16,9 und
   −26,4 LUFS — die zweite Predigt war rund 9 dB leiser als die Lieder. Das Handarchiv vom
@@ -508,7 +515,7 @@ Der Ablauf liegt danach als `ablauf.txt` und `marker.json` im Session-Ordner.
 | KI-Auswertung | Ollama lokal, Modellwahl über `OLLAMA_MODELS` |
 | Export | MP3 192 kbit/s, 48 kHz, Spitze −3 dBFS, je 1 s Blende, ID3v2.3 mit Cover; auf das NAS nach `Gottesdienste/…` und ins CopyCenter |
 | Web | `http://<rechner>.local:8000` — immer über den Namen, die IP wechselt per DHCP. Von unterwegs über Tailscale: `http://<tailscale-adresse>:8000` |
-| Stream | Icecast `<icecast-host>:8000/<mount>`, Quelle = Dante 46+47 |
+| Stream | Icecast `<icecast-host>:8000/<mount>`, Quelle = Dante 44+45, dieselbe Mischung wie die Aufnahme |
 | Datenbank | SQLite, Alembic-Stand **017** |
 | Tests | **235 Tests** in zwei Umgebungen (168 API, 67 Audio-Dienst), dazu CI auf ubuntu-24.04 |
 

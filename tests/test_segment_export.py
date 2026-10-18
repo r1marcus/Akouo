@@ -383,3 +383,19 @@ def test_endpoint_legt_zusaetzlich_ins_copycenter(audio_client, monkeypatch, tmp
     body = client.post("/api/session/segment-export", json=anfrage).json()
     assert body["copycenter"] is None
     assert len(hochgeladen) == 1
+
+
+def test_aufnahme_stoppen_laesst_den_stream_laufen(audio_client, monkeypatch):
+    """Nach dem letzten Lied wird oft noch gesprochen — der Stream hat seinen eigenen Knopf."""
+    from unittest.mock import AsyncMock
+    client, audio_main, _ = audio_client
+
+    monkeypatch.setattr(audio_main.continuous_recorder, "stop_session",
+                        AsyncMock(return_value={"status": "stopped"}))
+    monkeypatch.setattr(audio_main.transcriber, "stop", AsyncMock())
+    stream_stopp = AsyncMock()
+    monkeypatch.setattr(audio_main.stream_adapter, "stop", stream_stopp)
+    monkeypatch.setattr(audio_main.stream_adapter, "status", lambda: {"status": "streaming"})
+
+    assert client.post("/api/session/stop").status_code == 200
+    stream_stopp.assert_not_called()
