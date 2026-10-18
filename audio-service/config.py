@@ -47,6 +47,8 @@ class Config:
     nas_user: str = field(default_factory=lambda: os.environ.get("NAS_USER", ""))
     nas_password: str = field(default_factory=lambda: os.environ.get("NAS_PASSWORD", ""))
     nas_base_path: str = field(default_factory=lambda: os.environ.get("NAS_BASE_PATH", "Tontechnik"))
+    # Bild, das jeder exportierten MP3 als Cover mitgegeben wird — etwa das Logo der Gemeinde
+    export_cover: str = field(default_factory=lambda: os.environ.get("EXPORT_COVER", ""))
     # Live-Transkription (whisper-server hält das Modell im Speicher)
     transcribe_enabled: bool = field(default_factory=lambda: os.environ.get("TRANSCRIBE_ENABLED", "1") == "1")
     transcribe_chunk_seconds: float = field(default_factory=lambda: float(os.environ.get("TRANSCRIBE_CHUNK_SECONDS", "10")))

@@ -514,8 +514,7 @@ class SegmentExportRequest(BaseModel):
     mp3_filename: str        # basename only, e.g. "2026-04-29_Predigt.mp3"
     remote_subpath: Optional[str] = None  # e.g. "Gottesdienste/2026-10-04 Sonntag 1. morgens/Track-03.mp3"
     allow_overwrite: bool = False          # only set when replacing our own earlier upload
-    tags: Optional[dict] = None            # ID3 — on the NAS the file is called Track-NN.mp3,
-                                           # so the kind of track only survives inside the file
+    tags: Optional[dict] = None            # ID3: title, artist, album, track, comment, …
 
 
 @app.post("/api/session/export")
@@ -579,6 +578,7 @@ async def session_segment_export(req: SegmentExportRequest):
             fade_ms=laufzeit.EXPORT["fade_ms"],
             peak_dbfs=laufzeit.EXPORT["peak_dbfs"],
             tags=req.tags,
+            cover=config.export_cover or None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))

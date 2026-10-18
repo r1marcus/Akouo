@@ -14,6 +14,7 @@ def export_wav_to_mp3(
     fade_ms: int = 1000,
     peak_dbfs: float = -3.0,
     tags: Optional[dict] = None,
+    cover: Optional[str] = None,
 ) -> dict:
     """Export a session WAV as broadcast-quality MP3.
 
@@ -30,6 +31,8 @@ def export_wav_to_mp3(
         target_sample_rate: Output sample rate in Hz (48000 for broadcast standard).
         fade_ms: Duration of fade-in and fade-out in milliseconds.
         peak_dbfs: Target peak level in dBFS (e.g. -3.0 for broadcast headroom).
+        tags: ID3 tags (title, artist, album, track, …).
+        cover: Image embedded as album art — skipped if the file is missing.
 
     Returns:
         dict with keys: mp3_path (str), duration_ms (int), frame_rate (int).
@@ -58,6 +61,10 @@ def export_wav_to_mp3(
         bitrate=bitrate,
         parameters=["-ar", str(target_sample_rate)],
         tags=tags or None,
+        # ID3v2.3, nicht 2.4: der Windows-Explorer und ältere Autoradios lesen nur 2.3,
+        # und auf dem NAS werden die Dateien quer durch die Gemeinde geöffnet.
+        id3v2_version="3",
+        cover=cover if cover and pathlib.Path(cover).is_file() else None,
     )
 
     return {

@@ -582,7 +582,7 @@ async def test_nas_nummer_fortlaufend_ohne_luecken(db_session):
 
 @pytest.mark.asyncio
 async def test_export_nutzt_nas_nummer_fuer_track_und_id3(db_session):
-    """Auf dem NAS Track-02 samt ID3-Nummer 2; die lokale Datei behält ihre Markernummer 03."""
+    """Auf dem NAS Track-02 samt ID3-Nummer 2/3; die lokale Datei behält ihre Markernummer 03."""
     from routers.segments import export_segment
 
     sess, marker = await _gottesdienst_mit_luecken(db_session)
@@ -604,8 +604,9 @@ async def test_export_nutzt_nas_nummer_fuer_track_und_id3(db_session):
                              request=mock_request, db=db_session)
 
     payload = client.post.call_args.kwargs["json"]
-    assert payload["remote_subpath"] == "Gottesdienste/2026-10-18 Sonntag 1. morgens/Track-02.mp3"
-    assert payload["tags"]["track"] == "2"
+    assert payload["remote_subpath"] == \
+        "Gottesdienste/2026-10-18 Sonntag 1. morgens/Track-02 - Predigt.mp3"
+    assert payload["tags"]["track"] == "2/3"
     assert "_03_Predigt" in payload["mp3_filename"]
 
 
@@ -692,3 +693,70 @@ async def test_neu_erkennen_erst_nach_dem_stopp(db_session, tmp_path):
     with pytest.raises(HTTPException) as fehler:
         await neu_erkennen(session_id=sess.id, request=mock_request, db=db_session)
     assert fehler.value.status_code == 409
+
+
+
+# ─── Tests: Dateiname und Metadaten auf dem NAS ────────────────────────────
+
+def test_nas_dateiname_traegt_den_typ_ohne_verbotene_zeichen():
+    from routers.segments import _nas_track_name
+    assert _nas_track_name(3, "Kinderchor") == "Track-03 - Kinderchor.mp3"
+    assert _nas_track_name(12, 'Lied: "Wer/was?"') == "Track-12 - Lied Werwas.mp3"
+    assert _nas_track_name(1, "...") == "Track-01 - Beitrag.mp3"
+
+
+def test_album_ohne_bereich_und_jahresordner():
+    from routers.segments import _album
+    assert _album("Gottesdienste/2026-10-18 Sonntag 1. morgens") == "2026-10-18 Sonntag 1. morgens"
+    assert _album("Hochzeiten/2026/2026-06-06 Robin & Laura/2. Teil") == \
+        "2026-06-06 Robin & Laura – 2. Teil"
+    assert _album("Sonstige Aufnahmen/2026/2026-02-03") == "2026-02-03"
+
+
+@pytest.mark.asyncio
+async def test_export_tags_mit_interpret_und_ki_kommentar(db_session):
+    """Interpret aus der Einstellung, Kommentar nur aus einer vorhandenen KI-Auswertung."""
+    import json
+    from models import SegmentInsight, Setting
+    from routers.segments import export_segment
+
+    sess, marker = await _gottesdienst_mit_luecken(db_session)
+    sess.nas_folder = "Gottesdienste/2026-10-18 Sonntag 1. morgens"
+    db_session.add(Setting(key="export_interpret", value="Testgemeinde"))
+    db_session.add(SegmentInsight(session_id=sess.id, marker_id=marker["Predigt"].id,
+                                  summary="Über die Hoffnung.",
+                                  bible_refs=json.dumps(["Römer 8,28", "Psalm 23"])))
+    await db_session.commit()
+
+    audio_resp = {
+        "export": {"mp3_path": "/exports/x.mp3", "duration_ms": 5000, "frame_rate": 48000},
+        "nas": {"status": "skipped", "error": None, "nas_path": None, "uploaded_at": None},
+        "mp3_filename": "x.mp3",
+        "mp3_path": "/exports/x.mp3",
+    }
+    mock_request = MagicMock()
+    mock_request.headers = {}
+
+    client = _mock_audio_client(audio_resp)
+    with patch("httpx.AsyncClient", return_value=client):
+        await export_segment(session_id=sess.id, marker_id=marker["Predigt"].id,
+                             request=mock_request, db=db_session)
+    tags = client.post.call_args.kwargs["json"]["tags"]
+    assert tags == {
+        "title": "Predigt",
+        "album": "2026-10-18 Sonntag 1. morgens",
+        "track": "2/3",
+        "date": "2026-10-18",
+        "genre": "Gottesdienst",
+        "language": "deu",
+        "artist": "Testgemeinde",
+        "album_artist": "Testgemeinde",
+        "comment": "Über die Hoffnung.\n\nRömer 8,28, Psalm 23",
+    }
+
+    # Ohne KI-Auswertung kein Kommentar
+    client = _mock_audio_client(audio_resp)
+    with patch("httpx.AsyncClient", return_value=client):
+        await export_segment(session_id=sess.id, marker_id=marker["Orchester"].id,
+                             request=mock_request, db=db_session)
+    assert "comment" not in client.post.call_args.kwargs["json"]["tags"]

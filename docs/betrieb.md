@@ -210,7 +210,8 @@ nicht lesen, gilt Deutsch.
 | `AUDIO_RECORD_CHANNELS` | `audio-service/.env` | `1,2` (hier: `44,45`) | Kanalpaar für die Aufnahme, 1-basiert wie in Dante Controller. |
 | `STREAM_URL` | `audio-service/.env` | leer | Icecast-Ziel **mit Zugangsdaten**, aktuell `icecast://…@<icecast-host>:8000/<mount>`. Gehört nicht ins Repo. Fehlt in den Einstellungen ein Ziel, nutzt die API dieses hier. |
 | `AUDIO_STREAM_CHANNELS` | `audio-service/.env` | `1,2` (hier: `46,47`) | Kanalpaar für den Livestream. Darf dasselbe Paar wie die Aufnahme sein. |
-| `NAS_*` | `audio-service/.env` | auskommentiert | NAS über SMB. Zugang geprüft, aber die Freigabe `Aufnahmen` verweigert dem Dienstkonto noch den Zutritt — das muss die NAS-Verwaltung freischalten. Bis dahin bleiben die Zeilen auskommentiert: schon ein gesetztes `NAS_SERVER` löst den Upload aus, und jede Datei bekäme *fehlgeschlagen* statt *übersprungen*. Prüfen mit `audio-service/scripts/check_nas.py`. |
+| `NAS_*` | `audio-service/.env` | leer (hier: gesetzt) | NAS über SMB, seit dem 16.10.2026 aktiv. Das Dienstkonto braucht auf der Freigabe **Lesen/Schreiben** — ein „Kein Zugriff“ bei ihm oder einer seiner Gruppen sperrt es aus, auch als Admin. Prüfen mit `audio-service/scripts/check_nas.py`. Ohne `NAS_SERVER` werden Exporte als *übersprungen* gemeldet. |
+| `EXPORT_COVER` | `audio-service/.env` | leer (hier: `data/cover.jpg`) | Bild, das jede MP3 als Cover trägt. Ein PNG mit durchsichtigem Grund zeigen viele Player schwarz, deshalb auf Weiß als JPEG. `data/cover.*` ist vom Repository ausgenommen. |
 | `auto_refine_boundaries` | Einstellungsseite (DB) | an | Schnittkanten beim Stoppen automatisch korrigieren |
 
 ### Ablage der Aufnahmen — ein Ordner je Session
@@ -237,7 +238,42 @@ Tageszähler — also das, was früher der Dateiname trug:
   `~/Recordings/Tontechnik/exports/`, ihre Transkripte heißen weiter `<Aufnahme>.txt` bzw.
   `<Aufnahme>.transcript.jsonl`. Es wurden **keine alten Dateien verschoben**.
 - Erkannt wird die neue Ablage am festen Dateinamen `aufnahme.wav`.
-- Der NAS-Upload (Synology) ist davon nicht betroffen — dort bleibt die Ablage `Jahr/Monat/Datei.mp3`.
+- Auf dem NAS gilt die Ablage, die dort schon von Hand gewachsen war — siehe nächster Abschnitt.
+
+### Ablage auf dem NAS
+
+Ordner nach Vorlage (Einstellungen → NAS-Ablage), Standard wie im gewachsenen Archiv:
+
+```
+Gottesdienste/2026-10-18 Sonntag 1. morgens/
+    Track-01 - Chorlied.mp3
+    Track-02 - Predigt.mp3
+    Track-03 - Kinderchor.mp3
+```
+
+- **Nummeriert wird fortlaufend** über die Beiträge, die beim Sammel-Export mitgehen.
+  Gemeindegesang, Gebet und Ansagen reißen keine Lücken. Ein einzeln exportierter Sonderbeitrag
+  bekommt eine Nummer hinter allen regulären.
+- **Hinter der Nummer steht der Typ**, ohne Zeichen, an denen Windows oder SMB scheitern. Ein
+  „Unbenannt" landet genauso im Namen — vor dem Export die Typen prüfen.
+- **Ist der Ordner schon belegt**, etwa weil jemand von Hand abgelegt hat, kommt `… 2. Teil`
+  daneben. Überschrieben wird nur, was das System selbst hochgeladen hat.
+- **Erst alle Marker fertig, dann einmal „Alle exportieren".** Wer nach dem Upload Marker ändert
+  und neu exportiert, verschiebt die Nummern.
+
+Jede MP3 trägt ID3v2.3-Tags — 2.3, weil der Windows-Explorer und ältere Autoradios 2.4 nicht lesen:
+
+| Tag | Inhalt |
+|---|---|
+| Titel | Typ des Beitrags, `Kinderchor` |
+| Interpret, Album-Interpret | Einstellung *Export → Interpret*, meist der Name der Gemeinde |
+| Album | Ordner ohne Bereich und Jahresordner, `2026-10-18 Sonntag 1. morgens` |
+| Track | `3/18` |
+| Datum, Genre, Sprache | `2026-10-18`, `Gottesdienst`, Deutsch |
+| Kommentar | Zusammenfassung und Bibelstellen — nur wenn die KI-Auswertung für den Track gelaufen ist |
+| Cover | Bild aus `EXPORT_COVER` |
+
+KI-Titel gehen bewusst nicht in die Tags: Von sechs vergebenen waren drei richtig.
 
 ---
 

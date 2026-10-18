@@ -1,5 +1,7 @@
 """Phase 7 segment listing + export router (EXP-01, EXP-02)."""
+import json
 import os
+import re
 from datetime import datetime, timedelta
 from pathlib import PurePosixPath
 from typing import NamedTuple, Optional
@@ -75,9 +77,37 @@ async def _nas_folder(session: RecordingSession, started: datetime,
         return nas_pfad.rendern(nas_pfad.STANDARD_VORLAGEN[schluessel], werte)
 
 
-def _nas_track_name(index: int) -> str:
-    """On the NAS everything is Track-NN.mp3 — the kind of track rides along as ID3."""
-    return f"Track-{index:02d}.mp3"
+def _nas_track_name(index: int, marker_type: str) -> str:
+    """Track-03 - Kinderchor.mp3 — die Nummer hält die Reihenfolge, der Typ sagt, was es ist.
+
+    Gleich lesbar wie der Typ, nur ohne Zeichen, an denen SMB oder Windows scheitern.
+    """
+    typ = re.sub(r'[\\/:*?"<>|]', "", marker_type).strip(" .") or "Beitrag"
+    return f"Track-{index:02d} - {typ}.mp3"
+
+
+def _album(folder: str) -> str:
+    """Albumname aus dem NAS-Ordner: der Bereich und reine Jahresordner fallen weg.
+
+    Gottesdienste/2026-10-18 Sonntag 1. morgens        → 2026-10-18 Sonntag 1. morgens
+    Hochzeiten/2026/2026-06-06 Robin & Laura/2. Teil   → 2026-06-06 Robin & Laura – 2. Teil
+    """
+    teile = [t for t in PurePosixPath(folder).parts[1:] if not re.fullmatch(r"\d{4}", t)]
+    return " – ".join(teile) or PurePosixPath(folder).name
+
+
+def _kommentar(insight: Optional[SegmentInsight]) -> Optional[str]:
+    """Zusammenfassung und Bibelstellen — nur, wenn die KI-Auswertung schon gelaufen ist."""
+    if insight is None:
+        return None
+    teile = [insight.summary.strip()] if insight.summary and insight.summary.strip() else []
+    try:
+        stellen = json.loads(insight.bible_refs or "[]")
+    except ValueError:
+        stellen = []
+    if stellen:
+        teile.append(", ".join(str(st) for st in stellen))
+    return "\n\n".join(teile) or None
 
 
 async def _build_segments(session: RecordingSession, db: AsyncSession) -> list[dict]:
@@ -487,7 +517,7 @@ async def export_segment(
     mp3_filename = "_".join(parts) + ".mp3"
 
     # Remote path follows the archive's own layout — see _nas_folder. The local file keeps
-    # its descriptive name; on the NAS it is Track-NN.mp3 like everything else there.
+    # its descriptive name; on the NAS it is "Track-NN - Typ.mp3" (see _nas_track_name).
     started = session.started_at or datetime.now()
     if session.nas_folder:
         folder = session.nas_folder          # decided on the first upload, kept ever after
@@ -503,7 +533,7 @@ async def export_segment(
             pass                              # upload will fail and report it on its own
         session.nas_folder = folder
         await db.commit()
-    remote_subpath = f"{folder}/{_nas_track_name(seg['nas_nr'])}"
+    remote_subpath = f"{folder}/{_nas_track_name(seg['nas_nr'], marker.marker_type)}"
     # Defence in depth — never trust constructed path either
     if ".." in PurePosixPath(remote_subpath).parts:
         raise HTTPException(status_code=400, detail="invalid remote_subpath")
@@ -518,6 +548,26 @@ async def export_segment(
     prior = prior_q.scalar_one_or_none()
     allow_overwrite = prior is not None and prior.nas_status == "uploaded"
 
+    # Track 3/18: gezählt wird, was beim Sammel-Export mitgeht — so wie auf dem NAS
+    gesamt = max(sum(1 for x in segments if x["exportieren"]), seg["nas_nr"])
+    werte_db = await einstellungen.alle_lesen(db)
+    insight = (await db.execute(
+        select(SegmentInsight).where(SegmentInsight.marker_id == marker_id))).scalar_one_or_none()
+    tags = {
+        "title": marker.marker_type,
+        "album": _album(folder),
+        "track": f"{seg['nas_nr']}/{gesamt}",
+        "date": started.strftime("%Y-%m-%d"),
+        "genre": "Gottesdienst",
+        "language": "deu",
+    }
+    interpret = (werte_db.get("export_interpret") or "").strip()
+    if interpret:
+        tags["artist"] = tags["album_artist"] = interpret
+    kommentar = _kommentar(insight)
+    if kommentar:
+        tags["comment"] = kommentar
+
     payload = {
         "wav_path": session.wav_path,
         "start_seconds": seg["start_seconds"],
@@ -525,13 +575,7 @@ async def export_segment(
         "mp3_filename": mp3_filename,
         "remote_subpath": remote_subpath,
         "allow_overwrite": allow_overwrite,
-        "tags": {
-            "title": marker.marker_type,
-            "album": PurePosixPath(folder).name,
-            "track": str(seg["nas_nr"]),
-            "date": started.strftime("%Y-%m-%d"),
-            "genre": session.service_type,
-        },
+        "tags": tags,
     }
 
     # 90-min sessions slice quickly; segments are <= session length so 180s is generous.

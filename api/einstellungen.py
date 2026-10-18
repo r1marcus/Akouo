@@ -92,6 +92,9 @@ FELDER: tuple[Feld, ...] = (
          einheit=" ms", von=0, bis=5000,
          hilfe="Blende am Anfang und Ende jedes Segments.",
          wirkt="geschoben", schiebt_als="export_fade_ms"),
+    Feld("export_interpret", "Export", "Interpret", "text", "",
+         hilfe="Steht in jeder MP3 als Interpret, meist der Name der Gemeinde. Leer lassen, "
+               "wenn kein Interpret eingetragen werden soll."),
 
     # ─── Automatische Erkennung ─────────────────────────────────────────────
     Feld("auto_refine_boundaries", "Erkennung", "Schnittkanten automatisch korrigieren",

@@ -24,6 +24,7 @@ def export_segment(
     fade_ms: int = 1000,
     peak_dbfs: float = -3.0,
     tags: Optional[dict] = None,
+    cover: Optional[str] = None,
 ) -> dict:
     """Slice [start_seconds, end_seconds) from wav_path and export as MP3.
 
@@ -95,6 +96,7 @@ def export_segment(
             fade_ms=fade_ms,
             peak_dbfs=peak_dbfs,
             tags=tags,
+            cover=cover,
         )
     finally:
         try:

@@ -158,3 +158,39 @@ def test_silence_guard(tmp_path):
     assert mp3_path.exists(), "Silent WAV export must still produce a valid MP3 file"
     assert result["mp3_path"] == str(mp3_path)
     assert result["frame_rate"] == 48000
+
+
+def test_export_traegt_tags_und_cover(tmp_path):
+    """ID3v2.3 mit allen Tags und eingebettetem Cover; fehlt das Bild, ohne Cover."""
+    import json
+    import subprocess
+    from exporter import export_wav_to_mp3
+
+    wav_path = tmp_path / "input.wav"
+    _write_sine_wav(wav_path, duration_s=1.0, amplitude=0.3)
+    cover = tmp_path / "cover.jpg"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=white:s=64x64",
+                    "-frames:v", "1", str(cover)], check=True)
+    tags = {"title": "Kinderchor", "artist": "Testgemeinde", "album": "2026-10-18 Sonntag 1. morgens",
+            "track": "3/18", "genre": "Gottesdienst", "comment": "Über die Hoffnung."}
+
+    def probe(pfad):
+        out = subprocess.run(["ffprobe", "-v", "quiet", "-print_format", "json",
+                              "-show_format", "-show_streams", str(pfad)],
+                             capture_output=True, text=True, check=True)
+        return json.loads(out.stdout)
+
+    mit = tmp_path / "mit.mp3"
+    export_wav_to_mp3(wav_path, mit, tags=tags, cover=str(cover))
+    info = probe(mit)
+    gelesen = info["format"]["tags"]
+    assert gelesen["title"] == "Kinderchor"
+    assert gelesen["artist"] == "Testgemeinde"
+    assert gelesen["track"] == "3/18"
+    assert gelesen["comment"] == "Über die Hoffnung."
+    assert mit.read_bytes()[:5] == b"ID3\x03\x00"          # v2.3, nicht 2.4
+    assert any(s["codec_type"] == "video" for s in info["streams"])   # das Cover
+
+    ohne = tmp_path / "ohne.mp3"
+    export_wav_to_mp3(wav_path, ohne, tags=tags, cover=str(tmp_path / "fehlt.jpg"))
+    assert not any(s["codec_type"] == "video" for s in probe(ohne)["streams"])

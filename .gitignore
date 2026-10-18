@@ -9,6 +9,8 @@ data/*.db
 data/*.db-wal
 data/*.db-shm
 data/*.bak-*
+# Cover der MP3s — trägt den Namen der Gemeinde, gehört nicht ins Repository
+data/cover.*
 *.sqlite
 *.sqlite3
 
