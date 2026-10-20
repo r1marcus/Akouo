@@ -564,7 +564,7 @@ Sekunden Ton haben, bevor er als solcher zählt.
 | Grobe Grenzen | mindestens 8 s Ruhe, mindestens 45 s Beitrag | im Erntedankfest 15 von 15 |
 | Feine Grenzen | Schnitt am Klassenwechsel, mehrheitsgeglättet | ohne ihn verschmelzen Chorlied und Ansage |
 | Orchester | spektrale Flachheit unter 0,22 | instrumental 0,14–0,17, gesungen 0,27–0,37 |
-| Gesang trotz Sprach-Klang | Whisper wiederholt sich bzw. wirft Füllsätze aus | 7 Treffer, alle richtig, keine Fehlalarme |
+| Gesang trotz Sprach-Klang | Whisper wiederholt sich bzw. wirft Füllsätze aus; reine Stellenangaben wie „Vers 2." zählen nicht | über 106 beschriftete Abschnitte 25 Treffer, kein Fehlalarm |
 | Gebet | Anteil direkter Gottesanrede über 4,5 % | 6 von 6, aber siehe Warnung unten |
 | Was als Nächstes kommt | Ansage im Transkript, ausgewertet mit Ollama | 4 von 4 Typen, 4 von 4 Titeln |
 
@@ -618,6 +618,12 @@ angelegt wurde. Erkennbar an gleichem Ende bei verschiedenem Anfang. Beiträge w
 
 Jede Marker-Zeile hat ein Auswahlfeld für den Typ und einen Papierkorb. Sobald ein Typ von Hand
 geändert wurde, fasst die Automatik ihn nicht mehr an. Dasselbe gilt für verschobene Grenzen.
+
+**Von Hand gesetzt, dann Automatik eingeschaltet:** Liegt dort, wo die Automatik einen Beitrag
+erkennt, schon ein Marker von Hand, übernimmt sie ihn — sie setzt keinen eigenen daneben und
+benennt ihn nie um, sie ergänzt höchstens ein fehlendes Ende. Ein Marker ohne Ende zählt dabei
+mit seinen ersten 30 Sekunden. Bis zum 20.10.2026 legte sie ihren eigenen Marker ein paar Sekunden
+dahinter, und die von Hand gesetzte Predigt schrumpfte auf diese paar Sekunden.
 Der Papierkorb löscht nach zwei Tipps: Der erste färbt ihn rot, der zweite binnen drei Sekunden
 löscht. Kein Dialog — der kostet mitten im Gottesdienst mehr, als er schützt.
 
@@ -756,7 +762,7 @@ make lint        # ruff
 schiebt die API ihre Erkennungskonfiguration zum Audio-Dienst — ein Testlauf ohne diese
 Umleitung würde den **produktiv laufenden** Dienst umkonfigurieren.
 
-Stand 18.10.2026: **235 Tests grün** (168 API, 67 Audio-Dienst).
+Stand 20.10.2026: **240 Tests grün** (171 API, 69 Audio-Dienst).
 
 ---
 
@@ -970,5 +976,5 @@ ollama list                                    # installierte Sprachmodelle
 **Tests**
 
 ```bash
-make test        # 235 Tests, beide Gruppen
+make test        # 240 Tests, beide Gruppen
 ```

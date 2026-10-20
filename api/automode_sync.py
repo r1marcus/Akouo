@@ -29,6 +29,34 @@ TAKT_S = 2.0
 _bekannt: dict[int, tuple[int, str]] = {}
 
 
+# So weit darf ein Hand-Marker vor dem erkannten Beginn liegen und trotzdem denselben
+# Beitrag meinen: wer "Predigt" drückt, während der Prediger noch nach vorn geht.
+HAND_VORLAUF_S = 30.0
+
+
+async def _hand_marker_fuer(db, session_id: int, b: dict, jetzt_s: float):
+    """Hat der Tontechniker diesen Beitrag schon selbst markiert?
+
+    Dann gilt seiner. Vorher legte die Automatik ihren eigenen Marker ein paar Sekunden
+    dahinter — und weil ein Marker ohne Ende bis zum nächsten reicht, schrumpfte die von
+    Hand gesetzte Predigt auf diese paar Sekunden.
+    """
+    auto_ids = set((await db.execute(select(AutoMarker.marker_id))).scalars())
+    vergeben = {marker_id for marker_id, _ in _bekannt.values()}
+    q = await db.execute(select(Marker).where(Marker.session_id == session_id))
+    b_start = b["start_s"]
+    b_ende = b["ende_s"] if b.get("ende_s") is not None else jetzt_s
+    for m in q.scalars():
+        if m.id in auto_ids or m.id in vergeben:
+            continue
+        start = m.placed_at_ts + (m.start_nudge or 0.0)
+        # Ohne Ende zählt der Marker mit einem kurzen Vorlauf, mit Ende über seine Spanne
+        ende = m.ended_at_ts if m.ended_at_ts is not None else start + HAND_VORLAUF_S
+        if start <= b_ende and ende >= b_start:
+            return m
+    return None
+
+
 def zuruecksetzen():
     _bekannt.clear()
 
@@ -58,6 +86,14 @@ async def _abgleichen(zustand: dict):
                 # Nicht exportierbares (Gemeindegesang, Gebet, Ansage) bekommt keinen
                 # Marker — es wird nur im Dashboard gemeldet.
                 if not b.get("exportieren", True):
+                    continue
+                # Die Hand war schneller: ihr Marker gilt. Gemerkt ohne Typ, damit die
+                # Automatik ihn nie umbenennt — sie ergänzt höchstens ein fehlendes Ende.
+                hand = await _hand_marker_fuer(db, session.id, b, zustand.get("gelesen_s", 0.0))
+                if hand is not None:
+                    _bekannt[nr] = (hand.id, None)
+                    if b.get("ende_s") is not None and hand.ended_at_ts is None:
+                        hand.ended_at_ts = b["ende_s"]
                     continue
                 marker = Marker(
                     session_id=session.id,

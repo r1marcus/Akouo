@@ -433,6 +433,17 @@ ist nicht von einem Muttersprachler gegengelesen.
   gesprochen; der Stream hat seinen eigenen Knopf. Das Mitbeenden stammte aus der Zeit, als
   Aufnahme und Stream an einem gemeinsamen Eingang hingen.
 
+### 20. Oktober 2026 — zwei Funde aus einer Bibelstunde
+- **Die Automatik setzte einen eigenen Marker neben einen von Hand gesetzten.** Predigt von
+  Hand bei 0:02, Automatik eingeschaltet, sie legte „Chorlied" bei 0:03 an — und weil ein Marker
+  ohne Ende bis zum nächsten reicht, blieb von der Predigt eine Sekunde. Jetzt übernimmt sie
+  den Hand-Marker und ergänzt höchstens sein Ende.
+- **„Vers 2." viermal hintereinander galt als Refrain.** In einer Lesepause wiederholt Whisper
+  die letzte Stellenangabe; die Bibelstunde wurde dadurch zu Gesang. Derselbe Fehler steckte in
+  einer Predigt vom 11. Oktober („Vers 10. Vers 10."). Reine Stellenangaben zählen jetzt nicht
+  mehr. Nachgeprüft an 106 beschrifteten Abschnitten: kein Fehlalarm mehr, alle 25 Liedtreffer
+  bleiben.
+
 ### Gemessen, noch nicht gelöst
 - **Lautheit:** Alle Tracks haben dieselbe Spitze (−3,2 dBFS), aber zwischen −16,9 und
   −26,4 LUFS — die zweite Predigt war rund 9 dB leiser als die Lieder. Das Handarchiv vom
@@ -517,7 +528,7 @@ Der Ablauf liegt danach als `ablauf.txt` und `marker.json` im Session-Ordner.
 | Web | `http://<rechner>.local:8000` — immer über den Namen, die IP wechselt per DHCP. Von unterwegs über Tailscale: `http://<tailscale-adresse>:8000` |
 | Stream | Icecast `<icecast-host>:8000/<mount>`, Quelle = Dante 44+45, dieselbe Mischung wie die Aufnahme |
 | Datenbank | SQLite, Alembic-Stand **017** |
-| Tests | **235 Tests** in zwei Umgebungen (168 API, 67 Audio-Dienst), dazu CI auf ubuntu-24.04 |
+| Tests | **240 Tests** in zwei Umgebungen (171 API, 69 Audio-Dienst), dazu CI auf ubuntu-24.04 |
 
 **Committet, noch nicht gepusht** (Stand 18.10.2026): die Arbeit vom 16. bis 18. Oktober liegt
 auf `main`, das öffentliche `origin` ist noch nicht nachgezogen — siehe Abschnitt 2f zu den

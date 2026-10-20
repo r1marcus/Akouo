@@ -267,6 +267,10 @@ _HALLUZINATION = (
     "das war's", "bis zum nächsten mal", "copyright", "swr", "zdf",
 )
 MIN_WIEDERHOLUNG = 4        # so oft dieselbe Zeile, dann ist es kein Gespräch
+# Reine Stellenangaben zählen nicht als Refrain. In einer Lesepause wiederholt Whisper
+# die letzte Angabe: viermal "Vers 2." in einer Bibelstunde, fünfmal "Vers 10. Vers 10."
+# in einer Predigt — beide wurden zu Gesang erklärt.
+_NUR_STELLE = re.compile(r"^(?:(?:vers|verse|kapitel)\s*\d+[\s.,:;-]*)+$", re.I)
 
 
 def gesang_aus_text(zeilen: list) -> tuple[bool, str]:
@@ -289,6 +293,9 @@ def gesang_aus_text(zeilen: list) -> tuple[bool, str]:
 
     lauf, letzte, groesster, wovon = 1, None, 1, ""
     for t in texte:
+        if _NUR_STELLE.match(t):
+            lauf, letzte = 1, None
+            continue
         if t == letzte:
             lauf += 1
             if lauf > groesster:

@@ -65,3 +65,11 @@ def test_typ_ohne_bekannte_dauer_schlaegt_keine_predigt(monkeypatch):
     monkeypatch.setattr(classifier, "TYPISCHE_DAUER",
                         {"Predigt": (260, 2000), "Gedicht": (60, 160)})
     assert classifier._typ_vermutung("Sprache", 1340.0, None)[0] == "Predigt"
+
+
+def test_wiederholte_stellenangabe_ist_kein_gesang():
+    """Whisper wiederholt in Lesepausen die letzte Angabe — das ist kein Refrain."""
+    lesepause = [{"text": "Vers 2."}] * 4 + [{"text": "Vers 10. Vers 10."}] * 5
+    assert classifier.gesang_aus_text(lesepause) == (False, "")
+    refrain = [{"text": "Gott sei Dank."}] * 4
+    assert classifier.gesang_aus_text(refrain)[0] is True
