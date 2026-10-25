@@ -427,8 +427,8 @@ ist nicht von einem Muttersprachler gegengelesen.
 - Das Album-Tag war bei Hochzeiten „2. Teil", weil nur der letzte Ordnerteil genommen wurde.
 
 ### Livestream
-- Der Stream läuft seit dem 18. Oktober auf **Dante 44+45**, derselben Mischung wie die
-  Aufnahme. Die eigene Stream-Mischung auf 46+47 lag rund 10 dB leiser.
+- Der Stream lief vom 18. bis 25. Oktober auf **Dante 44+45**, derselben Mischung wie die
+  Aufnahme. Seit dem 25. Oktober hat er wieder eine eigene Mischung, jetzt auf **50+51**.
 - **Aufnahme stoppen beendet den Stream nicht mehr.** Nach dem letzten Lied wird oft noch
   gesprochen; der Stream hat seinen eigenen Knopf. Das Mitbeenden stammte aus der Zeit, als
   Aufnahme und Stream an einem gemeinsamen Eingang hingen.
@@ -526,7 +526,7 @@ Der Ablauf liegt danach als `ablauf.txt` und `marker.json` im Session-Ordner.
 | KI-Auswertung | Ollama lokal, Modellwahl über `OLLAMA_MODELS` |
 | Export | MP3 192 kbit/s, 48 kHz, Spitze −3 dBFS, je 1 s Blende, ID3v2.3 mit Cover; auf das NAS nach `Gottesdienste/…` und ins CopyCenter |
 | Web | `http://<rechner>.local:8000` — immer über den Namen, die IP wechselt per DHCP. Von unterwegs über Tailscale: `http://<tailscale-adresse>:8000` |
-| Stream | Icecast `<icecast-host>:8000/<mount>`, Quelle = Dante 44+45, dieselbe Mischung wie die Aufnahme |
+| Stream | Icecast `<icecast-host>:8000/<mount>`, Quelle = Dante 50+51, eigene Stream-Mischung |
 | Datenbank | SQLite, Alembic-Stand **017** |
 | Tests | **240 Tests** in zwei Umgebungen (171 API, 69 Audio-Dienst), dazu CI auf ubuntu-24.04 |
 

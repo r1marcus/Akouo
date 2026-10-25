@@ -119,7 +119,7 @@ Zur Warnung vorweg: Im Audioweg steckt eine **kommerziell lizenzierte** Komponen
 | **Python 3.12 genau** | **ja** | Nicht 3.13+: `pydub` importiert `audioop`, das dort aus der Standardbibliothek entfernt wurde. Homebrew liefert inzwischen Neueres — `python@3.12` ausdrücklich installieren. |
 | FFmpeg | **ja** | `brew install ffmpeg`. Nicht mitgeliefert, siehe [`NOTICE`](NOTICE). |
 | Audioeingang, ≥2 Kanäle | **ja** | Die Voreinstellung nutzt dasselbe Stereopaar für Aufnahme und Stream. |
-| **Dante Virtual Soundcard** | für den vollen Aufbau | **Kommerzielle Lizenz von Audinate.** Nur nötig, wenn das Pult den Ton über Dante liefert, wie hier (Aufnahme und Stream auf 44/45). Ein mehrkanaliges USB-Interface tut es auch — ein Focusrite wird von Haus aus gefunden. |
+| **Dante Virtual Soundcard** | für den vollen Aufbau | **Kommerzielle Lizenz von Audinate.** Nur nötig, wenn das Pult den Ton über Dante liefert, wie hier (Aufnahme auf 44/45, Stream auf 50/51). Ein mehrkanaliges USB-Interface tut es auch — ein Focusrite wird von Haus aus gefunden. |
 | Pult mit zwei getrennten Mischungen | empfohlen | Sonst tragen Aufnahme und Stream dieselbe Balance. |
 | whisper.cpp + ggml-Modell | optional | ~1,5 GB. Ohne bleibt das Transkript leer und die Erkennung über Ansagen verstummt; die Aufnahme ist unberührt. |
 | Ollama + Modell | optional | `qwen2.5:14b-instruct` sind ~9 GB und wollen 16 GB+ RAM. Ohne gibt es keine KI-Auswertung, und nichts stürzt ab. |
