@@ -53,6 +53,40 @@ von Hand abgelegt.
 
 ---
 
+## 0. Vermeldungen in den Kalender der Gemeinde-App — Idee vom 6. November 2026
+
+In den Vermeldungen steckt, was die Gemeinde in den nächsten Wochen vorhat: „Nächsten Samstag
+um 15 Uhr Jugendstunde im Gemeindehaus“, „Am 23. ist Gebetsgemeinschaft für die Kranken“.
+Akouo markiert die Vermeldungen ohnehin (exportiert sie aber nicht) und hat das Transkript.
+
+**Ablauf:**
+1. Nach dem Gottesdienst, in der Segmentliste: Knopf **„Termine aus den Vermeldungen“** am
+   Vermeldungen-Track.
+2. Das lokale Sprachmodell zieht daraus eine Liste, nur in fester Form (JSON):
+   `art` (*termin* | *hinweis* | *gebetsanliegen*), `titel`, `datum`, `uhrzeit`, `ende`, `ort`,
+   `text`. Relative Angaben („nächsten Samstag“, „am 23.“) löst Akouo selbst gegen das Datum
+   des Gottesdienstes auf, nicht das Modell.
+3. **Der Tontechniker sieht Karten und bestätigt jede einzeln** — Datum, Uhrzeit und Titel sind
+   dort änderbar. Nichts geht ungefragt hinaus: ein verhörtes Datum im Kalender ist schlimmer
+   als ein fehlender Termin.
+4. Bestätigte *Termine* gehen in den Kalender der App (`archive.Event`: Datum, Start, Ende, Ort,
+   Beschreibung; Art Gebets-, Bibel-, Jugendstunde, sonst *dienst*), *Hinweise* und
+   *Gebetsanliegen* aufs Schwarze Brett (`bulletin.Announcement`, Kategorie *ankuendigung* bzw.
+   *gebetsanliegen*, `expires_at` = Termin oder +14 Tage).
+5. Vorher Abgleich: gibt es am Tag schon einen Termin mit ähnlichem Titel (der regelmäßige
+   Gottesdienst, ein Dienstplan-Eintrag), wird nur ergänzt, nicht verdoppelt.
+
+**Datenschutz:** Gebetsanliegen nennen oft Kranke beim Namen. Darum Sichtbarkeit *closed*
+(nur angemeldete Mitglieder), Gebetsanliegen standardmäßig abgewählt, und es bleibt beim
+Bestätigen von Hand.
+
+**Was es braucht:** in Akouo einen Endpunkt fürs Auslesen und eine Kartenansicht; in der App
+einen Weg, Termine und Brett-Einträge anzulegen (vorhandene API, Konto mit Rechten wie beim
+Online-Stellen). Messen vorher: an fünf aufgezeichneten Vermeldungen prüfen, wie viele Termine
+das Modell richtig zieht.
+
+---
+
 ## 1. Zuordnung der Ansagen verbessern
 
 Seit dem 10. Oktober leitet der Automodus den Typ live aus Ansagen und Klang ab — ohne
