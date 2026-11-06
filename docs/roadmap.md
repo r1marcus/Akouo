@@ -32,8 +32,9 @@ von Hand abgelegt.
 - **Telefon-Übertragung einschalten** — gebaut, wartet auf SIP-Zugangsdaten
   ([stand.md, Abschnitt 2i](stand.md)).
 - **Zwei Fragen beim Export.** Ins Archiv (NAS) geht immer alles; zusätzlich je Export wählbar:
-  „auf die Station laden" und „online stellen" (Gemeinde-App `Church_Tool`). Was „Station" ist,
-  ist noch zu klären. Für „online stellen" sollen Akouos eigenes Transkript und die KI-Auswertung
+  „auf die Station laden" und „online stellen" (Gemeinde-App `Church_Tool`). Die „Station" ist
+  die USB-Station auf dem NAS, also das CopyCenter — das läuft schon (betrieb.md, „Zweite
+  Ablage: CopyCenter"). Offen ist nur „online stellen". Für „online stellen" sollen Akouos eigenes Transkript und die KI-Auswertung
   je Beitrag reichen — kein zweites Transkribieren, kein großes Modell während des Betriebs.
   Bis dahin lädt man von Hand nach, Ablauf in `Church_Tool/scripts/` (Uploader und Loader
   verstehen die Akouo-Dateinamen seit Commit 30b7606).
