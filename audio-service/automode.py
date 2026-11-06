@@ -22,6 +22,7 @@ from typing import Optional
 import numpy as np
 
 import classifier
+import einordnung
 import programm as programm_modul
 from boundaries import envelope
 
@@ -83,7 +84,7 @@ class Beitrag:
     sicherheit: float = 0.0
     alternativen: list = field(default_factory=list)
     exportieren: bool = True
-    quelle: str = "klang"        # "klang" | "ansage" | "programm" | "text"
+    quelle: str = "klang"        # "klang" | "ansage" | "programm" | "text" | "modell"
     liednummer: Optional[int] = None
     titel: Optional[str] = None
 
@@ -382,6 +383,14 @@ class AutoModus:
 
         if b.quelle not in ("ansage", "programm"):   # Ansage schlägt Klang
             b.typ = e.typ
+            # Orchester gegen Chorlied mit Begleitung trennt die Klangfarbe schlecht,
+            # der Text gut: wo niemand singt, schreibt Whisper nur Füllsätze.
+            if e.klasse == "Musik" and b.typ in classifier.MUSIK_TYPEN and b.typ != "Orchester":
+                ende = bis or b.ende_s
+                if self._transkript_reicht_bis(ende) and classifier.klingt_instrumental(
+                        self._transkript_zeilen(b.start_s, ende), ende - b.start_s):
+                    b.typ = "Orchester"
+                    b.quelle = "text"
             # Ein Gebet klingt wie eine Predigt — nur der Text verrät es.
             if e.klasse == "Sprache":
                 text = self._transkript(b.start_s, bis or b.ende_s)
@@ -463,6 +472,12 @@ class AutoModus:
             return []
         return zeilen
 
+    def _transkript_reicht_bis(self, bis_s: float) -> bool:
+        """Ist bis hierher schon mitgeschrieben? Live hinkt Whisper rund 10 s hinterher,
+        und ohne Transkript sähe jedes Lied textlos aus — also instrumental."""
+        zeilen = self._transkript_zeilen(bis_s - 5, float("inf"))
+        return bool(zeilen)
+
     def _transkript(self, von_s: float, bis_s: float) -> str:
         pfad = self._wav.parent / "transcript.jsonl"
         if not pfad.exists():
@@ -483,7 +498,23 @@ class AutoModus:
 
 
 # ── Nachlauf: die ganze Aufnahme in einem Zug ───────────────────────────────
-def nachlauf(wav_path) -> list[dict]:
+def _modell_fragen(modus: "AutoModus", b: Beitrag) -> None:
+    """Stufe 3 für gesprochene Beiträge. Ansage und Programm bleiben unangetastet —
+    eine Ansage ist eine Tatsachenaussage, das Modell nur eine Vermutung."""
+    if b.klasse != "Sprache" or b.quelle not in ("klang", "text") or b.ende_s is None:
+        return
+    ergebnis = einordnung.ordne_ein(modus._transkript(b.start_s, b.ende_s), b.ende_s - b.start_s)
+    if ergebnis is None:
+        return
+    typ, _grund = ergebnis
+    if typ != b.typ:
+        b.alternativen = [b.typ] + [t for t in b.alternativen if t not in (typ, b.typ)][:2]
+        b.typ = typ
+    b.quelle = "modell"
+    b.exportieren = b.typ not in classifier.NICHT_EXPORTIEREN
+
+
+def nachlauf(wav_path, mit_modell: bool = True) -> list[dict]:
     """Erkennt eine fertige Aufnahme noch einmal von vorn bis hinten.
 
     Live muss der Modus mit dem auskommen, was bisher gelaufen ist: der Ruhepegel
@@ -524,5 +555,7 @@ def nachlauf(wav_path) -> list[dict]:
         modus._ansage_auswerten(b)
         ansagen_bis(ende)
         modus._einschaetzen(b)
+        if mit_modell:
+            _modell_fragen(modus, b)
         modus.beitraege.append(b)
     return [asdict(b) for b in modus.beitraege]

@@ -307,6 +307,32 @@ def gesang_aus_text(zeilen: list) -> tuple[bool, str]:
     return False, ""
 
 
+# Bei Instrumentalmusik schreibt Whisper trotzdem etwas — "Amen. Amen. Amen." oder
+# "Vielen Dank" —, im Mittel 26 Wörter pro Minute. Die Menge trennt deshalb nicht,
+# die Vielfalt schon: gemessen an 22 Orchesterstücken und 41 gesungenen Beiträgen
+# (Stand 6. November 2026) haben 14 Orchesterstücke weniger als 4 unterschiedliche
+# Wörter pro Minute, aber nur 2 gesungene. Umgekehrt beweist viel Text keinen Gesang:
+# ein Orchester, das die Gemeinde begleitet, kommt auf bis zu 22.
+_FUELLWORT = {"amen", "vielen", "dank", "danke", "untertitel", "untertitelung", "im",
+              "auftrag", "des", "zdf", "swr", "wdr", "musik", "muziek", "music",
+              "applaus", "copyright", "fürs", "zuschauen"}
+INSTRUMENTAL_UNTER = 4.0     # unterschiedliche Wörter je Minute
+
+
+def eigene_woerter_je_minute(zeilen: list, dauer_s: float) -> float:
+    """Unterschiedliche Wörter je Minute, ohne Whispers Füllsätze."""
+    if dauer_s <= 0:
+        return 0.0
+    text = " ".join(z.get("text", "") for z in zeilen).lower()
+    woerter = {w for w in re.findall(r"[a-zäöüß]+", text) if w not in _FUELLWORT}
+    return len(woerter) / (dauer_s / 60)
+
+
+def klingt_instrumental(zeilen: list, dauer_s: float) -> bool:
+    """Musik, in der niemand singt — Orchester, nicht Chorlied mit Begleitung."""
+    return eigene_woerter_je_minute(zeilen, dauer_s) < INSTRUMENTAL_UNTER
+
+
 def ist_gebet(text: str) -> tuple[bool, float]:
     """Gebet oder Verkündigung? Gibt (ja/nein, Anteil der Gottesanrede) zurück.
 

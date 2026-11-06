@@ -13,7 +13,7 @@ AUDIO_PY  ?= $(firstword $(wildcard $(HOME)/akouo-audio-venv/bin/python \
 # AUDIO_SERVICE_URL zeigt bewusst auf den Discard-Port: die Lifespan der API schiebt
 # beim Start die Erkennungskonfiguration zum Audio-Dienst. Ohne diese Umleitung würde
 # ein Testlauf den PRODUKTIV laufenden Dienst umkonfigurieren.
-TESTENV   := DATABASE_URL=sqlite+aiosqlite:///:memory: AUDIO_SERVICE_URL=http://127.0.0.1:9
+TESTENV   := DATABASE_URL=sqlite+aiosqlite:///:memory: AUDIO_SERVICE_URL=http://127.0.0.1:9 OLLAMA_URL=http://127.0.0.1:9
 
 API_TESTS := tests/test_archive.py tests/test_current_service.py tests/test_database.py \
              tests/test_segments_api.py tests/test_service_types.py tests/test_session_api.py \
@@ -25,7 +25,7 @@ AUDIO_TESTS := tests/test_boundaries.py tests/test_continuous_recording.py tests
                tests/test_mp3_export.py tests/test_nas_client.py tests/test_nas_push.py \
                tests/test_recording.py tests/test_segment_export.py tests/test_stream_adapter.py \
                tests/test_ui_phase5.py::test_waveform tests/test_erkennung_uebernahme.py \
-               tests/test_telefon.py tests/test_nachlauf.py
+               tests/test_telefon.py tests/test_typen_erkennung.py tests/test_nachlauf.py
 
 .PHONY: help test test-api test-audio lint css db serve
 
