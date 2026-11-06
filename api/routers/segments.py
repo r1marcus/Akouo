@@ -637,7 +637,8 @@ async def export_segment(
     online_vorher = await db.get(OnlineAblage, marker_id)
     if online:
         item = online_modul.eintrag(folder, _nas_track_name(seg["nas_nr"], marker.marker_type),
-                                    marker.marker_type, seg["nas_nr"], insight)
+                                    marker.marker_type, seg["nas_nr"], insight,
+                                    session.service_type, session.thema)
         if item is not None:
             payload["online"] = item
             # Ersetzen nur, was von hier schon einmal online gestellt wurde

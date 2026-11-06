@@ -27,15 +27,32 @@ _ORDNER = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})\s+(?P<weekday>[A-ZÄÖÜ][a-
 _ORDNER_SONDER = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})\s+(?P<rest>.+?)\s*$")
 _STANDARD = {"morgens", "abends", "morgens 2. Teil", "abends 2. Teil"}
 
-# Akouos Beitragsarten → Arten der Gemeinde-App (predigt, gruppenlied, chor, musikstueck,
-# gedicht, sonstiges). Was hier fehlt, wird "sonstiges" und behält seinen Namen im Titel.
+# Akouos Beitragsarten → Arten der Gemeinde-App, so wie sie LIVE vorkommen (gezählt am
+# 6. November 2026 über 1.178 Aufnahmen aus 2026): predigt, lied, chor, orchester,
+# instrumental, gedicht, prosa, gebet, ansage, zeugnis, sonstiges. Der Code im Repository
+# von Church_Tool kennt nur sechs davon — maßgeblich ist, was die App tatsächlich führt.
+# Was hier fehlt, wird "sonstiges" und behält seinen Namen im Titel.
 APP_ART = {
     "Predigt": "predigt", "Kindergeschichte": "predigt",
     "Chorlied": "chor", "Jugendchor": "chor", "Kinderchor": "chor", "Gebetslied": "chor",
-    "Gruppenlied": "gruppenlied", "Gemeindegesang": "gruppenlied", "Kinderlied": "gruppenlied",
-    "Orchester": "musikstueck", "Musikstück": "musikstueck",
-    "Gedicht": "gedicht",
+    "Gruppenlied": "lied", "Gemeindegesang": "lied", "Kinderlied": "lied",
+    "Orchester": "orchester", "Musikstück": "instrumental",
+    "Gedicht": "gedicht", "Prosa": "prosa", "Gebet": "gebet",
+    "Ansage": "ansage", "Vermeldungen": "ansage",
+    "Zeugnis": "zeugnis",
+    # Die App führt live keine eigene Art für Männer- und Frauenchor; bis sie eine hat,
+    # sind beide Chor, und der Name steht im Titel ("Männerchor: …").
+    "Männerchor": "chor", "Frauenchor": "chor",
 }
+
+# Akouos Gottesdienstart weiß mehr als der Wochentag: eine Gebetsstunde am Samstag ist
+# eine Gebetsstunde, ein Erntedankfest kein gewöhnlicher Sonntag. Der Slot bleibt trotzdem
+# der aus dem Ordner — an ihm hängt der file_key, und der darf sich nie ändern.
+APP_EREIGNIS = {"Gebetsstunde": "gebetsstunde", "Bibelstunde": "bibelstunde",
+                "Jugendstunde": "jugendstunde"}
+REGELMAESSIG = {"Sonntagmorgen", "Sonntagabend", "Gebetsstunde", "Bibelstunde", "Gottesdienst"}
+_NAME = {"gottesdienst": "Gottesdienst", "gebetsstunde": "Gebetsstunde",
+         "bibelstunde": "Bibelstunde", "jugendstunde": "Jugendstunde"}
 
 
 def sauber(name: str) -> str:
@@ -97,8 +114,27 @@ def file_key(ereignis: dict, dateiname: str) -> str:
     return f"archive/{d.year:04d}/{d.month:02d}/{d.day:02d}/{ereignis['slot']}/{sauber(dateiname)}"
 
 
+def _mit_art(ereignis: dict, gottesdienstart: Optional[str], thema: Optional[str]) -> dict:
+    """Art und Titel aus Akouo, wo der Ordner weniger weiß. Slot und Datum bleiben."""
+    ereignis = dict(ereignis)
+    if gottesdienstart in APP_EREIGNIS:
+        ereignis["event_type"] = APP_EREIGNIS[gottesdienstart]
+    # "Gottesdienst — Sonntag abends, 18.10.2026" → Name vorn austauschen, Rest bleibt
+    _, _, rest = ereignis["title"].partition(" — ")
+    if rest:
+        if thema and thema.strip():
+            name = thema.strip()
+        elif gottesdienstart and gottesdienstart not in REGELMAESSIG:
+            name = gottesdienstart                 # Erntedankfest, Taufe, Karfreitag …
+        else:
+            name = _NAME.get(ereignis["event_type"], "Gottesdienst")
+        ereignis["title"] = f"{name} — {rest}"
+    return ereignis
+
+
 def eintrag(nas_ordner: str, dateiname: str, beitragsart: str, nr: int,
-            auswertung=None) -> Optional[dict]:
+            auswertung=None, gottesdienstart: Optional[str] = None,
+            thema: Optional[str] = None) -> Optional[dict]:
     """Der Eintrag für den Sammelimport der Gemeinde-App — oder None, wenn der Ordner
     keinem Gottesdienst zuzuordnen ist (Hochzeiten, Sonstiges)."""
     if not nas_ordner.startswith("Gottesdienste/"):
@@ -106,6 +142,7 @@ def eintrag(nas_ordner: str, dateiname: str, beitragsart: str, nr: int,
     ereignis = ereignis_aus_ordner(nas_ordner.split("/", 1)[1])
     if ereignis is None:
         return None
+    ereignis = _mit_art(ereignis, gottesdienstart, thema)
     thema = (getattr(auswertung, "title", None) or "").strip()
     try:
         stellen = json.loads(getattr(auswertung, "bible_refs", None) or "[]")

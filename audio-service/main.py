@@ -32,6 +32,7 @@ from exporter import export_wav_to_mp3
 from segment_exporter import export_segment
 from boundaries import refine as refine_boundaries, envelope as level_envelope
 import automode as automode_modul
+import programm as programm_modul
 from automode import AutoModus
 from insights import analyse as analyse_segment, transcript_slice
 from nas_client import NASClient
@@ -223,6 +224,7 @@ async def erkennung_setzen(cfg: ErkennungConfig):
     daten = cfg.model_dump(exclude_none=True)
     if "beitragsarten" in daten:
         recorder_modul.beitragsarten_setzen(daten["beitragsarten"])
+        programm_modul.erlaubte_setzen(daten["beitragsarten"])
     if "anker_typen" in daten:
         automode_modul.anker_setzen(daten["anker_typen"])
     if "programm_automatisch" in daten:

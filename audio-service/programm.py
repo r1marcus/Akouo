@@ -37,8 +37,17 @@ ERLAUBTE_TYPEN = [
     "Chorlied", "Jugendchor", "Kinderchor", "Orchester", "Gruppenlied",
     "Gemeindegesang", "Gedicht", "Anspiel", "Predigt", "Kindergeschichte",
     "Prosa", "Gebetslied", "Musikstück", "Kinderlied", "Gebet", "Ansage",
-    "Vermeldungen",
+    "Vermeldungen", "Zeugnis", "Männerchor", "Frauenchor",
 ]
+
+
+def erlaubte_setzen(namen) -> None:
+    """Die Liste kommt mit den Beitragsarten aus der Datenbank — eine neu angelegte Art
+    soll auch in einer Ansage erkannt werden, ohne dass jemand diese Datei anfasst."""
+    global ERLAUBTE_TYPEN
+    neu = [n for n in (namen or []) if n and n != "Unbenannt"]
+    if neu:
+        ERLAUBTE_TYPEN = neu
 
 # Wie die Gemeinde die Dinge nennt, gegenüber dem, was im Marker steht.
 # Aus den gedruckten Programmen vom Erntedankfest 2026 abgelesen.
@@ -49,7 +58,10 @@ _SPRACHGEBRAUCH = """Wortgebrauch in dieser Gemeinde:
   oder Solisten. Das ist etwas anderes als das Orchester. Nimm den Typ, der im
   Text genannt wird, und schließe nicht vom einen auf den andern.
 - "Gebetslied" und "Kinderlied" sind eigene Typen.
-- "wir singen gemeinsam" bedeutet Gemeindegesang, "unser Chor singt" Chorlied."""
+- "wir singen gemeinsam" bedeutet Gemeindegesang, "unser Chor singt" Chorlied.
+- "die Brüder singen" oder "der Männerchor" bedeutet Männerchor, "die Schwestern singen"
+  oder "der Frauenchor" Frauenchor.
+- "ein Zeugnis" ist ein persönlicher Bericht, wie Gott im eigenen Leben gewirkt hat."""
 
 # Lohnt sich die Anfrage überhaupt? Ohne eines dieser Wörter ist es keine Ansage,
 # und das Modell muss nicht bemüht werden.

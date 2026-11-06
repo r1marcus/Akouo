@@ -102,3 +102,30 @@ def test_antwort_ausserhalb_der_liste_wird_verworfen(monkeypatch):
             return {"response": json.dumps({"typ": "Lobpreis", "grund": "x"})}
     monkeypatch.setattr(httpx, "post", lambda *a, **k: Antwort())
     assert einordnung.ordne_ein(" ".join(["Wort"] * 30), 300) is None
+
+
+def test_neue_beitragsart_kommt_ueberall_an(monkeypatch):
+    """Eine in der Datenbank angelegte Art erreicht Ansagen-Leser und Einordnung —
+    ohne dass eine feste Liste im Code nachgezogen werden muss."""
+    import programm
+    monkeypatch.setattr(programm, "ERLAUBTE_TYPEN", list(programm.ERLAUBTE_TYPEN))
+    programm.erlaubte_setzen(["Predigt", "Zeugnis", "Männerchor", "Unbenannt"])
+    assert programm.ERLAUBTE_TYPEN == ["Predigt", "Zeugnis", "Männerchor"]
+
+    monkeypatch.setattr(classifier, "SPRACH_TYPEN", ("Predigt", "Zeugnis", "Lesung"))
+    gesehen = {}
+
+    class Antwort:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"response": json.dumps({"typ": "Zeugnis", "grund": "Ich-Form"})}
+
+    def post(url, json=None, **k):
+        gesehen["prompt"] = json["prompt"]
+        return Antwort()
+    monkeypatch.setattr(httpx, "post", post)
+    assert einordnung.ordne_ein(" ".join(["Wort"] * 30), 300) == ("Zeugnis", "Ich-Form")
+    assert "- Zeugnis: ein persönlicher Bericht" in gesehen["prompt"]
+    assert "- Lesung\n" in gesehen["prompt"] + "\n"     # ohne Beschreibung, aber wählbar

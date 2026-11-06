@@ -898,8 +898,31 @@ def test_online_eintrag_wie_im_importskript_der_gemeinde_app():
     ohne = online.eintrag("Gottesdienste/2026-10-18 Sonntag 2. abends", "Track-07 - Chorlied.mp3",
                           "Chorlied", 7, None)
     assert (ohne["recording"]["title"], ohne["recording"]["recording_type"]) == ("Chorlied · Track 07", "chor")
+    # Arten so, wie die App sie live führt — nicht "sonstiges"
+    assert online.APP_ART["Prosa"] == "prosa" and online.APP_ART["Orchester"] == "orchester"
+    assert online.APP_ART["Gemeindegesang"] == "lied" and online.APP_ART["Vermeldungen"] == "ansage"
     assert online.eintrag("Hochzeiten/2026/2026-06-06 A & B", "Track-01 - Predigt.mp3",
                           "Predigt", 1, None) is None
+
+
+def test_online_gottesdienstart_schlaegt_den_wochentag():
+    """Gebetsstunde am Samstag bleibt Gebetsstunde, ein Fest behält seinen Namen —
+    aber der Slot und damit der file_key ändern sich nie."""
+    import online
+    samstag = online.eintrag("Gottesdienste/2026-01-10 Samstag 2. abends", "Track-01 - Predigt.mp3",
+                             "Predigt", 1, None, "Gebetsstunde", None)
+    assert samstag["event"]["event_type"] == "gebetsstunde"
+    assert samstag["event"]["title"] == "Gebetsstunde — Samstag abends, 10.01.2026"
+    fest = online.eintrag("Gottesdienste/2026-10-04 Sonntag 1. morgens", "Track-02 - Chorlied.mp3",
+                          "Chorlied", 2, None, "Erntedankfest", None)
+    assert fest["event"]["title"] == "Erntedankfest — Sonntag morgens, 04.10.2026"
+    assert fest["recording"]["file_key"] == "archive/2026/10/04/sonntag-morgens/Track-02_-_Chorlied.mp3"
+    mit_thema = online.eintrag("Gottesdienste/2026-10-18 Sonntag 2. abends", "Track-01 - Predigt.mp3",
+                               "Predigt", 1, None, "Sonntagabend", "Orchesterleiter Abschluss")
+    assert mit_thema["event"]["title"].startswith("Orchesterleiter Abschluss — Sonntag abends")
+    normal = online.eintrag("Gottesdienste/2026-10-18 Sonntag 2. abends", "Track-01 - Predigt.mp3",
+                            "Predigt", 1, None, "Sonntagabend", None)
+    assert normal["event"]["title"] == "Gottesdienst — Sonntag abends, 18.10.2026"
 
 
 @pytest.mark.asyncio

@@ -29,23 +29,35 @@ MODELL = os.environ.get("EINORDNUNG_MODELL", os.environ.get("PROGRAMM_MODELL", "
 ZEITLIMIT_S = 60.0
 MAX_ZEICHEN = 6000      # Anfang und Ende reichen; eine Predigt hat sonst 20 000 Zeichen
 
-SPRACH_TYPEN = ["Predigt", "Prosa", "Gedicht", "Kindergeschichte", "Anspiel", "Gebet",
-                "Ansage", "Vermeldungen"]
+# Woran man jede Art erkennt. Arten ohne Beschreibung (später angelegt) kommen mit
+# ihrem Namen in die Liste — das Modell kann sie dann wenigstens wählen.
+BESCHREIBUNG = {
+    "Predigt": "ein Prediger legt einen Bibeltext aus, nennt Bibelstellen, spricht die Gemeinde "
+               "an (\"liebe Geschwister\", \"wir\"), ermahnt und ermutigt. Meist länger als 5 Minuten.",
+    "Prosa": "ein vorgetragener Text — Geschichte, Erzählung, Begebenheit mit Handlung und "
+             "Personen, oft mit Titel angekündigt; erzählt statt auszulegen.",
+    "Zeugnis": "ein persönlicher Bericht in der Ich-Form, wie Gott im eigenen Leben gewirkt hat "
+               "(Bekehrung, Heilung, Bewahrung); frei erzählt, nicht vorgelesen.",
+    "Gedicht": "Verse, oft gereimt und rhythmisch; kurz, meist unter 3 Minuten.",
+    "Kindergeschichte": "eine Geschichte, die sich erkennbar an Kinder richtet (\"liebe Kinder\").",
+    "Anspiel": "mehrere Sprecher in Rollen, Dialog, szenisches Spiel.",
+    "Gebet": "spricht Gott direkt an (\"Herr\", \"Vater\", \"du\"), bittet und dankt, endet mit Amen.",
+    "Ansage": "kündigt das Programm oder den nächsten Beitrag an, kurz.",
+    "Vermeldungen": "Termine, Organisatorisches, Hinweise für die Gemeinde.",
+}
+
+
+def sprach_typen() -> list[str]:
+    """Die gesprochenen Arten, wie sie gerade aus der Datenbank geschoben sind."""
+    import classifier
+    return list(classifier.SPRACH_TYPEN) or list(BESCHREIBUNG)
+
 
 _PROMPT = """Du hörst einen Gottesdienst einer freikirchlichen Gemeinde nach. Unten steht das
 automatische Transkript EINES gesprochenen Beitrags (mit Hörfehlern). Ordne ihn einem Typ zu.
 
 Erlaubte Typen und woran man sie erkennt:
-- Predigt: ein Prediger legt einen Bibeltext aus, nennt Bibelstellen, spricht die Gemeinde
-  an ("liebe Geschwister", "wir"), ermahnt und ermutigt. Meist länger als 5 Minuten.
-- Prosa: ein vorgetragener Text — eine Geschichte, Erzählung, Begebenheit oder ein Zeugnis
-  mit Handlung und Personen, oft mit Titel angekündigt; erzählt statt auszulegen.
-- Gedicht: Verse, oft gereimt und rhythmisch; kurz, meist unter 3 Minuten.
-- Kindergeschichte: eine Geschichte, die sich erkennbar an Kinder richtet ("liebe Kinder").
-- Anspiel: mehrere Sprecher in Rollen, Dialog, szenisches Spiel.
-- Gebet: spricht Gott direkt an ("Herr", "Vater", "du"), bittet und dankt, endet mit Amen.
-- Ansage: kündigt das Programm oder den nächsten Beitrag an, kurz.
-- Vermeldungen: Termine, Organisatorisches, Hinweise für die Gemeinde.
+{typen}
 
 Dauer: {dauer} Minuten.
 Transkript:
@@ -67,7 +79,9 @@ def ordne_ein(text: str, dauer_s: float) -> Optional[tuple[str, str]]:
     text = (text or "").strip()
     if len(text.split()) < 15:      # zu wenig, um etwas zu sagen
         return None
-    prompt = _PROMPT.format(dauer=round(dauer_s / 60, 1), text=_kuerzen(text))
+    erlaubt = sprach_typen()
+    liste = "\n".join(f"- {t}: {BESCHREIBUNG[t]}" if t in BESCHREIBUNG else f"- {t}" for t in erlaubt)
+    prompt = _PROMPT.format(typen=liste, dauer=round(dauer_s / 60, 1), text=_kuerzen(text))
     try:
         antwort = httpx.post(
             f"{OLLAMA_URL}/api/generate",
@@ -81,7 +95,7 @@ def ordne_ein(text: str, dauer_s: float) -> Optional[tuple[str, str]]:
         log.warning("Einordnung: Modell nicht erreichbar oder Antwort unlesbar (%s)", e)
         return None
     typ = str(daten.get("typ", "")).strip()
-    if typ not in SPRACH_TYPEN:
+    if typ not in erlaubt:
         log.info("Einordnung: Antwort außerhalb der Liste verworfen: %r", typ)
         return None
     return typ, str(daten.get("grund", ""))[:120]
