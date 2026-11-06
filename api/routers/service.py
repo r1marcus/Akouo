@@ -15,6 +15,7 @@ import automode_sync
 from database import get_db
 from models import RecordingSession, Setting
 from service_types import CURRENT_SERVICE_KEY, ensure_checklist_for_service
+import kalender
 import typen
 from sprache import uebersetze
 
@@ -103,3 +104,21 @@ async def put_current_service(req: CurrentServiceRequest, db: AsyncSession = Dep
     automode_sync.zuruecksetzen()
 
     return {**current, "locked": False}
+
+
+@router.get("/vorschlag")
+async def vorschlag_aus_kalender():
+    """Was laut Kalender der Gemeinde-App jetzt dran ist. Leer, wenn es nichts gibt oder
+    die App nicht eingerichtet ist — der Vorschlag ist eine Hilfe, keine Voraussetzung."""
+    jetzt = datetime.now()
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(f"{AUDIO_SERVICE_URL}/api/online/kalender",
+                                 params={"datum": jetzt.date().isoformat()})
+        if r.status_code != 200:
+            return {"vorschlag": None}
+        termine = r.json().get("termine", [])
+    except (httpx.HTTPError, ValueError):
+        return {"vorschlag": None}
+    return {"vorschlag": kalender.vorschlag(termine, jetzt, typen.aktuell.gottesdienstarten)}
+

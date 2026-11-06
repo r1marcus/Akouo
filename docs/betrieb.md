@@ -343,10 +343,26 @@ Hochladen?“** Darunter stehen die Einträge als Karten:
   Transkript, aus dem der Eintrag stammt. Was das Modell nicht belegen konnte, erscheint gar nicht.
 - „nächsten Samstag“, „am 23.“, „morgen“ rechnet Akouo gegen den Tag des Gottesdienstes aus.
   Gelingt das nicht, steht *bitte Datum und Uhrzeit prüfen*, und der Termin ist abgewählt.
-- Steht am selben Tag schon ein Termin mit ähnlichem Namen im Kalender, wird keiner doppelt angelegt.
+- **Bestehende Termine werden geändert, nicht verdoppelt.** Beim Lesen schaut Akouo, was an dem
+  Tag schon im Kalender steht. Passt genau ein Termin (gleicher Tag, morgens vor 13 Uhr bzw.
+  abends), zeigt die Karte *Ändert: Gottesdienst morgens · 10:00*; passen mehrere, wählt man
+  ihn im Auswahlfeld. Neu angelegt wird nur, was wirklich ein eigener Termin ist.
+- Art **Thema** — „nächste Woche ist das Thema Psalm 22“ — setzt in der Beschreibung des
+  Gottesdienstes die Zeile `Thema: Psalm 22` (eine alte Thema-Zeile wird ersetzt, alles andere
+  bleibt). Ohne passenden Gottesdienst im Kalender wird nichts angelegt.
+- Der Kalender führt jeden Termin als eigene Zeile — eine Änderung trifft genau diesen Tag.
 - **Ja, hochladen** trägt ein; danach steht dort, wie viele angekommen sind, mit **Rückgängig**.
   **Nicht hochladen** verwirft; **Neu lesen** fragt das Modell noch einmal.
 - Braucht dieselben Zugangsdaten wie *Online stellen* (`ONLINE_*` in `audio-service/.env`).
+
+### Vorschlag beim Start: was laut Kalender dran ist
+
+Öffnet man die Gottesdienst-Auswahl, fragt Akouo den Kalender der Gemeinde-App für heute ab und
+zeigt oben *Laut Kalender: Sonntagmorgen · 10:00 · Thema Psalm 22* mit **Übernehmen**. Der Tipp
+setzt Gottesdienstart und Thema; gewählt ist erst mit *Übernehmen* unten im Fenster wie sonst.
+Als „jetzt“ gilt ein Termin ab 45 Minuten vor Beginn bis zwei Stunden danach, sonst der nächste.
+Das Thema kommt aus der Zeile `Thema:` der Beschreibung, sonst aus einem besonderen Titel.
+Ohne Zugangsdaten zur App bleibt die Zeile einfach weg.
 
 ### Lautheit: Spitze oder gleich laut
 

@@ -31,7 +31,8 @@ log = logging.getLogger(__name__)
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 MODELL = os.environ.get("PROGRAMM_MODELL", "qwen2.5:14b-instruct")
 ZEITLIMIT_S = 90.0
-ARTEN = ("termin", "hinweis", "gebetsanliegen")
+ARTEN = ("termin", "thema", "hinweis", "gebetsanliegen")
+MORGENS_BIS = 13          # wie die Gemeinde-App (SLOT_BOUNDARY): vor 13 Uhr ist morgens
 
 WOCHENTAGE = ["montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag", "sonntag"]
 MONATE = ["januar", "februar", "märz", "april", "mai", "juni", "juli", "august",
@@ -43,6 +44,9 @@ _PROMPT = """Unten steht das automatische Transkript der Vermeldungen eines Gott
 Arten:
 - termin: eine Veranstaltung mit Zeitpunkt (Datum oder Wochentag), z. B. Jugendstunde,
   Evangelisation, Gemeindeversammlung, Hochzeit, Beerdigung.
+- thema: eine Angabe zu einem KOMMENDEN regulären Gottesdienst — Thema, Bibeltext oder
+  Anlass, z. B. "nächste Woche ist das Thema Psalm 22", "nächsten Sonntag Kindersegnung".
+  Dann steht in "titel" das Thema selbst (z. B. "Psalm 22"), in "wann" der Zeitpunkt.
 - hinweis: Organisatorisches ohne eigenen Termin (Spenden, Aufräumen, Dank, Hinweise).
 - gebetsanliegen: Bitte um Gebet für Personen oder Anliegen.
 
@@ -51,6 +55,7 @@ Gib JSON zurück: {{"eintraege": [{{
   "titel": "kurz, z. B. Straßenevangelisation",
   "wann": "Zeitangabe GENAU wie gesagt, z. B. 'nächsten Samstag um 17 Uhr', sonst ''",
   "uhrzeit": "HH:MM oder ''", "ende": "HH:MM oder ''",
+  "tageszeit": "morgens|abends|''",
   "ort": "oder ''",
   "text": "ein bis zwei Sätze, worum es geht",
   "beleg": "der Satz aus dem Transkript, WÖRTLICH kopiert, höchstens 25 Wörter"
@@ -160,17 +165,20 @@ def aufbereiten(roh: list, transkript: str, bezug: date) -> list[dict]:
         if not belegt(str(e.get("beleg", "")), transkript):
             log.info("Vermeldungen: unbelegter Eintrag verworfen: %r", titel)
             continue
-        d = datum_aus(str(e.get("wann", "")), bezug) if art == "termin" else None
+        d = datum_aus(str(e.get("wann", "")), bezug) if art in ("termin", "thema") else None
         uhr = _uhrzeit(str(e.get("uhrzeit", "")))
         eintraege.append({
             "art": art, "titel": titel[:120], "wann": str(e.get("wann", ""))[:80],
             "datum": d.isoformat() if d else "", "uhrzeit": uhr,
             "ende": _uhrzeit(str(e.get("ende", ""))),
             "ort": str(e.get("ort", "")).strip()[:120], "text": str(e.get("text", "")).strip()[:600],
+            "tageszeit": _tageszeit(uhr, str(e.get("tageszeit", "")) + " " + str(e.get("wann", ""))),
             "beleg": str(e.get("beleg", "")).strip()[:300],
             # Gebetsanliegen nennen Kranke beim Namen — nur auf ausdrücklichen Wunsch
-            "ausgewaehlt": art != "gebetsanliegen" and (art != "termin" or bool(d)),
-            "pruefen": art == "termin" and not (d and uhr),
+            "ausgewaehlt": art != "gebetsanliegen" and (art not in ("termin", "thema") or bool(d)),
+            "pruefen": (art == "termin" and not (d and uhr)) or (art == "thema" and not d),
+            # Wird beim Lesen aus dem Kalender gefüllt (kandidaten_anhaengen):
+            "kandidaten": [], "ziel_id": "",
         })
     return eintraege
 
@@ -189,6 +197,74 @@ def lies(transkript: str, bezug: date) -> Optional[list[dict]]:
         log.warning("Vermeldungen: Modell nicht erreichbar oder Antwort unlesbar (%s)", e)
         return None
     return aufbereiten(roh, transkript, bezug)
+
+
+def _tageszeit(uhrzeit: str, text: str) -> str:
+    if uhrzeit:
+        return "morgens" if int(uhrzeit[:2]) < MORGENS_BIS else "abends"
+    t = text.lower()
+    return "morgens" if "morgen" in t or "vormittag" in t else ("abends" if "abend" in t or "nachmittag" in t else "")
+
+
+# ─── Bestehende Termine finden ─────────────────────────────────────────────
+# Die Gemeinde-App führt jeden Termin als eigene Zeile pro Datum (keine Serien) — ein PATCH
+# trifft genau diesen einen Tag. Gesucht wird wie in ihrer find_placeholder: gleicher Tag,
+# Gemeindetermin (ohne Gruppe), kein Dienstplan-Eintrag, morgens oder abends.
+
+ZIEL_ARTEN = "gottesdienst,bibelstunde,gebetsstunde,jugendstunde,andere"
+
+
+def termin_tageszeit(ev: dict) -> str:
+    st = ev.get("start_time") or ""
+    return _tageszeit(st[:5] if re.fullmatch(r"\d{2}:\d{2}.*", st) else "", ev.get("title", ""))
+
+
+def kandidaten(client: httpx.Client, datum: str) -> list[dict]:
+    r = client.get("/api/calendar/", params={"date_from": datum, "date_to": datum, "types": ZIEL_ARTEN,
+                                             "duties": "groups", "page_size": 100})
+    r.raise_for_status()
+    daten = r.json()
+    liste = daten.get("results", []) if isinstance(daten, dict) else daten
+    return [{"id": ev["id"], "title": ev.get("title", ""), "start_time": (ev.get("start_time") or "")[:5],
+             "event_type": ev.get("event_type", ""), "description": ev.get("description", ""),
+             "type_label": ev.get("type_label", "") or "",
+             "tageszeit": termin_tageszeit(ev)}
+            for ev in liste if not ev.get("group") and ev.get("event_type") != "dienst"]
+
+
+def zuordnen(e: dict, kand: list[dict]) -> str:
+    """ID des einen passenden Termins — oder "" (neu bzw. selbst wählen)."""
+    passend = kand
+    if e.get("tageszeit"):
+        passend = [k for k in passend if k["tageszeit"] in (e["tageszeit"], "")]
+    if e["art"] == "termin":
+        passend = [k for k in passend if _aehnlich(k["title"], e["titel"])]
+    return passend[0]["id"] if len(passend) == 1 else ""
+
+
+def kandidaten_anhaengen(eintraege: list[dict], client: httpx.Client) -> list[dict]:
+    for e in eintraege:
+        if e["art"] in ("termin", "thema") and e.get("datum"):
+            e["kandidaten"] = kandidaten(client, e["datum"])
+            e["ziel_id"] = zuordnen(e, e["kandidaten"])
+            # Ein Thema ohne Termin wird nicht angelegt — es braucht einen Gottesdienst
+            if e["art"] == "thema" and not e["ziel_id"]:
+                e["pruefen"] = True
+                e["ausgewaehlt"] = False
+    return eintraege
+
+
+def beschreibung_mischen(alt: str, e: dict) -> str:
+    """Thema-Zeile setzen oder ersetzen; sonst eine Zeile ergänzen. Was dort steht, bleibt."""
+    zeilen = [z for z in (alt or "").splitlines()]
+    if e["art"] == "thema":
+        neu = f"Thema: {e['titel']}"
+        zeilen = [z for z in zeilen if not z.strip().lower().startswith("thema:")]
+        return "\n".join([neu] + zeilen).strip()
+    zusatz = f"{e['titel']}: {e.get('text', '')}".strip(": ").strip()
+    if zusatz and zusatz not in alt:
+        zeilen.append(zusatz)
+    return "\n".join(zeilen).strip()
 
 
 # ─── Hochladen ─────────────────────────────────────────────────────────────
@@ -218,24 +294,33 @@ def hochladen(eintraege: list[dict], bezug: date, client: httpx.Client) -> list[
         if not e.get("ausgewaehlt"):
             continue
         try:
-            if e["art"] == "termin":
+            if e["art"] in ("termin", "thema") and e.get("ziel_id"):
+                # Bestehenden Termin ändern — nie einen zweiten daneben anlegen
+                alt = client.get(f"/api/calendar/{e['ziel_id']}/")
+                alt.raise_for_status()
+                vorher = alt.json().get("description", "") or ""
+                r = client.patch(f"/api/calendar/{e['ziel_id']}/",
+                                 json={"description": beschreibung_mischen(vorher, e)})
+                r.raise_for_status()
+                ergebnis.append({**e, "status": "geaendert", "ziel": "kalender", "id": e["ziel_id"],
+                                 "vorher": vorher, "kandidaten": []})
+            elif e["art"] == "thema":
+                ergebnis.append({**e, "status": "fehler", "fehler": "kein Gottesdienst gefunden"})
+            elif e["art"] == "termin":
                 if not e.get("datum"):
                     ergebnis.append({**e, "status": "fehler", "fehler": "ohne Datum"})
                     continue
-                vorhanden = client.get("/api/calendar/", params={
-                    "date_from": e["datum"], "date_to": e["datum"]}).json()
-                liste = vorhanden.get("results", vorhanden) if isinstance(vorhanden, dict) else vorhanden
-                if any(_aehnlich(v.get("title", ""), e["titel"]) for v in liste or []):
-                    ergebnis.append({**e, "status": "schon_da"})
+                if any(_aehnlich(k["title"], e["titel"]) for k in kandidaten(client, e["datum"])):
+                    ergebnis.append({**e, "status": "schon_da", "kandidaten": []})
                     continue
                 r = client.post("/api/calendar/", json={
                     "date": e["datum"], "title": e["titel"],
                     "start_time": e.get("uhrzeit") or None, "end_time": e.get("ende") or None,
-                    "event_type": _ereignisart(e["titel"]), "visibility": "closed",
-                    "location": e.get("ort", ""),
+                    "event_type": _ereignisart(e["titel"]), "location": e.get("ort", ""),
                     "description": f"{e.get('text', '')}\n\n{herkunft}".strip()})
                 r.raise_for_status()
-                ergebnis.append({**e, "status": "eingetragen", "ziel": "kalender", "id": r.json().get("id")})
+                ergebnis.append({**e, "status": "eingetragen", "ziel": "kalender", "id": r.json().get("id"),
+                                 "kandidaten": []})
             else:
                 ablauf = (date.fromisoformat(e["datum"]) + timedelta(days=1)) if e.get("datum") \
                     else bezug + timedelta(days=14)
@@ -253,6 +338,13 @@ def hochladen(eintraege: list[dict], bezug: date, client: httpx.Client) -> list[
 def zuruecknehmen(ergebnis: list[dict], client: httpx.Client) -> list[dict]:
     """Was eingetragen wurde, wieder löschen."""
     for e in ergebnis:
+        if e.get("status") == "geaendert" and e.get("id"):
+            try:     # alte Beschreibung zurück — der Termin selbst bleibt
+                r = client.patch(f"/api/calendar/{e['id']}/", json={"description": e.get("vorher", "")})
+                e["status"] = "zurueckgenommen" if r.status_code == 200 else "fehler"
+            except httpx.HTTPError as fehler:
+                e["status"], e["fehler"] = "fehler", str(fehler)[:160]
+            continue
         if e.get("status") != "eingetragen" or not e.get("id"):
             continue
         pfad = "/api/calendar/" if e.get("ziel") == "kalender" else "/api/bulletin/"

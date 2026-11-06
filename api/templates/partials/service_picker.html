@@ -12,6 +12,31 @@
             <button @click="$store.service.pickerOpen = false" class="w-9 h-9 rounded-full bg-white/5 text-zinc-400 hover:text-zinc-100" aria-label="{{ t('Schließen') }}">✕</button>
         </div>
 
+        {# Vorschlag aus dem Kalender der Gemeinde-App — nur auf Tipp übernommen #}
+        <div x-data="{ v: null, geholt: false }"
+             x-effect="if ($store.service.pickerOpen && !geholt) { geholt = true;
+                 fetch('/api/service/vorschlag').then(r => r.ok ? r.json() : {}).then(d => v = d.vorschlag || null)
+                     .catch(() => {}); }">
+            <template x-if="v">
+                <div class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-sky-500/10 px-4 py-3">
+                    <div class="min-w-0 text-sm">
+                        <div class="text-xs text-sky-300">{{ t("Laut Kalender") }}</div>
+                        <div class="text-zinc-100">
+                            <span x-text="v.service_type ? anzGottesdienst(v.service_type) : v.titel"></span>
+                            <span x-show="v.uhrzeit" class="text-zinc-400" x-text="'· ' + v.uhrzeit"></span>
+                            <span x-show="v.thema" class="text-zinc-300" x-text="'· ' + tr('Thema') + ' ' + v.thema"></span>
+                        </div>
+                    </div>
+                    <button type="button"
+                            @click="if (v.service_type) $store.service.draft.service_type = v.service_type;
+                                    if (v.thema) $store.service.draft.thema = v.thema;"
+                            class="btn min-h-10 px-4 text-sm bg-sky-500 text-white hover:bg-sky-400">
+                        {{ t("Übernehmen") }}
+                    </button>
+                </div>
+            </template>
+        </div>
+
         <!-- Regular services: large tiles -->
         <div class="grid grid-cols-2 gap-3">
             <template x-for="t in $store.service.primary" :key="t">

@@ -996,3 +996,25 @@ async def test_dienste_status_audio_weg_und_ollama_ohne_modell():
     assert r["alle_ok"] is False
     ollama = [p for p in r["pruefungen"] if p["dienst"] == "ollama"][0]
     assert ollama["grund_text"] == "Modell fehlt"
+
+
+# ─── Tests: Vorschlag aus dem Kalender ─────────────────────────────────────
+
+def test_kalender_vorschlag_morgens_mit_thema():
+    from datetime import datetime as _dt
+    import kalender
+    arten = ["Sonntagmorgen", "Sonntagabend", "Gebetsstunde", "Bibelstunde", "Erntedankfest"]
+    termine = [
+        {"id": "m", "title": "Thema Psalm 22 – Gottesdienst", "start_time": "10:00",
+         "event_type": "gottesdienst", "description": "", "tageszeit": "morgens", "type_label": ""},
+        {"id": "a", "title": "Gottesdienst", "start_time": "17:00", "event_type": "gottesdienst",
+         "description": "Thema: Erntedank", "tageszeit": "abends", "type_label": ""},
+    ]
+    morgens = kalender.vorschlag(termine, _dt(2026, 11, 15, 9, 30), arten)
+    assert (morgens["service_type"], morgens["thema"], morgens["event_id"]) == ("Sonntagmorgen", "Psalm 22", "m")
+    mittags = kalender.vorschlag(termine, _dt(2026, 11, 15, 13, 0), arten)
+    assert (mittags["service_type"], mittags["thema"]) == ("Sonntagabend", "Erntedank")
+    assert kalender.vorschlag([], _dt(2026, 11, 15, 9, 0), arten) is None
+    fest = kalender.vorschlag([{"id": "f", "title": "Erntedankfest", "start_time": "10:00", "event_type": "andere",
+                                "type_label": "Erntedankfest", "tageszeit": "morgens"}], _dt(2026, 10, 4, 10, 0), arten)
+    assert fest["service_type"] == "Erntedankfest"

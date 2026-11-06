@@ -159,7 +159,7 @@
               return this.rufen('/hochladen', {method: 'POST', headers: {'Content-Type': 'application/json'},
                                               body: JSON.stringify({eintraege: this.eintraege})});
           },
-          get eingetragen() { return this.ergebnis.filter(e => e.status === 'eingetragen').length; },
+          get eingetragen() { return this.ergebnis.filter(e => e.status === 'eingetragen' || e.status === 'geaendert').length; },
        }"
        x-init="laden()">
     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -179,15 +179,26 @@
                 <input type="checkbox" x-model="e.ausgewaehlt" class="h-5 w-5">
                 <span class="rounded-full px-2 py-0.5 text-[11px]"
                       :class="e.art === 'termin' ? 'bg-sky-500/20 text-sky-200' : (e.art === 'gebetsanliegen' ? 'bg-amber-400/20 text-amber-200' : 'bg-white/[0.08] text-zinc-300')"
-                      x-text="e.art === 'termin' ? tr('Termin') : (e.art === 'gebetsanliegen' ? tr('Gebetsanliegen') : tr('Hinweis'))"></span>
+                      x-text="e.art === 'termin' ? tr('Termin') : (e.art === 'thema' ? tr('Thema') : (e.art === 'gebetsanliegen' ? tr('Gebetsanliegen') : tr('Hinweis')))"></span>
                 <input x-model="e.titel" class="min-h-9 flex-1 rounded-lg bg-white/[0.05] px-2 text-sm text-zinc-100">
               </div>
-              <div class="mt-2 flex flex-wrap items-center gap-2 text-sm" x-show="e.art === 'termin'">
+              <div class="mt-2 flex flex-wrap items-center gap-2 text-sm" x-show="e.art === 'termin' || e.art === 'thema'">
                 <input type="date" x-model="e.datum" class="min-h-9 rounded-lg bg-white/[0.05] px-2 text-zinc-100">
                 <input type="time" x-model="e.uhrzeit" class="min-h-9 rounded-lg bg-white/[0.05] px-2 text-zinc-100">
                 <input x-model="e.ort" :placeholder="tr('Ort')" class="min-h-9 rounded-lg bg-white/[0.05] px-2 text-zinc-100">
                 <span x-show="!e.datum || !e.uhrzeit" class="text-xs text-amber-300">{{ t("bitte Datum und Uhrzeit prüfen") }}</span>
               </div>
+              <div class="mt-2 text-sm" x-show="(e.art === 'termin' || e.art === 'thema') && e.kandidaten.length">
+                <select x-model="e.ziel_id" class="min-h-9 w-full rounded-lg bg-white/[0.05] px-2 text-zinc-100">
+                  <option value="" x-text="e.art === 'thema' ? tr('— Gottesdienst wählen —') : tr('Neu im Kalender anlegen')"></option>
+                  <template x-for="k in e.kandidaten" :key="k.id">
+                    <option :value="k.id" x-text="tr('Ändert') + ': ' + k.title + (k.start_time ? ' · ' + k.start_time : '')"></option>
+                  </template>
+                </select>
+              </div>
+              <p class="mt-1 text-xs text-amber-300" x-show="e.art === 'thema' && !e.kandidaten.length && e.datum">
+                {{ t("An diesem Tag steht kein Gottesdienst im Kalender.") }}
+              </p>
               <p class="mt-1 text-xs text-zinc-500" x-text="'„' + e.beleg + '“'"></p>
             </li>
           </template>
@@ -212,7 +223,7 @@
     <template x-if="status === 'hochgeladen'">
       <div class="mt-1 flex flex-wrap items-center gap-3 text-sm">
         <span class="text-emerald-400" x-text="trf('{n} in der Gemeinde-App eingetragen', {n: eingetragen})"></span>
-        <template x-for="e in ergebnis.filter(e => e.status !== 'eingetragen')">
+        <template x-for="e in ergebnis.filter(e => e.status !== 'eingetragen' && e.status !== 'geaendert')">
           <span class="text-xs text-amber-300" x-text="e.titel + ': ' + (e.status === 'schon_da' ? tr('schon im Kalender') : (e.fehler || e.status))"></span>
         </template>
         <button @click="rufen('/zuruecknehmen', {method: 'POST'})" :disabled="busy"

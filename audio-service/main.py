@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import pathlib
 
 import httpx
@@ -59,6 +60,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Akouo Audio-Dienst", version="2.0.0", lifespan=lifespan)
+log = logging.getLogger(__name__)
 continuous_recorder = ContinuousRecorder()  # Phase 4
 stream_adapter = StreamAdapter()            # Phase 4
 telefon = TelefonAdapter()                  # Stream-Mix in die Telefonkonferenz
@@ -815,7 +817,33 @@ async def vermeldungen_lesen(req: VermeldungenLesen):
     eintraege = await asyncio.to_thread(vermeldungen_modul.lies, text, _date.fromisoformat(req.datum))
     if eintraege is None:
         raise HTTPException(status_code=503, detail="Sprachmodell nicht erreichbar")
-    return {"eintraege": eintraege, "transkript_woerter": len(text.split())}
+    # Welche Termine stehen an diesen Tagen schon im Kalender? Damit geändert statt verdoppelt wird.
+    kalender = online_modul.eingerichtet()
+    if kalender:
+        def nachschlagen() -> list:
+            with _app_client() as client:
+                return vermeldungen_modul.kandidaten_anhaengen(eintraege, client)
+        try:
+            eintraege = await asyncio.to_thread(nachschlagen)
+        except (httpx.HTTPError, RuntimeError) as e:
+            log.warning("Vermeldungen: Kalender nicht lesbar (%s)", e)
+            kalender = False
+    return {"eintraege": eintraege, "kalender": kalender, "transkript_woerter": len(text.split())}
+
+
+@app.get("/api/online/kalender")
+async def kalender_heute(datum: str):
+    """Die Gemeindetermine eines Tages — für den Vorschlag beim Start."""
+    if not online_modul.eingerichtet():
+        raise HTTPException(status_code=409, detail="Gemeinde-App nicht eingerichtet")
+
+    def los() -> list:
+        with _app_client() as client:
+            return vermeldungen_modul.kandidaten(client, datum)
+    try:
+        return {"termine": await asyncio.to_thread(los)}
+    except (httpx.HTTPError, RuntimeError) as e:
+        raise HTTPException(status_code=502, detail=f"Gemeinde-App: {e}"[:200])
 
 
 class VermeldungenHochladen(BaseModel):
