@@ -327,6 +327,27 @@ Zusammenfassung, Bibelstellen), falls sie vorher gelaufen ist. Neu transkribiert
   die Zeile *übersprungen*. Vorauswahl unter *Einstellungen → NAS-Ablage → Beim Export online
   stellen*, Standard aus.
 
+### Vermeldungen in die Gemeinde-App
+
+Hat der Gottesdienst einen Track *Vermeldungen*, liest Akouo ihn nach dem Gottesdienst aus dem
+Transkript, sobald die Segmentliste aufgeht, und fragt: **„Stimmen die Vermeldungen so zum
+Hochladen?“** Darunter stehen die Einträge als Karten:
+
+| Art | wohin | vorausgewählt |
+|---|---|---|
+| Termin | Kalender der Gemeinde-App, sichtbar nur für Mitglieder | ja, wenn ein Datum erkannt wurde |
+| Hinweis | Schwarzes Brett, läuft nach 14 Tagen ab | ja |
+| Gebetsanliegen | Schwarzes Brett, Kategorie Gebetsanliegen | **nein** — darin stehen Namen und Krankheiten |
+
+- Titel, Datum, Uhrzeit und Ort sind in der Karte änderbar; darunter steht der Satz aus dem
+  Transkript, aus dem der Eintrag stammt. Was das Modell nicht belegen konnte, erscheint gar nicht.
+- „nächsten Samstag“, „am 23.“, „morgen“ rechnet Akouo gegen den Tag des Gottesdienstes aus.
+  Gelingt das nicht, steht *bitte Datum und Uhrzeit prüfen*, und der Termin ist abgewählt.
+- Steht am selben Tag schon ein Termin mit ähnlichem Namen im Kalender, wird keiner doppelt angelegt.
+- **Ja, hochladen** trägt ein; danach steht dort, wie viele angekommen sind, mit **Rückgängig**.
+  **Nicht hochladen** verwirft; **Neu lesen** fragt das Modell noch einmal.
+- Braucht dieselben Zugangsdaten wie *Online stellen* (`ONLINE_*` in `audio-service/.env`).
+
 ### Lautheit: Spitze oder gleich laut
 
 Jedes Segment wird beim Export normalisiert, wahlweise unter *Einstellungen → Export →

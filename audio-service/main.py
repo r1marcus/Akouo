@@ -1,6 +1,8 @@
 import asyncio
 import json
 import pathlib
+
+import httpx
 import queue
 import os
 import signal as _signal
@@ -27,6 +29,7 @@ from streamer import StreamAdapter, public_target
 from telefon import TelefonAdapter
 import online as online_modul
 import dienst
+import vermeldungen as vermeldungen_modul
 from config import config, export_dir
 from exporter import export_wav_to_mp3, gesamt_mp3
 from segment_exporter import export_segment
@@ -785,6 +788,78 @@ async def streaming_status():
         "channels": config.stream_channels,
         "telefon": telefon.status(),
     }
+
+
+# ─── Vermeldungen: lesen, hochladen, zurücknehmen ──────────────────────────
+
+class VermeldungenLesen(BaseModel):
+    wav_path: str
+    bereiche: list            # [[von_s, bis_s], …] — die Vermeldungen-Tracks
+    datum: str                # Tag des Gottesdienstes, ISO
+
+
+@app.post("/api/session/vermeldungen")
+async def vermeldungen_lesen(req: VermeldungenLesen):
+    from datetime import date as _date
+    pfad = pathlib.Path(req.wav_path).parent / "transcript.jsonl"
+    zeilen = []
+    if pfad.exists():
+        for roh in pfad.read_text(encoding="utf-8").splitlines():
+            try:
+                z = json.loads(roh)
+            except ValueError:
+                continue
+            if any(von <= z.get("start", 0) < bis for von, bis in req.bereiche):
+                zeilen.append(z.get("text", "").strip())
+    text = " ".join(t for t in zeilen if t)
+    eintraege = await asyncio.to_thread(vermeldungen_modul.lies, text, _date.fromisoformat(req.datum))
+    if eintraege is None:
+        raise HTTPException(status_code=503, detail="Sprachmodell nicht erreichbar")
+    return {"eintraege": eintraege, "transkript_woerter": len(text.split())}
+
+
+class VermeldungenHochladen(BaseModel):
+    eintraege: list
+    datum: str
+
+
+def _app_client():
+    client = httpx.Client(base_url=config.online_api_url.rstrip("/"), timeout=60.0)
+    online_modul._anmelden(client)
+    return client
+
+
+@app.post("/api/online/vermeldungen")
+async def vermeldungen_hochladen(req: VermeldungenHochladen):
+    from datetime import date as _date
+    if not online_modul.eingerichtet():
+        raise HTTPException(status_code=409, detail="Gemeinde-App nicht eingerichtet")
+
+    def los() -> list:
+        with _app_client() as client:
+            return vermeldungen_modul.hochladen(req.eintraege, _date.fromisoformat(req.datum), client)
+    try:
+        return {"ergebnis": await asyncio.to_thread(los)}
+    except (httpx.HTTPError, RuntimeError) as e:
+        raise HTTPException(status_code=502, detail=f"Gemeinde-App: {e}"[:200])
+
+
+class VermeldungenZurueck(BaseModel):
+    ergebnis: list
+
+
+@app.post("/api/online/vermeldungen/zuruecknehmen")
+async def vermeldungen_zuruecknehmen(req: VermeldungenZurueck):
+    if not online_modul.eingerichtet():
+        raise HTTPException(status_code=409, detail="Gemeinde-App nicht eingerichtet")
+
+    def los() -> list:
+        with _app_client() as client:
+            return vermeldungen_modul.zuruecknehmen(req.ergebnis, client)
+    try:
+        return {"ergebnis": await asyncio.to_thread(los)}
+    except (httpx.HTTPError, RuntimeError) as e:
+        raise HTTPException(status_code=502, detail=f"Gemeinde-App: {e}"[:200])
 
 
 # ─── Der Dienst über sich selbst: Status, .env, Neustart ───────────────────

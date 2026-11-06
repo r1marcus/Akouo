@@ -180,6 +180,23 @@ class OnlineAblage(Base):
     am: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
 
 
+class VermeldungStand(Base):
+    """Die Vermeldungen eines Gottesdienstes: gelesen, bestätigt und hochgeladen oder verworfen.
+
+    `eintraege` ist die Liste, wie der Tontechniker sie zuletzt gesehen hat (JSON), `ergebnis`
+    was in der Gemeinde-App angekommen ist — samt IDs, damit es sich zurücknehmen lässt.
+    Eigene Tabelle wie AutoMarker: die API legt fehlende Tabellen beim Start selbst an.
+    """
+    __tablename__ = "vermeldung_stand"
+
+    session_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("recording_sessions.id"), primary_key=True)
+    status: Mapped[str] = mapped_column(String, nullable=False)   # gelesen | hochgeladen | verworfen | zurueckgenommen
+    eintraege: Mapped[str] = mapped_column(String, nullable=False, default="[]")
+    ergebnis: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    am: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+
 class SegmentInsight(Base):
     """What the local language model extracted from a segment's transcript."""
     __tablename__ = "segment_insights"

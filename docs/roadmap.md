@@ -53,7 +53,10 @@ von Hand abgelegt.
 
 ---
 
-## 0. Vermeldungen in den Kalender der Gemeinde-App — Idee vom 6. November 2026
+## 0. Vermeldungen in den Kalender der Gemeinde-App — gebaut am 6. November 2026
+
+Umgesetzt mit Rückfrage statt automatisch (betrieb.md, „Vermeldungen in die Gemeinde-App“).
+Die ursprüngliche Überlegung:
 
 In den Vermeldungen steckt, was die Gemeinde in den nächsten Wochen vorhat: „Nächsten Samstag
 um 15 Uhr Jugendstunde im Gemeindehaus“, „Am 23. ist Gebetsgemeinschaft für die Kranken“.
