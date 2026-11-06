@@ -514,7 +514,14 @@ def _modell_fragen(modus: "AutoModus", b: Beitrag) -> None:
     b.exportieren = b.typ not in classifier.NICHT_EXPORTIEREN
 
 
-def nachlauf(wav_path, mit_modell: bool = True) -> list[dict]:
+# Stufe 3 beim Neu-Erkennen. Gemessen am 6. November 2026 über 120 von Hand bestätigte
+# Tracks: ohne 70/120, mit qwen2.5:14b 68/120 — Prosa blieb 0/7 (auch das Modell hört eine
+# Predigt), Gedichte wurden schlechter. Darum aus, bis ein Modell messbar besser trifft:
+# EINORDNUNG_AN=1 in der .env schaltet sie ein, scripts/pruefe_typen.py misst nach.
+EINORDNUNG_AN = os.environ.get("EINORDNUNG_AN", "0") == "1"
+
+
+def nachlauf(wav_path, mit_modell: Optional[bool] = None) -> list[dict]:
     """Erkennt eine fertige Aufnahme noch einmal von vorn bis hinten.
 
     Live muss der Modus mit dem auskommen, was bisher gelaufen ist: der Ruhepegel
@@ -555,7 +562,7 @@ def nachlauf(wav_path, mit_modell: bool = True) -> list[dict]:
         modus._ansage_auswerten(b)
         ansagen_bis(ende)
         modus._einschaetzen(b)
-        if mit_modell:
+        if EINORDNUNG_AN if mit_modell is None else mit_modell:
             _modell_fragen(modus, b)
         modus.beitraege.append(b)
     return [asdict(b) for b in modus.beitraege]

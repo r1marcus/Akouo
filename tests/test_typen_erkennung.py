@@ -61,7 +61,7 @@ def test_modell_schlaegt_klang(tmp_path, monkeypatch):
     monkeypatch.setattr(classifier, "finde_beitraege", lambda w: [(10.0, 600.0)])
     monkeypatch.setattr(classifier, "klassifiziere_bereich", _klang("Sprache", "Predigt"))
     monkeypatch.setattr(einordnung, "ordne_ein", lambda text, dauer: ("Prosa", "erzählt"))
-    b = automode.nachlauf(wav)[0]
+    b = automode.nachlauf(wav, mit_modell=True)[0]
     assert (b["typ"], b["quelle"]) == ("Prosa", "modell")
     assert b["alternativen"][0] == "Predigt"
 
@@ -77,7 +77,7 @@ def test_ansage_schlaegt_modell(tmp_path, monkeypatch):
     def ansage(self, b):
         b.typ, b.quelle = "Gedicht", "ansage"
     monkeypatch.setattr(automode.AutoModus, "_ansage_auswerten", ansage)
-    b = automode.nachlauf(wav)[0]
+    b = automode.nachlauf(wav, mit_modell=True)[0]
     assert (b["typ"], b["quelle"]) == ("Gedicht", "ansage")
     assert gefragt == []
 
@@ -89,7 +89,7 @@ def test_modell_aus_bleibt_klang(tmp_path, monkeypatch):
     monkeypatch.setattr(classifier, "finde_beitraege", lambda w: [(10.0, 600.0)])
     monkeypatch.setattr(classifier, "klassifiziere_bereich", _klang("Sprache", "Predigt"))
     monkeypatch.setattr(einordnung, "OLLAMA_URL", "http://127.0.0.1:9")
-    b = automode.nachlauf(wav)[0]
+    b = automode.nachlauf(wav, mit_modell=True)[0]
     assert (b["typ"], b["quelle"]) == ("Predigt", "klang")
 
 
