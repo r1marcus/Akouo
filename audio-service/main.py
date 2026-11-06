@@ -22,13 +22,13 @@ import boundaries as boundaries_modul
 import classifier
 import laufzeit
 import recorder as recorder_modul
-from recorder import Recorder, ContinuousRecorder
+from recorder import ContinuousRecorder
 from streamer import StreamAdapter, public_target
 from telefon import TelefonAdapter
 import online as online_modul
 import dienst
 from config import config, export_dir
-from exporter import export_wav_to_mp3
+from exporter import export_wav_to_mp3, gesamt_mp3
 from segment_exporter import export_segment
 from boundaries import refine as refine_boundaries, envelope as level_envelope
 import automode as automode_modul
@@ -56,43 +56,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Akouo Audio-Dienst", version="2.0.0", lifespan=lifespan)
-recorder = Recorder()                       # legacy
 continuous_recorder = ContinuousRecorder()  # Phase 4
 stream_adapter = StreamAdapter()            # Phase 4
 telefon = TelefonAdapter()                  # Stream-Mix in die Telefonkonferenz
 auto_modus = AutoModus(continuous_recorder)  # erkennt Beiträge, schreibt aber nichts
 nas_client = NASClient(config)              # Phase 7
 transcriber = LiveTranscriber()             # live transcription
-
-
-class StartRequest(BaseModel):
-    service_type: str = "Gottesdienst"
-    output_dir: Optional[str] = None
-
-
-@app.get("/status")
-async def get_status():
-    """Returns current recording state: idle | recording | error."""
-    return recorder.status()
-
-
-@app.post("/start")
-async def start_recording(req: StartRequest):
-    """Start a new recording. Returns error if no input device or already recording."""
-    output_dir = req.output_dir or str(config.output_dir)
-    result = recorder.start(service_type=req.service_type, output_dir=output_dir)
-    if result["status"] == "error":
-        raise HTTPException(status_code=409, detail=result["message"])
-    return result
-
-
-@app.post("/stop")
-async def stop_recording():
-    """Stop the current recording. Encodes PCM to MP3 and returns file info."""
-    result = recorder.stop()
-    if result["status"] == "error":
-        raise HTTPException(status_code=409, detail=result["message"])
-    return result
 
 
 @app.get("/healthz")
@@ -134,6 +103,9 @@ async def session_stop():
     if result["status"] == "error":
         raise HTTPException(status_code=409, detail=result["message"])
     await transcriber.stop()
+    # Die ganze Aufnahme als MP3 — im Hintergrund, der Stopp wartet nicht darauf.
+    if result.get("wav_path"):
+        asyncio.get_running_loop().run_in_executor(None, gesamt_mp3, result["wav_path"])
     # Livestream und Telefon laufen weiter: Nach dem letzten Lied wird oft noch gesprochen,
     # und wer zuhört, soll nicht mit dem Stopp der Aufnahme abgeschnitten werden. Beide
     # haben ihren eigenen Knopf. Früher wurden sie hier mitbeendet, weil Aufnahme und

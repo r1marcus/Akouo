@@ -52,3 +52,13 @@ def test_umschalten_ueber_die_einstellungen(monkeypatch):
     assert laufzeit.ziel_lufs() == -18.0
     laufzeit.export_setzen({"export_normalisierung": "Spitzenpegel"})
     assert laufzeit.ziel_lufs() is None
+
+
+def test_gesamtaufnahme_als_mp3_neben_der_wav(tmp_path):
+    from exporter import gesamt_mp3
+    wav = tmp_path / "aufnahme.wav"
+    _ton(wav, 0.3, sekunden=3)
+    mp3 = gesamt_mp3(wav)
+    assert mp3 == tmp_path / "aufnahme.mp3" and mp3.stat().st_size > 10_000
+    assert wav.exists()                                   # die WAV bleibt
+    assert not (tmp_path / "aufnahme.mp3.neu").exists()

@@ -23,7 +23,7 @@ API_TESTS := tests/test_archive.py tests/test_current_service.py tests/test_data
 
 AUDIO_TESTS := tests/test_boundaries.py tests/test_continuous_recording.py tests/test_insights.py \
                tests/test_mp3_export.py tests/test_nas_client.py tests/test_nas_push.py \
-               tests/test_recording.py tests/test_segment_export.py tests/test_stream_adapter.py \
+               tests/test_segment_export.py tests/test_stream_adapter.py \
                tests/test_ui_phase5.py::test_waveform tests/test_erkennung_uebernahme.py \
                tests/test_telefon.py tests/test_typen_erkennung.py tests/test_online_audio.py tests/test_lautheit.py tests/test_dienst_umgebung.py tests/test_nachlauf.py
 

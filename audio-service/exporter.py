@@ -119,3 +119,34 @@ def export_wav_to_mp3(
         "duration_ms": len(audio),
         "frame_rate": target_sample_rate,
     }
+
+
+GESAMT_BITRATE = "128k"
+
+
+def gesamt_mp3(wav_path) -> Optional[pathlib.Path]:
+    """Die ganze Aufnahme als MP3 neben die WAV — „aufnahme.mp3“.
+
+    Für das Nachhören eines ganzen Gottesdienstes; die WAV ist mit 0,7 GB je Stunde dafür
+    zu groß. Die WAV bleibt trotzdem liegen: Neu erkennen, erneuter Export und das Archiv
+    schneiden aus ihr. Niedrige Priorität (nice), damit eine laufende Aufnahme nicht leidet.
+    """
+    wav_path = pathlib.Path(wav_path)
+    ziel = wav_path.with_suffix(".mp3")
+    if not wav_path.exists():
+        return None
+    neu = ziel.with_suffix(".mp3.neu")
+    try:
+        subprocess.run(["nice", "-n", "15", "ffmpeg", "-hide_banner", "-nostdin", "-y",
+                        "-i", str(wav_path), "-codec:a", "libmp3lame", "-b:a", GESAMT_BITRATE,
+                        "-f", "mp3", str(neu)],
+                       capture_output=True, check=True, timeout=3600)
+        neu.replace(ziel)
+        return ziel
+    except (OSError, subprocess.SubprocessError) as e:
+        log.warning("Gesamtaufnahme als MP3 fehlgeschlagen: %s", e)
+        try:
+            neu.unlink()
+        except OSError:
+            pass
+        return None

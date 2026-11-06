@@ -900,7 +900,10 @@ def test_online_eintrag_wie_im_importskript_der_gemeinde_app():
     assert (ohne["recording"]["title"], ohne["recording"]["recording_type"]) == ("Chorlied · Track 07", "chor")
     # Arten so, wie die App sie live führt — nicht "sonstiges"
     assert online.APP_ART["Prosa"] == "prosa" and online.APP_ART["Orchester"] == "orchester"
-    assert online.APP_ART["Gemeindegesang"] == "lied" and online.APP_ART["Vermeldungen"] == "ansage"
+    assert online.APP_ART["Gemeindegesang"] == "allgemeingesang" and online.APP_ART["Vermeldungen"] == "ansage"
+    erlaubt = {"predigt", "chor", "gruppenlied", "orchester", "instrumental", "allgemeingesang", "lied",
+               "gedicht", "zeugnis", "gebet", "prosa", "ansage", "sonstiges"}
+    assert set(online.APP_ART.values()) <= erlaubt      # sonst lehnt der Sammelimport ab
     assert online.eintrag("Hochzeiten/2026/2026-06-06 A & B", "Track-01 - Predigt.mp3",
                           "Predigt", 1, None) is None
 

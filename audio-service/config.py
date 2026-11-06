@@ -25,7 +25,6 @@ class Config:
     output_dir: Path = field(default_factory=_recordings_dir)
     sessions_dir: Path = field(default_factory=lambda: _recordings_dir() / "sessions")
     sample_rate: int = field(default_factory=lambda: int(os.environ.get("AUDIO_SAMPLE_RATE", "48000")))
-    channels: int = 2          # legacy Recorder still uses 2
     # 1-based device channels: which pair is recorded and which pair feeds the livestream.
     # Default ist bewusst zweimal dasselbe Paar: so laeuft das System mit jedem
     # Stereo-Eingang. Wer Aufnahme und Stream getrennt mischt, setzt in der .env

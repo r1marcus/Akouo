@@ -27,22 +27,21 @@ _ORDNER = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})\s+(?P<weekday>[A-ZÄÖÜ][a-
 _ORDNER_SONDER = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})\s+(?P<rest>.+?)\s*$")
 _STANDARD = {"morgens", "abends", "morgens 2. Teil", "abends 2. Teil"}
 
-# Akouos Beitragsarten → Arten der Gemeinde-App, so wie sie LIVE vorkommen (gezählt am
-# 6. November 2026 über 1.178 Aufnahmen aus 2026): predigt, lied, chor, orchester,
-# instrumental, gedicht, prosa, gebet, ansage, zeugnis, sonstiges. Der Code im Repository
-# von Church_Tool kennt nur sechs davon — maßgeblich ist, was die App tatsächlich führt.
+# Akouos Beitragsarten → die 13 Arten der Gemeinde-App (Church_Tool, origin/main,
+# backend/apps/archive/classification.py, Stand 6. November 2026): predigt, chor,
+# gruppenlied, orchester, instrumental, allgemeingesang, lied, gedicht, zeugnis, gebet,
+# prosa, ansage, sonstiges. Unbekannte Werte lehnt ihr Sammelimport ab.
 # Was hier fehlt, wird "sonstiges" und behält seinen Namen im Titel.
 APP_ART = {
-    "Predigt": "predigt", "Kindergeschichte": "predigt",
-    "Chorlied": "chor", "Jugendchor": "chor", "Kinderchor": "chor", "Gebetslied": "chor",
-    "Gruppenlied": "lied", "Gemeindegesang": "lied", "Kinderlied": "lied",
-    "Orchester": "orchester", "Musikstück": "instrumental",
-    "Gedicht": "gedicht", "Prosa": "prosa", "Gebet": "gebet",
+    # 1:1 aus der App (classification.py, _AKOUO_MARKERS) — die App ordnet Akouo-Namen
+    # selbst zu und hat dabei Vorrang; weichen wir ab, gewinnt ohnehin ihre Tabelle.
+    "Chorlied": "chor", "Jugendchor": "chor", "Kinderchor": "chor", "Männerchor": "chor",
+    "Orchester": "orchester", "Gruppenlied": "gruppenlied", "Gedicht": "gedicht",
+    "Anspiel": "prosa", "Prosa": "prosa", "Kindergeschichte": "prosa", "Predigt": "predigt",
     "Ansage": "ansage", "Vermeldungen": "ansage",
-    "Zeugnis": "zeugnis",
-    # Die App führt live keine eigene Art für Männer- und Frauenchor; bis sie eine hat,
-    # sind beide Chor, und der Name steht im Titel ("Männerchor: …").
-    "Männerchor": "chor", "Frauenchor": "chor",
+    # Kennt die App-Tabelle (noch) nicht — hier entscheiden wir, mit ihren Arten:
+    "Frauenchor": "chor", "Gebetslied": "chor", "Gemeindegesang": "allgemeingesang",
+    "Kinderlied": "lied", "Musikstück": "instrumental", "Gebet": "gebet", "Zeugnis": "zeugnis",
 }
 
 # Akouos Gottesdienstart weiß mehr als der Wochentag: eine Gebetsstunde am Samstag ist
