@@ -873,3 +873,70 @@ async def test_copycenter_fehler_ist_sichtbar_aber_archiv_bleibt_hochgeladen(db_
     row = (await db_session.execute(select(SegmentExport))).scalars().one()
     assert row.nas_status == "uploaded"
     assert row.nas_error == "CopyCenter fehlgeschlagen: kein Platz"
+
+
+# ─── Tests: Online stellen (Gemeinde-App) ──────────────────────────────────
+
+def test_online_eintrag_wie_im_importskript_der_gemeinde_app():
+    """Schlüssel und Ereignis müssen exakt so aussehen wie aus Church_Tool/build_meta.py —
+    sonst steht derselbe Gottesdienst doppelt im Archiv der App."""
+    import online
+
+    auswertung = MagicMock(title="Die Größe Gottes", summary="Über Psalm 8.",
+                           bible_refs='["Psalm 8,4"]', speaker="", transcript="Text")
+    e = online.eintrag("Gottesdienste/2026-10-18 Sonntag 2. abends", "Track-03 - Predigt.mp3",
+                       "Predigt", 3, auswertung)
+    assert e["event"] == {"date": "2026-10-18", "title": "Gottesdienst — Sonntag abends, 18.10.2026",
+                          "event_type": "gottesdienst", "slot": "sonntag-abends"}
+    assert e["recording"]["file_key"] == "archive/2026/10/18/sonntag-abends/Track-03_-_Predigt.mp3"
+    assert e["recording"]["title"] == "Predigt: Die Größe Gottes"
+    assert e["recording"]["recording_type"] == "predigt"
+    assert e["recording"]["bible_reference"] == "Psalm 8,4"
+
+    bibelstunde = online.ereignis_aus_ordner("2026-10-13 Dienstag 2. abends")
+    assert (bibelstunde["event_type"], bibelstunde["slot"]) == ("bibelstunde", "dienstag-abends")
+    ohne = online.eintrag("Gottesdienste/2026-10-18 Sonntag 2. abends", "Track-07 - Chorlied.mp3",
+                          "Chorlied", 7, None)
+    assert (ohne["recording"]["title"], ohne["recording"]["recording_type"]) == ("Chorlied · Track 07", "chor")
+    assert online.eintrag("Hochzeiten/2026/2026-06-06 A & B", "Track-01 - Predigt.mp3",
+                          "Predigt", 1, None) is None
+
+
+@pytest.mark.asyncio
+async def test_online_und_station_je_export_waehlbar(db_session):
+    """Ohne Angabe gilt die Einstellung; der Schalter beim Export geht vor."""
+    from models import OnlineAblage, Setting
+    from routers.segments import export_segment
+
+    sess, marker = await _gottesdienst_mit_luecken(db_session)
+    sess.nas_folder = "Gottesdienste/2026-10-18 Sonntag 1. morgens"
+    db_session.add(Setting(key="nas_copycenter", value="1"))
+    await db_session.commit()
+    mock_request = MagicMock()
+    mock_request.headers = {}
+
+    antwort = {**_CC_EXPORT, "online": {"status": "uploaded", "file_key": "archive/x.mp3", "error": None}}
+    client = _cc_client(antwort)
+    with patch("httpx.AsyncClient", return_value=client):
+        await export_segment(session_id=sess.id, marker_id=marker["Predigt"].id,
+                             request=mock_request, station=False, online=True, db=db_session)
+    aufruf = _export_aufrufe(client)[0]
+    assert "copycenter_folder" not in aufruf
+    assert aufruf["online"]["recording"]["file_key"].startswith(
+        "archive/2026/10/18/sonntag-morgens/Track-")
+    assert aufruf["online_ersetzen"] is False
+    assert (await db_session.get(OnlineAblage, marker["Predigt"].id)).status == "uploaded"
+
+    client = _cc_client(antwort)
+    with patch("httpx.AsyncClient", return_value=client):
+        await export_segment(session_id=sess.id, marker_id=marker["Predigt"].id,
+                             request=mock_request, db=db_session)
+    aufruf = _export_aufrufe(client)[0]
+    assert "online" not in aufruf                 # Standard ist aus
+    assert "copycenter_folder" in aufruf          # Standard hier an
+
+    client = _cc_client(antwort)
+    with patch("httpx.AsyncClient", return_value=client):
+        await export_segment(session_id=sess.id, marker_id=marker["Predigt"].id,
+                             request=mock_request, online=True, db=db_session)
+    assert _export_aufrufe(client)[0]["online_ersetzen"] is True   # eigener Upload darf ersetzt werden

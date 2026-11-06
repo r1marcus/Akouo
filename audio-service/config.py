@@ -72,6 +72,15 @@ class Config:
     telefon_steuer_port: int = field(default_factory=lambda: int(os.environ.get("TELEFON_STEUER_PORT", "4444")))
     baresip_bin: str = field(default_factory=lambda: os.environ.get("BARESIP_BIN", "baresip"))
     baresip_module: str = field(default_factory=lambda: os.environ.get("BARESIP_MODULE", ""))
+    # Online stellen: Speicher und Sammelimport der Gemeinde-App. Leer heißt: der Schalter
+    # beim Export meldet "übersprungen", sonst passiert nichts.
+    online_s3_endpoint: str = field(default_factory=lambda: os.environ.get("ONLINE_S3_ENDPOINT", ""))
+    online_s3_bucket: str = field(default_factory=lambda: os.environ.get("ONLINE_S3_BUCKET", ""))
+    online_s3_key: str = field(default_factory=lambda: os.environ.get("ONLINE_S3_KEY", ""))
+    online_s3_secret: str = field(default_factory=lambda: os.environ.get("ONLINE_S3_SECRET", ""))
+    online_api_url: str = field(default_factory=lambda: os.environ.get("ONLINE_API_URL", ""))
+    online_api_email: str = field(default_factory=lambda: os.environ.get("ONLINE_API_EMAIL", ""))
+    online_api_passwort: str = field(default_factory=lambda: os.environ.get("ONLINE_API_PASSWORT", ""))
 
 
     @property

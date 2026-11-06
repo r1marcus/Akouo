@@ -8,6 +8,29 @@
             confirmNeu: false,
             confirmNeuTimer: null,
             insights: {},          // marker_id -> {title, summary, bible_refs, keywords, speaker}
+            {# Ins Archiv geht immer alles; Station (CopyCenter) und Gemeinde-App je Export #}
+            station: {{ 'true' if station_standard | default(false) else 'false' }},
+            online: {{ 'true' if online_standard | default(false) else 'false' }},
+            exportiert: null,
+            ziel(id) {
+                return `/api/sessions/{{ session_id }}/segments/${id}/export?station=${this.station}&online=${this.online}`;
+            },
+            async exportEinzeln(id) {
+                this.exportiert = id;
+                try {
+                    const r = await fetch(this.ziel(id), {method: 'POST'});
+                    if (!r.ok) {
+                        const d = await r.json().catch(() => ({}));
+                        window.dispatchEvent(new CustomEvent('toast', {detail: d.detail || (tr('Fehler') + ' ' + r.status)}));
+                    }
+                } catch (e) {
+                    window.dispatchEvent(new CustomEvent('toast', {detail: tr('Fehler') + ': ' + e.message}));
+                } finally {
+                    this.exportiert = null;
+                }
+                htmx.ajax('GET', '/api/sessions/{{ session_id }}/segments',
+                          {target: '#segment-review-{{ session_id }}', swap: 'outerHTML'});
+            },
             busyInsight: null,
             {# Gemeindegesang, Gebet, Ansagen sind markiert, gehören aber nicht ins
                Archiv — der Sammel-Export lässt sie aus, einzeln geht weiterhin. #}
@@ -68,7 +91,7 @@
                 this.done = 0;
                 for (const id of this.ids) {
                     try {
-                        await fetch(`/api/sessions/{{ session_id }}/segments/${id}/export`, {method: 'POST'});
+                        await fetch(this.ziel(id), {method: 'POST'});
                     } catch (e) { /* keep going, the list shows what worked */ }
                     this.done++;
                 }
@@ -113,6 +136,23 @@
     </div>
   </div>
 
+  {% if segments %}
+  <div class="mb-3 flex flex-wrap items-center gap-2 text-sm">
+    <span class="text-zinc-500">{{ t("Beim Export:") }}</span>
+    <span class="rounded-full bg-white/[0.06] px-3 py-1.5 text-zinc-400">{{ t("Archiv (immer)") }}</span>
+    <button type="button" @click="station = !station" :disabled="running"
+            class="rounded-full px-3 py-1.5"
+            :class="station ? 'bg-sky-500/20 text-sky-200' : 'bg-white/[0.04] text-zinc-500 line-through'">
+      {{ t("Auf die Station") }}
+    </button>
+    <button type="button" @click="online = !online" :disabled="running"
+            class="rounded-full px-3 py-1.5"
+            :class="online ? 'bg-emerald-500/20 text-emerald-200' : 'bg-white/[0.04] text-zinc-500 line-through'">
+      {{ t("Online stellen") }}
+    </button>
+  </div>
+  {% endif %}
+
   {% if not segments %}
     <p class="text-sm text-zinc-500">{{ t("Keine Marker in dieser Session — keine Segmente zu exportieren.") }}</p>
   {% else %}
@@ -153,6 +193,17 @@
                 {% endif %}
               </div>
             {% endif %}
+            {% if seg.online %}
+              <div class="mt-0.5 text-xs truncate
+                          {% if seg.online.status == 'uploaded' %}text-emerald-400
+                          {% elif seg.online.status == 'failed' %}text-red-400
+                          {% else %}text-zinc-500{% endif %}">
+                {{ t("Gemeinde-App") }}:
+                {% if seg.online.status == 'uploaded' %}{{ t("online") }}
+                {% elif seg.online.status == 'failed' %}{{ t("Fehler") }}: {{ seg.online.fehler }}
+                {% else %}{{ t("übersprungen (nicht konfiguriert)") }}{% endif %}
+              </div>
+            {% endif %}
             <template x-if="insights[{{ seg.marker_id }}]">
               <div class="mt-2 rounded-xl bg-white/[0.03] px-3 py-2 text-sm">
                 <div class="font-medium text-zinc-100" x-text="insights[{{ seg.marker_id }}].title || tr('ohne Titel')"></div>
@@ -175,13 +226,10 @@
                   class="btn min-h-10 px-3 text-sm bg-white/[0.06] text-zinc-300 hover:bg-white/10">
             <span x-text="busyInsight === {{ seg.marker_id }} ? tr('Denkt…') : (insights[{{ seg.marker_id }}] ? tr('Neu auswerten') : 'KI-Auswertung')">{{ t("KI-Auswertung") }}</span>
           </button>
-          <button hx-post="/api/sessions/{{ session_id }}/segments/{{ seg.marker_id }}/export"
-                  hx-target="#segment-review-{{ session_id }}"
-                  hx-swap="outerHTML"
-                  hx-indicator="#seg-spin-{{ seg.marker_id }}"
+          <button @click="exportEinzeln({{ seg.marker_id }})" :disabled="running || exportiert !== null"
                   class="btn shrink-0 min-h-10 px-4 text-sm
                          {% if seg.export %}bg-white/[0.06] text-zinc-200 hover:bg-white/10{% else %}bg-zinc-100 text-zinc-900 hover:bg-white{% endif %}">
-            <span class="htmx-indicator inline-block" id="seg-spin-{{ seg.marker_id }}">…</span>
+            <span x-show="exportiert === {{ seg.marker_id }}" x-cloak>…</span>
             {% if seg.export %}{{ t("Erneut exportieren") }}{% else %}{{ t("Exportieren") }}{% endif %}
           </button>
           </div>

@@ -14,10 +14,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models import (AutoMarker, CopyCenterAblage, Marker, RecordingSession, SegmentExport,
+from models import (AutoMarker, CopyCenterAblage, Marker, OnlineAblage, RecordingSession, SegmentExport,
                     SegmentInsight)
 import einstellungen
 import nas_pfad
+import online as online_modul
 import session_dokument
 import typen
 from routers.service import _stored_current
@@ -111,6 +112,13 @@ def _kommentar(insight: Optional[SegmentInsight]) -> Optional[str]:
     return "\n\n".join(teile) or None
 
 
+async def _export_vorgaben(db: AsyncSession) -> dict:
+    """Vorauswahl der beiden Schalter beim Export — der Tontechniker kann sie je Export ändern."""
+    werte = await einstellungen.alle_lesen(db)
+    return {"station_standard": bool(werte.get("nas_copycenter")),
+            "online_standard": bool(werte.get("export_online"))}
+
+
 async def _build_segments(session: RecordingSession, db: AsyncSession) -> list[dict]:
     """Compute segment boundaries from markers.
 
@@ -141,6 +149,10 @@ async def _build_segments(session: RecordingSession, db: AsyncSession) -> list[d
     exports_by_marker: dict[int, SegmentExport] = {
         e.marker_id: e for e in exports_q.scalars().all()
     }
+
+    online_q = await db.execute(
+        select(OnlineAblage).where(OnlineAblage.marker_id.in_([m.id for m in markers])))
+    online_by_marker = {o.marker_id: o for o in online_q.scalars().all()}
 
     segments: list[dict] = []
     for idx, m in enumerate(markers):
@@ -175,6 +187,10 @@ async def _build_segments(session: RecordingSession, db: AsyncSession) -> list[d
                 "nas_status": existing.nas_status,
                 "nas_error": existing.nas_error,
                 "uploaded_at": existing.uploaded_at.isoformat() if existing.uploaded_at else None,
+            },
+            "online": None if m.id not in online_by_marker else {
+                "status": online_by_marker[m.id].status,
+                "fehler": online_by_marker[m.id].fehler,
             },
         })
 
@@ -233,6 +249,7 @@ async def latest_stopped_segments(request: Request, db: AsyncSession = Depends(g
             "started_at": sess.started_at.isoformat() if sess.started_at else None,
             "stopped_at": sess.stopped_at.isoformat() if sess.stopped_at else None,
             "segments": segments,
+            **(await _export_vorgaben(db)),
         },
     )
 
@@ -300,6 +317,7 @@ async def list_segments(
         "segments": segments,
     }
     if request.headers.get("HX-Request"):
+        payload.update(await _export_vorgaben(db))
         return templates.TemplateResponse(
             "partials/segment_review.html",
             {"request": request, **payload},
@@ -507,8 +525,13 @@ async def export_segment(
     session_id: int,
     marker_id: int,
     request: Request,
+    station: Optional[bool] = None,
+    online: Optional[bool] = None,
     db: AsyncSession = Depends(get_db),
 ):
+    """Ins Archiv (NAS) geht immer alles. `station` (das CopyCenter, die USB-Station auf
+    dem NAS) und `online` (die Gemeinde-App) wählt der Tontechniker je Export; ohne
+    Angabe gilt die Vorauswahl aus den Einstellungen."""
     session = await db.get(RecordingSession, session_id)
     if session is None:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
@@ -602,12 +625,23 @@ async def export_segment(
     }
     # Gottesdienste gehen zusätzlich ins CopyCenter — Hochzeiten und Sonstiges nicht,
     # dort gibt es für sie keine Ablage.
-    if werte_db.get("nas_copycenter") and folder.startswith("Gottesdienste/"):
+    station = werte_db.get("nas_copycenter") if station is None else station
+    if station and folder.startswith("Gottesdienste/"):
         cc_ordner = await _copycenter_ordner(session, started, db)
         if cc_ordner:
             payload["copycenter_folder"] = cc_ordner
             payload["copycenter_label"] = nas_pfad.copycenter_beschriftung(
                 session.service_type, session.thema)
+
+    online = werte_db.get("export_online") if online is None else online
+    online_vorher = await db.get(OnlineAblage, marker_id)
+    if online:
+        item = online_modul.eintrag(folder, _nas_track_name(seg["nas_nr"], marker.marker_type),
+                                    marker.marker_type, seg["nas_nr"], insight)
+        if item is not None:
+            payload["online"] = item
+            # Ersetzen nur, was von hier schon einmal online gestellt wurde
+            payload["online_ersetzen"] = online_vorher is not None and online_vorher.status == "uploaded"
 
     # 90-min sessions slice quickly; segments are <= session length so 180s is generous.
     async with httpx.AsyncClient(timeout=180.0) as client:
@@ -618,6 +652,16 @@ async def export_segment(
     if r.status_code != 200:
         raise HTTPException(status_code=r.status_code, detail=r.json().get("detail"))
     data = r.json()
+
+    if data.get("online"):
+        ergebnis = data["online"]
+        if online_vorher is None:
+            online_vorher = OnlineAblage(marker_id=marker_id, status=ergebnis.get("status", "failed"))
+            db.add(online_vorher)
+        online_vorher.status = ergebnis.get("status", "failed")
+        online_vorher.file_key = ergebnis.get("file_key")
+        online_vorher.fehler = ergebnis.get("error")
+        online_vorher.am = datetime.now()
 
     nas = data.get("nas", {}) or {}
     # Ein Fehler im CopyCenter ändert nichts daran, dass der Track im Archiv liegt —
@@ -684,6 +728,7 @@ async def export_segment(
                 "started_at": session.started_at.isoformat() if session.started_at else None,
                 "stopped_at": session.stopped_at.isoformat() if session.stopped_at else None,
                 "segments": segments_after,
+                **(await _export_vorgaben(db)),
             },
         )
     return {

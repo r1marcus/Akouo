@@ -168,6 +168,11 @@ FELDER: tuple[Feld, ...] = (
          hilfe="Legt jeden Track eines Gottesdienstes ein zweites Mal unter CopyCenter ab, "
                "im dortigen Schema: 2026_mp3/Gottesd_261018_So_mp3_a mit einer leeren "
                "Textdatei als Beschriftung. Hochzeiten und Sonstiges gehen nicht mit."),
+    # Standard aus: online steht ein Gottesdienst erst, wenn jemand es beim Export will.
+    Feld("export_online", "NAS-Ablage", "Beim Export online stellen", "bool", False,
+         hilfe="Vorauswahl für den Schalter „Online stellen“ beim Export: lädt jeden Track "
+               "eines Gottesdienstes mit Untertiteln und KI-Auswertung in die Gemeinde-App. "
+               "Die Zugangsdaten stehen in audio-service/.env (ONLINE_*)."),
     Feld("nas_vorlage_standard", "NAS-Ablage", "Ordnervorlage", "text",
          nas_pfad.STANDARD_VORLAGEN["nas_vorlage_standard"],
          hilfe="Gilt für alle Gottesdienstarten ohne eigene Vorlage. "

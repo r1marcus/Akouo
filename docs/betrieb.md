@@ -302,6 +302,30 @@ CopyCenter/2026_mp3/Gottesd_261018_So_mp3_b/
   gelb dahinter. Ein erneuter Export ersetzt dann beide eigenen Dateien.
 - Im Code **standardmäßig aus** — eine andere Gemeinde hat kein CopyCenter. Hier eingeschaltet
   unter *Einstellungen → NAS-Ablage → Zusätzlich ins CopyCenter*.
+- **Je Export wählbar:** Über der Segmentliste steht *Beim Export: Archiv (immer) · Auf die
+  Station · Online stellen*. „Station“ ist das CopyCenter. Die Einstellung ist nur die
+  Vorauswahl; angetippt gilt der Schalter für diesen Export.
+
+### Online stellen: die Gemeinde-App
+
+Mit eingeschaltetem *Online stellen* geht jeder exportierte Track zusätzlich in die Gemeinde-App
+(Church_Tool) — mit Untertiteln aus dem Live-Transkript und der KI-Auswertung (Thema,
+Zusammenfassung, Bibelstellen), falls sie vorher gelaufen ist. Neu transkribiert wird nicht.
+
+| | |
+|---|---|
+| Ablage | `archive/JJJJ/MM/TT/<slot>/Track-NN_-_Typ.mp3` und `.vtt` daneben — dieselben Schlüssel wie beim Nachtrag von Hand, ein Gottesdienst steht nie doppelt in der App |
+| Eintrag | über den Sammelimport der App; ein zweites Online-Stellen ergänzt nur |
+| Titel in der App | `Predigt: <Thema>`, ohne KI-Auswertung `Chorlied · Track 07` |
+| Wer mitgeht | wie beim CopyCenter nur `Gottesdienste/` |
+| Status | eine eigene Zeile *Gemeinde-App* unter der NAS-Zeile jedes Tracks |
+
+- Online geht unabhängig vom NAS: Ist das NAS weg, steht der Track trotzdem in der App.
+- Überschrieben wird in der App nur, was von hier schon einmal hochgeladen wurde.
+- Erst die KI-Auswertung laufen lassen, dann exportieren — sonst steht in der App nur die Art.
+- Zugangsdaten in `audio-service/.env` (`ONLINE_*`, Vorlage in `.env.example`); ohne sie meldet
+  die Zeile *übersprungen*. Vorauswahl unter *Einstellungen → NAS-Ablage → Beim Export online
+  stellen*, Standard aus.
 
 ---
 

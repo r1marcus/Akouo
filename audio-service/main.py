@@ -24,6 +24,7 @@ import recorder as recorder_modul
 from recorder import Recorder, ContinuousRecorder
 from streamer import StreamAdapter, public_target
 from telefon import TelefonAdapter
+import online as online_modul
 from config import config, export_dir
 from exporter import export_wav_to_mp3
 from segment_exporter import export_segment
@@ -550,6 +551,9 @@ class SegmentExportRequest(BaseModel):
     # Textdatei, deren Name die Beschriftung ist ("Gottesdienst.txt").
     copycenter_folder: Optional[str] = None
     copycenter_label: Optional[str] = None
+    # Gemeinde-App: der fertige Eintrag aus api/online.py; ohne ihn bleibt es beim Archiv.
+    online: Optional[dict] = None
+    online_ersetzen: bool = False
 
 
 @app.post("/api/session/export")
@@ -647,6 +651,14 @@ async def session_segment_export(req: SegmentExportRequest):
             _copycenter_ablegen, mp3_path, req.copycenter_folder,
             pathlib.PurePosixPath(sanitised).name, req.copycenter_label, req.allow_overwrite)
 
+    # Gemeinde-App — unabhängig vom NAS: wer online stellen will, soll es auch dann,
+    # wenn das NAS gerade nicht erreichbar ist.
+    online_result = None
+    if req.online and req.online.get("recording", {}).get("file_key"):
+        online_result = await asyncio.to_thread(
+            online_modul.stelle_online, mp3_path, req.online, wav, req.start_seconds,
+            req.end_seconds, export_result.get("duration_ms"), req.online_ersetzen)
+
     # Serialise datetime for JSON
     for ergebnis in (nas_result, copycenter_result):
         if ergebnis and ergebnis.get("uploaded_at") is not None:
@@ -656,6 +668,7 @@ async def session_segment_export(req: SegmentExportRequest):
         "export": export_result,
         "nas": nas_result,
         "copycenter": copycenter_result,
+        "online": online_result,
         "mp3_filename": safe_name,
         "mp3_path": str(mp3_path),
     }

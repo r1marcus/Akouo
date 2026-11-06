@@ -165,6 +165,21 @@ class CopyCenterAblage(Base):
     ordner: Mapped[str] = mapped_column(String, nullable=False)
 
 
+class OnlineAblage(Base):
+    """Was ein Beitrag in der Gemeinde-App ist: hochgeladen, übersprungen oder Fehler.
+
+    Eigene Tabelle aus demselben Grund wie AutoMarker: die API legt fehlende Tabellen
+    beim Start selbst an, ein Neustart ohne `alembic upgrade` bleibt lauffähig.
+    """
+    __tablename__ = "online_ablage"
+
+    marker_id: Mapped[int] = mapped_column(Integer, ForeignKey("markers.id"), primary_key=True)
+    status: Mapped[str] = mapped_column(String, nullable=False)     # uploaded | skipped | failed
+    file_key: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    fehler: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    am: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+
 class SegmentInsight(Base):
     """What the local language model extracted from a segment's transcript."""
     __tablename__ = "segment_insights"
