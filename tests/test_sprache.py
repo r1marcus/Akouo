@@ -252,3 +252,17 @@ def test_platzhalter_ueberleben_die_uebersetzung():
                 assert set(re.findall(r"\{(\w+)\}", ziel[schluessel])) == namen, (
                     f"{code}: „{schluessel}“ verliert oder erfindet einen Platzhalter"
                 )
+
+
+def test_jede_einstellung_hat_uebersetzungen():
+    """Name, Hilfe, Einheit und Bereich jeder Einstellung — die Seite übersetzt sie über
+    uebersetze(), am Template-Test vorbei."""
+    import einstellungen
+    fehlend = []
+    for code in ("de", "en", "ru"):
+        katalog = _katalog(code)
+        for f in einstellungen.FELDER:
+            for text in (f.name, f.hilfe, f.einheit, f.bereich):
+                if text and text not in katalog:
+                    fehlend.append(f"{code}: {text[:50]}")
+    assert not fehlend, f"{len(fehlend)} Einstellungstexte ohne Übersetzung: {fehlend[:6]}"

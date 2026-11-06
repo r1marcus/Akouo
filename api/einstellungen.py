@@ -88,6 +88,19 @@ FELDER: tuple[Feld, ...] = (
          einheit=" dBFS", von=-12.0, bis=0.0,
          hilfe="Worauf jedes Segment normalisiert wird. −3 dBFS lässt Luft für die Weiterverarbeitung.",
          wirkt="geschoben", schiebt_als="export_peak_dbfs"),
+    # Gemessen am 18. Oktober: Predigten −26 bis −17 LUFS, Lieder bis −17 — bis zu 9 dB
+    # Unterschied, obwohl alle auf dieselbe Spitze normalisiert waren. Standard bleibt die
+    # Spitze, damit sich nichts unbemerkt ändert; Umschalten ist eine Entscheidung.
+    Feld("export_normalisierung", "Export", "Normalisieren auf", "auswahl", "Spitzenpegel",
+         auswahl=("Spitzenpegel", "Lautheit"),
+         hilfe="Spitzenpegel: jedes Segment so laut, dass seine lauteste Stelle den Spitzenpegel "
+               "erreicht — leise Predigten bleiben leise. Lautheit: jedes Segment klingt gleich "
+               "laut (EBU R 128), die Spitze bleibt unter −1 dBTP.",
+         wirkt="geschoben", schiebt_als="export_normalisierung"),
+    Feld("export_lufs", "Export", "Ziellautheit", "float", -16.0,
+         einheit=" LUFS", von=-24.0, bis=-12.0,
+         hilfe="Nur bei „Lautheit“. −16 LUFS ist üblich für Sprache und Podcasts.",
+         wirkt="geschoben", schiebt_als="export_lufs"),
     Feld("export_fade_ms", "Export", "Ein- und Ausblende", "int", 1000,
          einheit=" ms", von=0, bis=5000,
          hilfe="Blende am Anfang und Ende jedes Segments.",

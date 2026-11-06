@@ -25,6 +25,7 @@ def export_segment(
     peak_dbfs: float = -3.0,
     tags: Optional[dict] = None,
     cover: Optional[str] = None,
+    lufs: Optional[float] = None,
 ) -> dict:
     """Slice [start_seconds, end_seconds) from wav_path and export as MP3.
 
@@ -97,6 +98,7 @@ def export_segment(
             peak_dbfs=peak_dbfs,
             tags=tags,
             cover=cover,
+            lufs=lufs,
         )
     finally:
         try:

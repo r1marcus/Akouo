@@ -327,6 +327,18 @@ Zusammenfassung, Bibelstellen), falls sie vorher gelaufen ist. Neu transkribiert
   die Zeile *übersprungen*. Vorauswahl unter *Einstellungen → NAS-Ablage → Beim Export online
   stellen*, Standard aus.
 
+### Lautheit: Spitze oder gleich laut
+
+Jedes Segment wird beim Export normalisiert, wahlweise unter *Einstellungen → Export →
+Normalisieren auf*:
+
+| | |
+|---|---|
+| **Spitzenpegel** (Standard) | die lauteste Stelle auf −3 dBFS. Eine leise Predigt bleibt leiser als ein Lied — gemessen am 18. Oktober bis zu 9 dB |
+| **Lautheit** | jedes Segment klingt gleich laut, Ziel −16 LUFS (*Ziellautheit*), Spitze höchstens −1 dBTP. Zwei Durchgänge FFmpeg-`loudnorm`, linear — es wird nur verstärkt, nicht geregelt |
+
+Scheitert das Angleichen, wird auf die Spitze normalisiert, und im Log steht eine Warnung.
+
 ---
 
 ## 4. Dashboard und Einstellungen

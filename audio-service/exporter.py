@@ -1,9 +1,49 @@
 """Phase 5 MP3 export: 192kbit/s, 48kHz, peak -3dBFS, 1s fade in/out (REC-11, REC-12)."""
+import json
+import logging
 import math
 import pathlib
+import subprocess
+import tempfile
 from typing import Optional
 
 from pydub import AudioSegment
+
+log = logging.getLogger(__name__)
+
+TRUE_PEAK_DB = -1.0     # Luft für den MP3-Coder, der Spitzen um gut 0,5 dB anhebt
+LRA = 11.0
+
+
+def _loudnorm(audio: AudioSegment, lufs: float, rate: int) -> Optional[AudioSegment]:
+    """Zwei Durchgänge loudnorm (EBU R 128): erst messen, dann linear angleichen.
+
+    Ein Durchgang würde dynamisch regeln und eine Predigt hörbar pumpen lassen; mit den
+    Messwerten aus dem ersten bleibt es eine reine Verstärkung, solange die Spitze passt.
+    Gibt None zurück, wenn FFmpeg nichts Brauchbares liefert — dann zählt die Spitze.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        ein, aus = pathlib.Path(tmp) / "ein.wav", pathlib.Path(tmp) / "aus.wav"
+        audio.export(str(ein), format="wav")
+        filt = f"loudnorm=I={lufs}:TP={TRUE_PEAK_DB}:LRA={LRA}"
+        try:
+            mess = subprocess.run(
+                ["ffmpeg", "-hide_banner", "-nostdin", "-i", str(ein), "-af",
+                 filt + ":print_format=json", "-f", "null", "-"],
+                capture_output=True, text=True, timeout=600)
+            werte = json.loads(mess.stderr[mess.stderr.rindex("{"):mess.stderr.rindex("}") + 1])
+            if not math.isfinite(float(werte["input_i"])):
+                return None             # Stille — nichts anzugleichen
+            filt += (f":measured_I={werte['input_i']}:measured_TP={werte['input_tp']}"
+                     f":measured_LRA={werte['input_lra']}:measured_thresh={werte['input_thresh']}"
+                     f":offset={werte['target_offset']}:linear=true")
+            subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", "-y", "-i", str(ein), "-af", filt,
+                            "-ar", str(rate), str(aus)],
+                           capture_output=True, check=True, timeout=600)
+            return AudioSegment.from_wav(str(aus))
+        except (OSError, ValueError, KeyError, subprocess.SubprocessError) as e:
+            log.warning("Lautheit: Angleichen fehlgeschlagen, es bleibt bei der Spitze (%s)", e)
+            return None
 
 
 def export_wav_to_mp3(
@@ -15,6 +55,7 @@ def export_wav_to_mp3(
     peak_dbfs: float = -3.0,
     tags: Optional[dict] = None,
     cover: Optional[str] = None,
+    lufs: Optional[float] = None,
 ) -> dict:
     """Export a session WAV as broadcast-quality MP3.
 
@@ -46,10 +87,16 @@ def export_wav_to_mp3(
     # REC-12: apply 1s fade-in and 1s fade-out
     audio = audio.fade_in(fade_ms).fade_out(fade_ms)
 
+    # Lautheit statt Spitze, wenn eingestellt (lufs gesetzt). Klappt das nicht, fällt es
+    # auf die Spitze zurück — ein Export ohne Normalisierung wäre schlechter als beides.
+    angeglichen = _loudnorm(audio, lufs, target_sample_rate) if lufs is not None else None
+    if angeglichen is not None:
+        audio = angeglichen
+
     # REC-11: peak-normalize to peak_dbfs.
     # Pitfall 3: max_dBFS is -inf for full silence; apply_gain(+inf) would raise OverflowError.
     max_db = audio.max_dBFS
-    if max_db != float("-inf") and not math.isinf(max_db):
+    if angeglichen is None and max_db != float("-inf") and not math.isinf(max_db):
         gain = peak_dbfs - max_db
         audio = audio.apply_gain(gain)
 

@@ -205,6 +205,8 @@ class ErkennungConfig(BaseModel):
     export_bitrate: Optional[str] = None
     export_peak_dbfs: Optional[float] = None
     export_fade_ms: Optional[int] = None
+    export_normalisierung: Optional[str] = None
+    export_lufs: Optional[float] = None
     # Schnittkanten
     grenzen_suchfenster_s: Optional[float] = None
     grenzen_min_ton_ms: Optional[int] = None
@@ -240,6 +242,8 @@ async def erkennung_lesen():
     stand["export_bitrate"] = laufzeit.EXPORT["bitrate"]
     stand["export_peak_dbfs"] = laufzeit.EXPORT["peak_dbfs"]
     stand["export_fade_ms"] = laufzeit.EXPORT["fade_ms"]
+    stand["export_normalisierung"] = laufzeit.EXPORT["normalisierung"]
+    stand["export_lufs"] = laufzeit.EXPORT["lufs"]
     return stand
 
 
@@ -616,6 +620,7 @@ async def session_segment_export(req: SegmentExportRequest):
             bitrate=laufzeit.EXPORT["bitrate"],
             fade_ms=laufzeit.EXPORT["fade_ms"],
             peak_dbfs=laufzeit.EXPORT["peak_dbfs"],
+            lufs=laufzeit.ziel_lufs(),
             tags=req.tags,
             cover=config.export_cover or None,
         )

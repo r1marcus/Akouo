@@ -12,7 +12,14 @@ EXPORT = {
     "bitrate": "192k",      # MP3-Bitrate
     "peak_dbfs": -3.0,      # Spitzenpegel, auf den normalisiert wird
     "fade_ms": 1000,        # Ein- und Ausblende je Segment
+    "normalisierung": "Spitzenpegel",   # oder "Lautheit"
+    "lufs": -16.0,          # Ziel bei "Lautheit"
 }
+
+
+def ziel_lufs() -> "float | None":
+    """Die Ziellautheit, wenn auf Lautheit normalisiert wird — sonst None (Spitze)."""
+    return EXPORT["lufs"] if EXPORT["normalisierung"] == "Lautheit" else None
 
 
 def export_setzen(cfg: dict) -> dict:
@@ -27,4 +34,10 @@ def export_setzen(cfg: dict) -> dict:
     if cfg.get("export_fade_ms") is not None:
         EXPORT["fade_ms"] = int(cfg["export_fade_ms"])
         uebernommen["fade_ms"] = EXPORT["fade_ms"]
+    if cfg.get("export_normalisierung") in ("Spitzenpegel", "Lautheit"):
+        EXPORT["normalisierung"] = cfg["export_normalisierung"]
+        uebernommen["normalisierung"] = EXPORT["normalisierung"]
+    if cfg.get("export_lufs") is not None:
+        EXPORT["lufs"] = float(cfg["export_lufs"])
+        uebernommen["lufs"] = EXPORT["lufs"]
     return uebernommen
