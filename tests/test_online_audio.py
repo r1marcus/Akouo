@@ -39,3 +39,18 @@ def test_ohne_zugangsdaten_uebersprungen(tmp_path, monkeypatch):
     ergebnis = online.stelle_online(mp3, {"recording": {"file_key": "archive/x.mp3"}, "event": {}},
                                     tmp_path / "aufnahme.wav", 0, 10, 1000, False)
     assert ergebnis == {"status": "skipped", "file_key": "archive/x.mp3", "error": None}
+
+
+def test_app_client_laesst_sich_mit_with_oeffnen(monkeypatch):
+    """Regression 6.11.: Der Client wurde vor dem `with` benutzt — httpx lehnt das ab."""
+    import httpx
+    import online as o
+
+    def antwort(request):
+        return httpx.Response(200, json={"access": "t", "results": []})
+    echter = httpx.Client
+    monkeypatch.setattr(httpx, "Client", lambda **k: echter(transport=httpx.MockTransport(antwort), **k))
+    monkeypatch.setattr(o.config, "online_api_url", "https://app.test")
+    import main as audio_main
+    with audio_main._app_client() as client:
+        assert client.get("/api/calendar/").status_code == 200

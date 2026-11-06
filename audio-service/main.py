@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import json
 import logging
 import pathlib
@@ -851,10 +852,13 @@ class VermeldungenHochladen(BaseModel):
     datum: str
 
 
+@contextlib.contextmanager
 def _app_client():
-    client = httpx.Client(base_url=config.online_api_url.rstrip("/"), timeout=60.0)
-    online_modul._anmelden(client)
-    return client
+    """Angemeldeter Client für die Gemeinde-App. Erst öffnen, dann anmelden — ein httpx-Client
+    lässt sich nach der ersten Anfrage nicht noch einmal mit `with` öffnen."""
+    with httpx.Client(base_url=config.online_api_url.rstrip("/"), timeout=60.0) as client:
+        online_modul._anmelden(client)
+        yield client
 
 
 @app.post("/api/online/vermeldungen")
