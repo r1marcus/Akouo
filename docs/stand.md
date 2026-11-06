@@ -452,6 +452,27 @@ ist nicht von einem Muttersprachler gegengelesen.
 
 ---
 
+## 2i. Telefon-Übertragung — gebaut, nicht in Betrieb (16. Oktober 2026)
+
+Der zweite PC, der mit der Cloudya-Web-App in der Telefonkonferenz sitzt, soll wegfallen.
+Gebaut ist der Ersatz im Audio-Dienst (`audio-service/telefon.py`, Bedienung in
+[betrieb.md, Abschnitt 5g](betrieb.md)): „Stream starten" wählt sich zusätzlich per baresip in
+die Konferenz ein, der Ton läuft über BlackHole, die Stream-Karte zeigt eine Zeile *Telefon*.
+Ohne `TELEFON_*`-Werte bleibt alles wie vorher; getestet nur gegen ein nachgespieltes baresip.
+
+Was über die Anlage bekannt ist (Stand 16.10.):
+- Die App wählt intern die Nebenstelle **1** („Gottesdienst"); Hörer rufen die Gemeindenummer an
+  und geben eine PIN ein. Die PIN steht in `audio-service/.env`, nicht im Repository.
+- Das Konto der Web-App ist ein Benutzerkonto ohne Verwaltung. **Es fehlen SIP-Zugangsdaten für
+  ein „Fremdgerät"** an einer Nebenstelle — die vergibt nur der Verwalter der Anlage bzw. NFON.
+  `siptrunk.nfon.com` ist das falsche Produkt (SIP Trunk) und verweigert den Zugang.
+
+Vor dem Einschalten: BlackHole installieren (**nicht während einer Aufnahme**, es startet den
+macOS-Audiodienst neu), `TELEFON_*` eintragen, Dienste neu starten, einen Anruf testen — und erst
+danach den zweiten PC abschalten.
+
+---
+
 ## 3. Ablauf im Gottesdienst
 
 1. Oben den Gottesdienst wählen — die Seite springt auf die Checkliste.

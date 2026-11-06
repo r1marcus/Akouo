@@ -696,6 +696,46 @@ bestätigt ist es nicht — zum Testen hätte öffentlich gesendet werden müsse
 
 ---
 
+## 5g. Telefon-Übertragung
+
+Wer kein Internet hat, ruft die Konferenznummer an und gibt die PIN ein. Früher saß dafür ein
+zweiter PC mit der App der Telefonanlage in der Konferenz; jetzt wählt sich der Audio-Dienst
+selbst ein. **„Stream starten" startet beides, „Stream stoppen" beendet beides.** Die
+Stream-Karte zeigt darunter eine eigene Zeile *Telefon* mit *Wählt ein…*, *Verbunden* samt
+Laufzeit oder *Fehler* mit Grund.
+
+Der Ton ist derselbe wie im Stream (Dante 50+51). Er läuft über die virtuelle Soundkarte
+**BlackHole** zum Softphone **baresip**, das als eigene Nebenstelle angemeldet ist, die Konferenz
+anwählt und die PIN tippt. Der Audio-Dienst öffnet dafür nur BlackHole — der Dante-Eingang
+bleibt bei dem einen Strom.
+
+- **Bricht die Verbindung ab, wählt der Dienst von selbst neu** (nach 5, 10, 20, dann alle
+  30 Sekunden). Die Zeile zeigt währenddessen den Grund und „neuer Versuch läuft".
+- Livestream und Telefon sind unabhängig: Fällt Icecast aus, bleibt das Telefon verbunden, und
+  umgekehrt.
+- Telefon heißt Schmalband (G.711). Predigt und Gebet klingen gut, Chor und Orchester dünn.
+- Ohne die `TELEFON_*`-Werte in `audio-service/.env` erscheint die Zeile gar nicht.
+
+Einrichten, einmalig:
+
+```bash
+brew install baresip
+brew install --cask blackhole-2ch   # will das Passwort; startet den macOS-Audiodienst neu —
+                                    # NIE während einer Aufnahme
+```
+
+Dann `TELEFON_*` in `audio-service/.env` eintragen (Vorlage in `.env.example`) und den
+Audio-Dienst neu starten. Die SIP-Zugangsdaten vergibt der Verwalter der Telefonanlage für ein
+„SIP-Gerät ohne Provisionierung". Wer sie hat, telefoniert auf Kosten der Gemeinde — sie
+gehören nur in die `.env`.
+
+**Wählt sich nicht ein:** „Anmeldung fehlgeschlagen" heißt Konto, Passwort oder
+`TELEFON_SIP_ZUSATZ` (Transport) stimmen nicht. „Konferenz nicht erreicht" heißt Nummer falsch
+oder die Nebenstelle darf nicht nach außen wählen. Kommt man in die Konferenz, aber die PIN
+greift nicht, `TELEFON_PIN_VERZOEGERUNG` erhöhen.
+
+---
+
 ## 6. Frontend ändern
 
 Kein Node/npm. Tailwind CSS v4 als eigenständiges Programm im Repo-Wurzelverzeichnis.

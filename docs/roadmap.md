@@ -29,6 +29,15 @@ von Hand abgelegt.
 
 **Dazugekommen am 18. Oktober 2026**, noch ohne festen Platz in der Reihenfolge:
 
+- **Telefon-Übertragung einschalten** — gebaut, wartet auf SIP-Zugangsdaten
+  ([stand.md, Abschnitt 2i](stand.md)).
+- **Zwei Fragen beim Export.** Ins Archiv (NAS) geht immer alles; zusätzlich je Export wählbar:
+  „auf die Station laden" und „online stellen" (Gemeinde-App `Church_Tool`). Was „Station" ist,
+  ist noch zu klären. Für „online stellen" sollen Akouos eigenes Transkript und die KI-Auswertung
+  je Beitrag reichen — kein zweites Transkribieren, kein großes Modell während des Betriebs.
+  Bis dahin lädt man von Hand nach, Ablauf in `Church_Tool/scripts/` (Uploader und Loader
+  verstehen die Akouo-Dateinamen seit Commit 30b7606).
+
 - **Lautheit angleichen.** Der Export normalisiert nur die Spitze. Predigten liegen dadurch bis
   zu 9 dB unter den Liedern — gemessen am 18. Oktober (−16,9 bis −26,4 LUFS), und das alte
   Handarchiv schwankt genauso. Vorschlag: −16 LUFS, Spitze höchstens −1 dBTP, als Einstellung

@@ -23,6 +23,7 @@ import laufzeit
 import recorder as recorder_modul
 from recorder import Recorder, ContinuousRecorder
 from streamer import StreamAdapter, public_target
+from telefon import TelefonAdapter
 from config import config, export_dir
 from exporter import export_wav_to_mp3
 from segment_exporter import export_segment
@@ -40,6 +41,7 @@ async def lifespan(app: FastAPI):
     monitor = asyncio.create_task(continuous_recorder.monitor_input())
     yield
     monitor.cancel()
+    await telefon.stoppe()   # auflegen, statt die Konferenz mit einem toten Teilnehmer zu belassen
     # Die WAV-Kopfzeile schreiben, BEVOR der Eingang zugeht. Ohne das steht beim
     # Entladen des Dienstes waehrend einer Aufnahme nframes=0 im Kopf — die Daten sind
     # da, aber jeder Player sieht eine leere Datei. Der SIGTERM-Handler weiter unten
@@ -53,6 +55,7 @@ app = FastAPI(title="Akouo Audio-Dienst", version="2.0.0", lifespan=lifespan)
 recorder = Recorder()                       # legacy
 continuous_recorder = ContinuousRecorder()  # Phase 4
 stream_adapter = StreamAdapter()            # Phase 4
+telefon = TelefonAdapter()                  # Stream-Mix in die Telefonkonferenz
 auto_modus = AutoModus(continuous_recorder)  # erkennt Beiträge, schreibt aber nichts
 nas_client = NASClient(config)              # Phase 7
 transcriber = LiveTranscriber()             # live transcription
@@ -749,21 +752,33 @@ class StreamStartRequest(BaseModel):
 
 @app.post("/api/streaming/start")
 async def streaming_start(req: StreamStartRequest):
+    """Ein Knopf für beides: Livestream und Telefon-Übertragung.
+
+    Beide laufen unabhängig. Fällt einer aus, läuft der andere trotzdem — ein Fehler
+    kommt nur zurück, wenn gar nichts gestartet ist."""
     target = req.stream_target or config.stream_url
+    telefon_laeuft = telefon.starte()
     if not target:
+        if telefon_laeuft:
+            return {"status": "telefon", "telefon": telefon.status()}
         raise HTTPException(status_code=400, detail="No stream target configured (set STREAM_URL env var)")
     result = await stream_adapter.start(stream_target=target)
     if result["status"] == "error":
+        if telefon_laeuft:
+            return {"status": "telefon", "stream_fehler": result["message"], "telefon": telefon.status()}
         raise HTTPException(status_code=409, detail=result["message"])
-    return result
+    return {**result, "telefon": telefon.status()}
 
 
 @app.post("/api/streaming/stop")
 async def streaming_stop():
+    telefon_lief = await telefon.stoppe()
     result = await stream_adapter.stop()
     if result["status"] == "error":
+        if telefon_lief:
+            return {"status": "stopped", "telefon": telefon.status()}
         raise HTTPException(status_code=409, detail=result["message"])
-    return result
+    return {**result, "telefon": telefon.status()}
 
 
 @app.get("/api/streaming/status")
@@ -774,6 +789,7 @@ async def streaming_status():
         "target": public_target(config.stream_url),
         "configured": bool(config.stream_url),
         "channels": config.stream_channels,
+        "telefon": telefon.status(),
     }
 
 

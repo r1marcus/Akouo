@@ -49,33 +49,43 @@ def _listen_url(target: Optional[str]) -> Optional[str]:
     return urlunsplit((scheme, netloc, parts.path, parts.query, ""))
 
 
-@router.get("/status")
-async def streaming_status(request: Request, db: AsyncSession = Depends(get_db)):
-    """Get current streaming state from native streaming service."""
+async def _lies_status() -> dict:
     async with httpx.AsyncClient(timeout=5.0) as client:
         try:
             response = await client.get(f"{STREAMING_SERVICE_URL}/api/streaming/status")
-            data = response.json()
+            return response.json()
         except httpx.ConnectError:
-            data = {"status": "error", "message": uebersetze("Stream-Dienst nicht erreichbar")}
+            return {"status": "error", "message": uebersetze("Stream-Dienst nicht erreichbar")}
+
+
+def _status_karte(request: Request, data: dict, listen_url: Optional[str]):
+    """Stream und Telefon in einer Karte — beide hängen am selben Knopf."""
+    return templates.TemplateResponse(
+        "partials/streaming_status.html",
+        {
+            "request": request,
+            "status": data.get("status", "idle"),
+            "elapsed_seconds": data.get("elapsed_seconds"),
+            "error_message": data.get("message"),
+            "configured": data.get("configured", True),
+            "target": data.get("target"),
+            "channels": data.get("channels"),
+            "listen_url": listen_url,
+            "telefon": data.get("telefon") or {"status": "nicht_eingerichtet", "configured": False},
+        },
+    )
+
+
+@router.get("/status")
+async def streaming_status(request: Request, db: AsyncSession = Depends(get_db)):
+    """Get current streaming state from native streaming service."""
+    data = await _lies_status()
 
     # Same precedence as /start: settings override the audio service's own STREAM_URL.
     listen_url = _listen_url(await _get_stream_target(db) or data.get("target"))
 
     if request.headers.get("HX-Request"):
-        return templates.TemplateResponse(
-            "partials/streaming_status.html",
-            {
-                "request": request,
-                "status": data.get("status", "idle"),
-                "elapsed_seconds": data.get("elapsed_seconds"),
-                "error_message": data.get("message"),
-                "configured": data.get("configured", True),
-                "target": data.get("target"),
-                "channels": data.get("channels"),
-                "listen_url": listen_url,
-            },
-        )
+        return _status_karte(request, data, listen_url)
     return {**data, "listen_url": listen_url}
 
 
@@ -102,10 +112,8 @@ async def start_streaming(request: Request, db: AsyncSession = Depends(get_db)):
             raise HTTPException(status_code=503, detail=uebersetze("Stream-Dienst nicht erreichbar"))
 
     if request.headers.get("HX-Request"):
-        return templates.TemplateResponse(
-            "partials/streaming_status.html",
-            {"request": request, "status": "streaming", "elapsed_seconds": None, "configured": True},
-        )
+        status = await _lies_status()
+        return _status_karte(request, status, _listen_url(stream_target or status.get("target")))
     return data
 
 
@@ -125,12 +133,6 @@ async def stop_streaming(request: Request):
             raise HTTPException(status_code=503, detail=uebersetze("Stream-Dienst nicht erreichbar"))
 
     if request.headers.get("HX-Request"):
-        return templates.TemplateResponse(
-            "partials/streaming_status.html",
-            {
-                "request": request,
-                "status": "idle",
-                "configured": True,
-            },
-        )
+        status = await _lies_status()
+        return _status_karte(request, status, _listen_url(status.get("target")))
     return data

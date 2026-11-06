@@ -45,6 +45,11 @@ stream_enabled = threading.Event()
 _mon_q: queue.Queue = queue.Queue()
 monitor_enabled = threading.Event()
 
+# Die Telefon-Übertragung bekommt aus demselben Grund eine eigene Queue: sie hört den
+# Stream-Bus mit, aber jeder Verbraucher muss jeden Block bekommen. Gesetzt von telefon.py.
+_tel_q: queue.Queue = queue.Queue()
+telefon_enabled = threading.Event()
+
 METER_STALE_SECONDS = 0.5   # no callback for this long → meter reads 0.0
 INPUT_LOST_SECONDS = 3.0    # no callback for this long → close stream and rescan devices
 INPUT_POLL_SECONDS = 3.0
@@ -183,12 +188,14 @@ class ContinuousRecorder:
         self._last_callback_at = monotonic()
         if self._is_recording and not self._paused:
             _rec_q.put_nowait((rec * 32767).astype(np.int16).tobytes())
-        if stream_enabled.is_set() or monitor_enabled.is_set():
+        if stream_enabled.is_set() or monitor_enabled.is_set() or telefon_enabled.is_set():
             stream_pcm = (clipped[:, self._str_idx] * 32767).astype(np.int16).tobytes()
             if stream_enabled.is_set():
                 _str_q.put_nowait(stream_pcm)
             if monitor_enabled.is_set():
                 _mon_q.put_nowait(stream_pcm)
+            if telefon_enabled.is_set():
+                _tel_q.put_nowait(stream_pcm)
 
     async def _drain_rec_queue(self):
         """Async consumer — safe to call wave.writeframes here."""

@@ -7,7 +7,11 @@
 {% set error_message = error_message | default(None) %}
 {% set target = target | default(None) %}
 {% set channels = channels | default(None) %}
-<div class="flex items-start gap-3" x-init="streaming = {{ 'true' if status == 'streaming' else 'false' }}">
+{% set telefon = telefon | default({'status': 'nicht_eingerichtet', 'configured': False}) %}
+{# Ein Knopf für beides: „Stoppen" zeigen, solange einer der beiden Wege läuft oder laufen soll #}
+{% set laeuft = status == 'streaming' or telefon.get('aktiv') %}
+<div x-init="streaming = {{ 'true' if laeuft else 'false' }}">
+<div class="flex items-start gap-3">
     <span class="mt-2.5 w-2.5 h-2.5 rounded-full shrink-0
         {% if status == 'streaming' %}bg-emerald-500 animate-pulse shadow-[0_0_12px_2px_rgba(16,185,129,0.45)]
         {% elif status == 'error' or not configured %}bg-amber-400
@@ -36,4 +40,46 @@
             {% endif %}
         </div>
     </div>
+</div>
+{% if telefon.get('configured') %}
+{% set ts = telefon.get('status') %}
+{% set gruende = {
+    'anmeldung': t('Anmeldung an der Telefonanlage fehlgeschlagen'),
+    'waehlen': t('Konferenz nicht erreicht'),
+    'abgebrochen': t('Verbindung abgebrochen'),
+    'baresip_fehlt': t('baresip ist nicht installiert'),
+    'baresip_start': t('Telefon-Programm startet nicht'),
+    'ausgang_fehlt': t('Virtuelle Soundkarte BlackHole fehlt'),
+} %}
+<div class="mt-3 pt-3 border-t border-white/[0.06] flex items-start gap-3">
+    <span class="mt-2 w-2 h-2 rounded-full shrink-0
+        {% if ts == 'verbunden' %}bg-emerald-500 animate-pulse
+        {% elif ts == 'verbindet' %}bg-amber-400 animate-pulse
+        {% elif ts == 'fehler' %}bg-amber-400
+        {% else %}bg-zinc-600{% endif %}">
+    </span>
+    <div class="min-w-0">
+        <div class="text-base font-medium
+            {% if ts == 'verbunden' %}text-emerald-400
+            {% elif ts in ('verbindet', 'fehler') %}text-amber-400
+            {% else %}text-zinc-300{% endif %}">
+            {{ t("Telefon") }} ·
+            {% if ts == 'verbunden' %}{{ t("Verbunden") }}
+            {% elif ts == 'verbindet' %}{{ t("Wählt ein…") }}
+            {% elif ts == 'fehler' %}{{ t("Fehler") }}
+            {% else %}{{ t("Aus") }}{% endif %}
+        </div>
+        <div class="mt-0.5 text-sm text-zinc-500 break-words">
+            {% if ts == 'verbunden' and telefon.get('verbunden_seit_s') is not none %}
+                {% set s = telefon.get('verbunden_seit_s') %}
+                <span class="font-mono tabular-nums">{{ '%02d:%02d' % (s // 60, s % 60) }}</span> {{ t("in der Telefonkonferenz") }}
+            {% elif telefon.get('grund') in gruende %}
+                {{ gruende[telefon.get('grund')] }}{% if telefon.get('aktiv') %} · {{ t("neuer Versuch läuft") }}{% endif %}
+            {% elif ts == 'aus' %}
+                {{ t("Startet mit dem Stream") }}
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
 </div>

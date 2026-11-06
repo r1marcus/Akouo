@@ -60,6 +60,18 @@ class Config:
         n.strip() for n in os.environ.get("OLLAMA_MODELS", "qwen2.5:14b-instruct,llama3.1:8b,llama3.2").split(",") if n.strip()
     ])
     exports_dir: Path = field(default_factory=lambda: _recordings_dir() / "exports")
+    # Telefon-Übertragung: wählt sich mit dem Stream-Mix in die Telefonkonferenz der
+    # Gemeinde ein. Alles leer heißt: keine Telefon-Übertragung, der Stream läuft allein.
+    telefon_sip_konto: str = field(default_factory=lambda: os.environ.get("TELEFON_SIP_KONTO", ""))
+    telefon_sip_passwort: str = field(default_factory=lambda: os.environ.get("TELEFON_SIP_PASSWORT", ""))
+    telefon_sip_zusatz: str = field(default_factory=lambda: os.environ.get("TELEFON_SIP_ZUSATZ", ""))
+    telefon_konferenz: str = field(default_factory=lambda: os.environ.get("TELEFON_KONFERENZ", ""))
+    telefon_pin: str = field(default_factory=lambda: os.environ.get("TELEFON_PIN", ""))
+    telefon_pin_verzoegerung: float = field(default_factory=lambda: float(os.environ.get("TELEFON_PIN_VERZOEGERUNG", "3")))
+    telefon_ausgang: str = field(default_factory=lambda: os.environ.get("TELEFON_AUSGANG", "BlackHole 2ch"))
+    telefon_steuer_port: int = field(default_factory=lambda: int(os.environ.get("TELEFON_STEUER_PORT", "4444")))
+    baresip_bin: str = field(default_factory=lambda: os.environ.get("BARESIP_BIN", "baresip"))
+    baresip_module: str = field(default_factory=lambda: os.environ.get("BARESIP_MODULE", ""))
 
 
     @property
