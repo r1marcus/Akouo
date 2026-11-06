@@ -13,7 +13,7 @@ Die Reihenfolge ist damit festgelegt, bis sie jemand ändert:
    Importe, Tests, Plists, Makefile, Installer und Doku gleichzeitig an; mit in die Aktivierung
    genommen, würde sie deren Befehle ungültig machen (`bash audio-service/install.sh` gibt es
    danach nicht mehr). Erst aktivieren, prüfen, dann umbenennen.
-3. **`.env`-Bereich auf der Einstellungsseite**, mit Neustart-Knopf daneben — gesperrt, solange
+3. ~~**`.env`-Bereich auf der Einstellungsseite**~~ — gebaut am 6. November 2026 (betrieb.md, Abschnitt 4)., mit Neustart-Knopf daneben — gesperrt, solange
    eine Aufnahme läuft. Danach ist nichts mehr ausschließlich über die Kommandozeile einstellbar.
 4. Dann die Punkte unten, in dieser Folge: **Programmblatt vorab einlesen** (Punkt 2),
    **Statusanzeige der Dienste** (Punkt 6), **Sprecher erkennen** (Punkt 4).
@@ -164,7 +164,7 @@ Freigabe.
 
 ---
 
-## 6. Statusanzeige für die Dienste
+## 6. Statusanzeige für die Dienste — gebaut am 6. November 2026
 
 Vier Dienste müssen laufen, damit ein Gottesdienst aufgenommen werden kann: API, Audio-Dienst,
 whisper und Ollama. Alle starten automatisch — aber **kommt einer nach dem Hochfahren nicht hoch,

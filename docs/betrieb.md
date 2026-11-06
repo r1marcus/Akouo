@@ -444,6 +444,23 @@ für andere Systeme.
 
 ---
 
+### Dienste prüfen, Audio-Dienst einstellen und neu starten
+
+**Oben in der Checkliste** steht, ob alles läuft, was ein Gottesdienst braucht: Audio-Dienst,
+Audio-Eingang (Signal vom Dante-Gerät), Live-Transkript (whisper), Sprachmodell (Ollama, mit
+den eingestellten Modellen) und NAS. Alles grün heißt *Alle Dienste bereit*; sonst steht da,
+was fehlt und warum. Alle 15 Sekunden neu geprüft — gedacht für **vor** dem Gottesdienst.
+
+**Einstellungen → Audio-Dienst** zeigt dieselbe Prüfung und die Werte aus `audio-service/.env`,
+die man im Betrieb ändern will: Gerät, Kanäle für Aufnahme und Stream, Abtastrate, Transkript,
+whisper- und Ollama-Adresse, Modelle, Name des Streams. **Zugangsdaten stehen dort bewusst
+nicht** (NAS, Stream-Ziel, Gemeinde-App, Telefon) — das Dashboard hat keine Anmeldung.
+
+- *Speichern* schreibt die `.env` — Kommentare und alle anderen Werte bleiben unberührt.
+- *Audio-Dienst neu starten* lässt ihn sich selbst beenden; launchd startet ihn sofort neu, und
+  er liest die `.env` frisch. **Gesperrt, solange Aufnahme, Stream oder Telefon läuft.**
+- Der Aufnahmeordner wird nur angezeigt: die Datenbank kennt absolute Pfade.
+
 ## 5. Pegelanzeige — immer aktiv
 
 Seit dem 18.09.2026 kommt der Ton über die **Dante Virtual Soundcard** (64 Kanäle, 48 kHz) statt

@@ -51,8 +51,7 @@ oder löschen** — die Oberfläche nennt beim Versuch den Grund:
 
 ### Noch nicht gebaut
 
-- Der Bereich für die Werte, die nur über die `.env` gehen (Kanäle, Whisper, Ollama,
-  Aufnahmeordner) samt Neustart-Knopf, gesperrt solange eine Aufnahme läuft.
+- ~~Der Bereich für die `.env`-Werte samt Neustart-Knopf~~ — gebaut am 6. November 2026.
 
 ---
 

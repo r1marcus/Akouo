@@ -364,11 +364,89 @@
             <a href="/checklists" class="btn bg-white/[0.06] text-zinc-100 hover:bg-white/10">{{ t("Vorlagen bearbeiten") }}</a>
         </section>
 
+        {# ─── Audio-Dienst: Status, .env, Neustart ─────────────────────────── #}
+        <section class="card" x-data="audioDienst()" x-init="laden()">
+            <div class="eyebrow mb-1">{{ t("Audio-Dienst") }}</div>
+            <div class="mb-4" hx-get="/api/dienste/status" hx-trigger="load, every 30s" hx-swap="innerHTML">
+                <div class="text-sm text-zinc-500">{{ t("Prüfe Dienste…") }}</div>
+            </div>
+            <p class="mb-4 text-sm text-zinc-400">
+                {{ t("Diese Werte stehen in audio-service/.env und wirken erst nach einem Neustart des Audio-Dienstes. Zugangsdaten stehen bewusst nicht hier.") }}
+            </p>
+            <div class="space-y-3">
+                <template x-for="w in werte" :key="w.schluessel">
+                    <div class="grid gap-1 sm:grid-cols-[14rem_1fr] sm:items-start">
+                        <div>
+                            <label class="text-sm text-zinc-100" x-text="w.name"></label>
+                            <p class="text-xs text-zinc-500" x-text="w.hilfe"></p>
+                        </div>
+                        <input type="text" x-model="w.wert" :readonly="w.nur_lesen"
+                               class="min-h-10 rounded-lg bg-white/[0.05] px-3 font-mono text-sm text-zinc-100"
+                               :class="w.nur_lesen && 'text-zinc-500'">
+                    </div>
+                </template>
+            </div>
+            <div class="mt-5 flex flex-wrap items-center gap-2">
+                <button @click="speichern()" :disabled="busy"
+                        class="btn bg-white/[0.06] text-zinc-100 hover:bg-white/10">{{ t("Speichern") }}</button>
+                <button @click="neustarten()" :disabled="busy || laeuft.length > 0"
+                        class="btn bg-amber-400 text-zinc-900 hover:bg-amber-300 disabled:opacity-40">
+                    {{ t("Audio-Dienst neu starten") }}
+                </button>
+                <span x-show="laeuft.length > 0" class="text-sm text-amber-300">
+                    {{ t("Gesperrt, solange Aufnahme, Stream oder Telefon läuft") }}
+                </span>
+                <span class="text-sm" :class="meldung.art === 'fehler' ? 'text-red-400' : 'text-emerald-400'"
+                      x-text="meldung.text"></span>
+            </div>
+        </section>
+
     </div>
     </template>
 </div>
 
 <script>
+function audioDienst() {
+    return {
+        werte: [], laeuft: [], busy: false, meldung: {text: '', art: 'ok'},
+        async laden() {
+            try {
+                const r = await fetch('/api/dienste/umgebung');
+                if (!r.ok) { this.meldung = {text: tr('Audio-Dienst nicht erreichbar'), art: 'fehler'}; return; }
+                const d = await r.json();
+                this.werte = d.werte; this.laeuft = d.laeuft || [];
+            } catch (e) { this.meldung = {text: tr('Audio-Dienst nicht erreichbar'), art: 'fehler'}; }
+        },
+        async speichern() {
+            this.busy = true;
+            const werte = {};
+            for (const w of this.werte) if (!w.nur_lesen) werte[w.schluessel] = w.wert;
+            try {
+                const r = await fetch('/api/dienste/umgebung', {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({werte}),
+                });
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok) { this.meldung = {text: d.detail || r.status, art: 'fehler'}; return; }
+                this.werte = d.werte; this.laeuft = d.laeuft || [];
+                this.meldung = {text: tr('Gespeichert — wirkt nach dem Neustart'), art: 'ok'};
+            } finally { this.busy = false; }
+        },
+        async neustarten() {
+            this.busy = true;
+            try {
+                const r = await fetch('/api/dienste/neustart', {method: 'POST'});
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok) { this.meldung = {text: d.detail || r.status, art: 'fehler'}; return; }
+                this.meldung = {text: tr('Startet neu …'), art: 'ok'};
+                setTimeout(() => this.laden().then(() => {
+                    this.meldung = {text: tr('Neu gestartet'), art: 'ok'};
+                }), 8000);
+            } finally { this.busy = false; }
+        },
+    };
+}
+
 function einstellungen() {
     return {
         geladen: false,

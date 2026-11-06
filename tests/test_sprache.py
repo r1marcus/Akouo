@@ -266,3 +266,17 @@ def test_jede_einstellung_hat_uebersetzungen():
                 if text and text not in katalog:
                     fehlend.append(f"{code}: {text[:50]}")
     assert not fehlend, f"{len(fehlend)} Einstellungstexte ohne Übersetzung: {fehlend[:6]}"
+
+
+def test_dienste_und_umgebung_haben_uebersetzungen():
+    """Status-Zeile und .env-Bereich übersetzen Namen aus Tabellen — am Template-Test vorbei."""
+    import pathlib
+    sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "audio-service"))
+    import dienst
+    from routers import dienste
+    texte = [t for w in dienst.UMGEBUNG for t in (w.name, w.hilfe)]
+    texte += [*dienste.DIENSTE.values(), *dienste.GRUENDE.values(), *dienste.LAEUFT.values()]
+    for code in ("de", "en", "ru"):
+        katalog = _katalog(code)
+        fehlend = [t for t in texte if t not in katalog]
+        assert not fehlend, f"{code}: {fehlend[:5]}"

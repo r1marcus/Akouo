@@ -2,6 +2,7 @@ import asyncio
 import json
 import pathlib
 import queue
+import os
 import signal as _signal
 import tempfile
 from contextlib import asynccontextmanager
@@ -25,6 +26,7 @@ from recorder import Recorder, ContinuousRecorder
 from streamer import StreamAdapter, public_target
 from telefon import TelefonAdapter
 import online as online_modul
+import dienst
 from config import config, export_dir
 from exporter import export_wav_to_mp3
 from segment_exporter import export_segment
@@ -809,6 +811,57 @@ async def streaming_status():
         "channels": config.stream_channels,
         "telefon": telefon.status(),
     }
+
+
+# ─── Der Dienst über sich selbst: Status, .env, Neustart ───────────────────
+
+def _was_laeuft() -> list[str]:
+    """Was ein Neustart beenden würde."""
+    laeuft = []
+    if continuous_recorder.status().get("state") in ("recording", "paused"):
+        laeuft.append("aufnahme")
+    if stream_adapter.status().get("status") == "streaming":
+        laeuft.append("stream")
+    if telefon.aktiv():
+        laeuft.append("telefon")
+    return laeuft
+
+
+@app.get("/api/dienst/status")
+async def dienst_status():
+    pruefungen = await asyncio.to_thread(
+        dienst.status, config, continuous_recorder.input_available(), None)
+    return {"pruefungen": pruefungen, "laeuft": _was_laeuft()}
+
+
+@app.get("/api/dienst/umgebung")
+async def dienst_umgebung_lesen():
+    return {"werte": dienst.lies_umgebung(), "laeuft": _was_laeuft()}
+
+
+class UmgebungRequest(BaseModel):
+    werte: dict
+
+
+@app.put("/api/dienst/umgebung")
+async def dienst_umgebung_schreiben(req: UmgebungRequest):
+    """Schreibt die .env. Wirkt erst nach dem Neustart — schreiben darf man jederzeit."""
+    fehler = dienst.pruefe(req.werte)
+    if fehler:
+        raise HTTPException(status_code=422, detail="; ".join(fehler))
+    await asyncio.to_thread(dienst.schreibe_umgebung, req.werte)
+    return {"werte": dienst.lies_umgebung(), "laeuft": _was_laeuft()}
+
+
+@app.post("/api/dienst/neustart")
+async def dienst_neustart():
+    """Beendet den Dienst sauber; launchd (KeepAlive) startet ihn mit frischer .env neu."""
+    laeuft = _was_laeuft()
+    if laeuft:
+        raise HTTPException(status_code=409, detail="Neustart gesperrt: " + ", ".join(laeuft) + " läuft")
+    # Erst antworten, dann gehen — sonst sieht der Aufrufer nur eine abgerissene Verbindung
+    asyncio.get_running_loop().call_later(0.5, os.kill, os.getpid(), _signal.SIGTERM)
+    return {"status": "neustart"}
 
 
 # ─── SIGTERM — Rueckfall fuer den Fall, dass die Lifespan nicht laeuft ─────

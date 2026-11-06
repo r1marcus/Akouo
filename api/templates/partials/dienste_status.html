@@ -1,0 +1,22 @@
+{# Läuft alles, was ein Gottesdienst braucht? Geholt von GET /api/dienste/status (HX).
+   Kontext: alle_ok (bool), pruefungen (list: dienst, name, ok, grund_text, detail). #}
+{% if alle_ok %}
+<div class="flex items-center gap-2 text-sm text-emerald-400">
+    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+    {{ t("Alle Dienste bereit") }}
+</div>
+{% else %}
+<div class="rounded-2xl border border-amber-400/30 bg-amber-400/[0.07] px-4 py-3">
+    <div class="text-sm font-medium text-amber-300">{{ t("Nicht alles bereit") }}</div>
+    <ul class="mt-2 space-y-1 text-sm">
+        {% for p in pruefungen %}
+        <li class="flex items-baseline gap-2 {% if p.ok %}text-zinc-500{% else %}text-zinc-100{% endif %}">
+            <span class="w-2 h-2 shrink-0 rounded-full {% if p.ok %}bg-emerald-500{% else %}bg-amber-400{% endif %}"></span>
+            <span>{{ p.name }}</span>
+            {% if not p.ok and p.grund_text %}<span class="text-amber-300">— {{ p.grund_text }}</span>{% endif %}
+            {% if not p.ok and p.detail %}<span class="font-mono text-xs text-zinc-500">{{ p.detail }}</span>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}

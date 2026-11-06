@@ -940,3 +940,33 @@ async def test_online_und_station_je_export_waehlbar(db_session):
         await export_segment(session_id=sess.id, marker_id=marker["Predigt"].id,
                              request=mock_request, online=True, db=db_session)
     assert _export_aufrufe(client)[0]["online_ersetzen"] is True   # eigener Upload darf ersetzt werden
+
+
+# ─── Tests: Statuszeile der Dienste ────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_dienste_status_audio_weg_und_ollama_ohne_modell():
+    import httpx as _httpx
+    from routers import dienste
+
+    req = MagicMock()
+    req.headers = {}
+
+    async def weg(*a, **k):
+        raise _httpx.ConnectError("weg")
+    with patch.object(dienste, "_audio", weg):
+        r = await dienste.status(req)
+    assert r["alle_ok"] is False and r["pruefungen"][0]["dienst"] == "audio"
+
+    antwort = MagicMock()
+    antwort.json.return_value = {"pruefungen": [
+        {"dienst": "eingang", "ok": True, "grund": None, "detail": "Dante"},
+        {"dienst": "ollama", "ok": False, "grund": "modell_fehlt", "detail": "qwen2.5:14b-instruct"}]}
+
+    async def da(*a, **k):
+        return antwort
+    with patch.object(dienste, "_audio", da):
+        r = await dienste.status(req)
+    assert r["alle_ok"] is False
+    ollama = [p for p in r["pruefungen"] if p["dienst"] == "ollama"][0]
+    assert ollama["grund_text"] == "Modell fehlt"
