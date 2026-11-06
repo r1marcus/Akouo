@@ -1018,3 +1018,50 @@ def test_kalender_vorschlag_morgens_mit_thema():
     fest = kalender.vorschlag([{"id": "f", "title": "Erntedankfest", "start_time": "10:00", "event_type": "andere",
                                 "type_label": "Erntedankfest", "tageszeit": "morgens"}], _dt(2026, 10, 4, 10, 0), arten)
     assert fest["service_type"] == "Erntedankfest"
+
+
+@pytest.mark.asyncio
+async def test_ki_auswertung_laeuft_vor_dem_export(db_session):
+    """Fehlt sie, wird sie geholt — und ein Fehler dabei hält den Export nicht auf."""
+    from models import SegmentInsight
+    from routers.segments import export_segment
+
+    sess, marker = await _gottesdienst_mit_luecken(db_session)
+    sess.nas_folder = "Gottesdienste/2026-10-18 Sonntag 1. morgens"
+    await db_session.commit()
+    mock_request = MagicMock()
+    mock_request.headers = {}
+    gefragt = []
+
+    def client_mit(insights_antwort):
+        client = AsyncMock()
+
+        async def post(url, json=None, **_):
+            if url.endswith("/api/session/insights"):
+                gefragt.append(url)
+                return insights_antwort
+            return _mock_response(200, _CC_EXPORT)
+        client.post.side_effect = post
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        return client
+
+    gut = _mock_response(200, {"titel": "Die Größe Gottes", "zusammenfassung": "…", "bibelstellen": ["Ps 8"]})
+    with patch("httpx.AsyncClient", return_value=client_mit(gut)):
+        await export_segment(session_id=sess.id, marker_id=marker["Predigt"].id,
+                             request=mock_request, online=False, db=db_session)
+    from sqlalchemy import select
+    row = (await db_session.execute(select(SegmentInsight).where(
+        SegmentInsight.marker_id == marker["Predigt"].id))).scalar_one()
+    assert row.title == "Die Größe Gottes" and len(gefragt) == 1
+
+    with patch("httpx.AsyncClient", return_value=client_mit(gut)):       # schon da → nicht noch einmal
+        await export_segment(session_id=sess.id, marker_id=marker["Predigt"].id,
+                             request=mock_request, online=False, db=db_session)
+    assert len(gefragt) == 1
+
+    kaputt = _mock_response(503, {"detail": "Ollama weg"})
+    with patch("httpx.AsyncClient", return_value=client_mit(kaputt)):
+        r = await export_segment(session_id=sess.id, marker_id=marker["Chorlied"].id,
+                                 request=mock_request, online=False, db=db_session)
+    assert r["nas_status"] == "uploaded"                                 # trotzdem exportiert

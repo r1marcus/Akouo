@@ -322,10 +322,11 @@ Zusammenfassung, Bibelstellen), falls sie vorher gelaufen ist. Neu transkribiert
 
 - Online geht unabhängig vom NAS: Ist das NAS weg, steht der Track trotzdem in der App.
 - Überschrieben wird in der App nur, was von hier schon einmal hochgeladen wurde.
-- Erst die KI-Auswertung laufen lassen, dann exportieren — sonst steht in der App nur die Art.
+- Fehlt einem Track die KI-Auswertung, läuft sie vor dem Export von selbst (*Einstellungen →
+  Export → KI-Auswertung vor dem Export*, Standard an). Scheitert sie, wird ohne Thema exportiert.
 - Zugangsdaten in `audio-service/.env` (`ONLINE_*`, Vorlage in `.env.example`); ohne sie meldet
   die Zeile *übersprungen*. Vorauswahl unter *Einstellungen → NAS-Ablage → Beim Export online
-  stellen*, Standard aus.
+  stellen*, hier seit 6. November eingeschaltet (Standard im Code: aus).
 
 ### Vermeldungen in die Gemeinde-App
 

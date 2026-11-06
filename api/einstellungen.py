@@ -105,6 +105,10 @@ FELDER: tuple[Feld, ...] = (
          einheit=" ms", von=0, bis=5000,
          hilfe="Blende am Anfang und Ende jedes Segments.",
          wirkt="geschoben", schiebt_als="export_fade_ms"),
+    Feld("export_ki_auswertung", "Export", "KI-Auswertung vor dem Export", "bool", True,
+         hilfe="Fehlt einem Track die KI-Auswertung, läuft sie vor dem Export von selbst — "
+               "damit stehen Thema, Zusammenfassung und Bibelstellen in der MP3 und in der "
+               "Gemeinde-App. Kostet je Track einige Sekunden. Scheitert sie, wird trotzdem exportiert."),
     Feld("export_interpret", "Export", "Interpret", "text", "",
          hilfe="Steht in jeder MP3 als Interpret, meist der Name der Gemeinde. Leer lassen, "
                "wenn kein Interpret eingetragen werden soll."),
