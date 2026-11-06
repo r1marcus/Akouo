@@ -164,6 +164,13 @@ angesagt wurde.
 **Bedingung:** Das Modell darf nur aus der festen Typenliste antworten, und fällt Ollama aus,
 bleibt Stufe 2 stehen. Die Automatik darf nie an einem Sprachmodell hängen.
 
+**Gemessen am 6. November 2026** (`audio-service/scripts/pruefe_typen.py`, 15 Gottesdienste,
+120 von Hand bestätigte Tracks): „Neu erkennen“ trifft den Typ in 70/120 (58 %). Stufe 3 mit
+qwen2.5:14b nach dem Gottesdienst ergab 68/120 und ist deshalb aus (`EINORDNUNG_AN=1` schaltet sie
+ein). Predigt 28/28 und Chorlied 18/20 sitzen; die Fehler liegen fast ganz in den Musik-Unterarten
+(Gruppenlied, Kinderchor, Orchester → Chorlied: 15 Fälle) und bei Prosa → Predigt (5 von 7).
+Beides trennt weder Klang noch Text sicher — das kann nur die Ansage oder das Programmblatt.
+
 **Dazu gehört:** Jede Stufe protokollieren — was sagte 1, was 2, was 3, und was war es wirklich.
 Ohne diese Aufzeichnung lässt sich nach ein paar Gottesdiensten nicht beurteilen, ob Stufe 3
 ihren Aufwand wert ist.
