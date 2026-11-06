@@ -11,6 +11,7 @@ import pathlib as _pl
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import select
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
@@ -655,14 +656,13 @@ async def export_segment(
     data = r.json()
 
     if data.get("online"):
+        # Einfügen oder ersetzen in einem Schritt: zwei Exporte desselben Tracks gleichzeitig
+        # (Tablet und Rechner) sahen beide "noch keine Zeile" — der zweite scheiterte am Schlüssel.
         ergebnis = data["online"]
-        if online_vorher is None:
-            online_vorher = OnlineAblage(marker_id=marker_id, status=ergebnis.get("status", "failed"))
-            db.add(online_vorher)
-        online_vorher.status = ergebnis.get("status", "failed")
-        online_vorher.file_key = ergebnis.get("file_key")
-        online_vorher.fehler = ergebnis.get("error")
-        online_vorher.am = datetime.now()
+        werte = {"marker_id": marker_id, "status": ergebnis.get("status", "failed"),
+                 "file_key": ergebnis.get("file_key"), "fehler": ergebnis.get("error"), "am": datetime.now()}
+        await db.execute(sqlite_insert(OnlineAblage).values(**werte).on_conflict_do_update(
+            index_elements=["marker_id"], set_={k: v for k, v in werte.items() if k != "marker_id"}))
 
     nas = data.get("nas", {}) or {}
     # Ein Fehler im CopyCenter ändert nichts daran, dass der Track im Archiv liegt —
