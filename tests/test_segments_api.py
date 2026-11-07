@@ -928,6 +928,21 @@ def test_online_gottesdienstart_schlaegt_den_wochentag():
     assert normal["event"]["title"] == "Gottesdienst — Sonntag abends, 18.10.2026"
 
 
+def test_online_jungverheiratete_als_thema_mit_tag():
+    """Wie die Abende seit 2014 im Archiv: Art Thema, Titel nur das Thema, Tag dazu —
+    der Slot und damit der file_key bleiben die aus dem Ordner."""
+    import online
+    e = online.eintrag("Gottesdienste/2026-11-07 Samstag 2. abends", "Track-03 - Predigt.mp3",
+                       "Predigt", 3, None, "Jungverheiratete", "Starke Ehen")
+    assert e["event"]["event_type"] == "thema"
+    assert e["event"]["title"] == "Starke Ehen"
+    assert e["event"]["tags"] == ["thema-jungverheiratete"]
+    assert e["recording"]["file_key"] == "archive/2026/11/07/samstag-abends/Track-03_-_Predigt.mp3"
+    ohne = online.eintrag("Gottesdienste/2026-11-07 Samstag 2. abends", "Track-01 - Predigt.mp3",
+                          "Predigt", 1, None, "Jungverheiratete", None)
+    assert ohne["event"]["title"] == "Jungverheiratete"
+
+
 @pytest.mark.asyncio
 async def test_online_und_station_je_export_waehlbar(db_session):
     """Ohne Angabe gilt die Einstellung; der Schalter beim Export geht vor."""

@@ -50,6 +50,10 @@ APP_ART = {
 APP_EREIGNIS = {"Gebetsstunde": "gebetsstunde", "Bibelstunde": "bibelstunde",
                 "Jugendstunde": "jugendstunde"}
 REGELMAESSIG = {"Sonntagmorgen", "Sonntagabend", "Gebetsstunde", "Bibelstunde", "Gottesdienst"}
+# Abende, die die App als Themen-Sammlung führt: Art "thema", Titel ist nur das Thema
+# ("Starke Ehen"), dazu der Kategorie-Tag — so liegen alle Jungverheirateten-Abende
+# seit 2014 im Archiv. Ohne Thema bleibt der Name der Art als Titel.
+APP_THEMA = {"Jungverheiratete": "thema-jungverheiratete"}
 _NAME = {"gottesdienst": "Gottesdienst", "gebetsstunde": "Gebetsstunde",
          "bibelstunde": "Bibelstunde", "jugendstunde": "Jugendstunde"}
 
@@ -116,6 +120,11 @@ def file_key(ereignis: dict, dateiname: str) -> str:
 def _mit_art(ereignis: dict, gottesdienstart: Optional[str], thema: Optional[str]) -> dict:
     """Art und Titel aus Akouo, wo der Ordner weniger weiß. Slot und Datum bleiben."""
     ereignis = dict(ereignis)
+    if gottesdienstart in APP_THEMA:
+        ereignis["event_type"] = "thema"
+        ereignis["title"] = (thema or "").strip() or gottesdienstart
+        ereignis["tags"] = [APP_THEMA[gottesdienstart]]
+        return ereignis
     if gottesdienstart in APP_EREIGNIS:
         ereignis["event_type"] = APP_EREIGNIS[gottesdienstart]
     # "Gottesdienst — Sonntag abends, 18.10.2026" → Name vorn austauschen, Rest bleibt
