@@ -37,7 +37,7 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Lint
-        run: ruff check api audio-service tests conftest.py migrations
+        run: ruff check api audio_service tests conftest.py migrations
 
       - name: Alembic — genau ein Head
         run: |
@@ -53,7 +53,7 @@ jobs:
           mkdir -p data
           DATABASE_URL="sqlite+aiosqlite:///$PWD/data/ci.db" alembic upgrade head
 
-      # Zwei Aufrufe, weil api/main.py und audio-service/main.py beide "main" heißen
+      # Zwei Aufrufe, weil api/main.py und audio_service/main.py beide "main" heißen
       # und sich in einem Prozess gegenseitig verdecken. Siehe CONTRIBUTING.md.
       - name: Tests — API
         env:

@@ -9,7 +9,7 @@ import sys
 import numpy as np
 from pydub import AudioSegment
 
-sys.path.insert(0, "audio-service")
+sys.path.insert(0, "audio_service")
 
 import laufzeit  # noqa: E402
 from exporter import export_wav_to_mp3  # noqa: E402

@@ -2,7 +2,7 @@
 
 Tests are split into two sections:
 1. Unit tests for export_segment() from segment_exporter.py (TDD RED/GREEN cycle)
-2. Integration tests for POST /api/session/segment-export against audio-service main.py
+2. Integration tests for POST /api/session/segment-export against audio_service main.py
 """
 from __future__ import annotations
 
@@ -119,21 +119,21 @@ def test_export_segment_dict_shape(tmp_path):
 
 
 # ─── Section 2: Integration tests for POST /api/session/segment-export ────────
-# Uses FastAPI TestClient against audio-service main.py.
+# Uses FastAPI TestClient against audio_service main.py.
 # Patch sounddevice to avoid hardware dependency.
 
 @pytest.fixture(scope="module")
 def audio_client(tmp_path_factory):
-    """TestClient for audio-service main.py with hardware mocked.
+    """TestClient for audio_service main.py with hardware mocked.
 
-    Uses importlib to load audio-service/main.py explicitly, since api/main.py
+    Uses importlib to load audio_service/main.py explicitly, since api/main.py
     is also on sys.path and would otherwise shadow it.
     """
     import importlib.util
     import os
     from unittest.mock import MagicMock, patch
 
-    audio_service_dir = os.path.join(os.path.dirname(__file__), "..", "audio-service")
+    audio_service_dir = os.path.join(os.path.dirname(__file__), "..", "audio_service")
     main_path = os.path.join(audio_service_dir, "main.py")
 
     # Aufnahmeordner auf ein Wegwerf-Verzeichnis umbiegen, BEVOR config geladen wird.
@@ -157,7 +157,7 @@ def audio_client(tmp_path_factory):
         ]
         mock_stream.return_value = mock_stream_obj
 
-        # Force-load audio-service/main.py by file path so api/main.py doesn't shadow it
+        # Force-load audio_service/main.py by file path so api/main.py doesn't shadow it
         for mod_name in list(sys.modules.keys()):
             if mod_name in ("main", "recorder", "streamer", "segment_exporter", "nas_client"):
                 del sys.modules[mod_name]

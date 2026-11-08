@@ -1,7 +1,7 @@
 """Gottesdienstarten, Beitragsarten und Ansage-Regeln — jetzt aus der Datenbank.
 
 Vorher standen diese Listen im Code, die Beitragsarten sogar zweimal (api/service_types.py
-und audio-service/recorder.py), und die beiden wichen bereits voneinander ab. Seit
+und audio_service/recorder.py), und die beiden wichen bereits voneinander ab. Seit
 Migration 014 ist die Datenbank die einzige Quelle.
 
 Warum ein Cache: Die Listen stehen in jedem Seitenaufbau und in jedem Marker-Aufruf, aendern

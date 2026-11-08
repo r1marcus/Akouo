@@ -11,7 +11,7 @@ import pytest
 def _drain_queues():
     """Prevent cross-test queue pollution."""
     import sys
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     try:
         from recorder import _rec_q, _str_q
         while not _rec_q.empty():
@@ -51,7 +51,7 @@ def _make_mock_process():
 async def test_stream_start(mock_audio_device_4ch):
     """STR-04: StreamAdapter.start(target) launches FFmpeg subprocess with stdin=PIPE."""
     import sys
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     from streamer import StreamAdapter
 
     mock_proc = _make_mock_process()
@@ -86,7 +86,7 @@ async def test_stream_start(mock_audio_device_4ch):
 async def test_stream_channel_source(mock_audio_device_4ch, monkeypatch):
     """STR-05: Stream PCM bytes derived from indata[:, 2:4], not indata[:, :2]."""
     import sys
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     import recorder
     from recorder import ContinuousRecorder, _str_q
 

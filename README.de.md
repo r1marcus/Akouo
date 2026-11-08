@@ -68,7 +68,7 @@ Und die ehrlichen Einschränkungen im Betrieb:
 - **Es gibt keine Anmeldung.** Jeder im Netz kann das Dashboard öffnen, die Aufnahme stoppen und
   Marker löschen. Siehe [Sicherheit](#sicherheit).
 - Eine Installation, ein Betreuer. Rechne damit, Dinge anpassen zu müssen.
-- `audio-service/classifier.py` trägt Schwellwerte, die in **diesem** Raum an **diesem** Pult
+- `audio_service/classifier.py` trägt Schwellwerte, die in **diesem** Raum an **diesem** Pult
   gemessen wurden. Sie sind ein Startpunkt, keine Naturkonstante.
 
 ## Was es tut
@@ -158,7 +158,7 @@ eigenen zu übertragen, ist die eigentliche Arbeit.
  Pult ──(Dante / USB)──┐
                        ▼
        ┌───────────────────────────────┐
-       │ audio-service  :8001          │   nativ, launchd — kein Docker
+       │ audio_service  :8001          │   nativ, launchd — kein Docker
        │ ein offener CoreAudio-Strom   │
        │  ├─ Aufnahmepaar → WAV        │
        │  ├─ Streampaar → FFmpeg ──────┼──→ Icecast / RTMP

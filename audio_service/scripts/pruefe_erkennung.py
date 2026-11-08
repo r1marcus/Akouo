@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Hält die automatische Erkennung gegen die von Hand gesetzten Marker.
 
-    ~/akouo-audio-venv/bin/python audio-service/scripts/pruefe_erkennung.py 11 14
+    ~/akouo-audio-venv/bin/python audio_service/scripts/pruefe_erkennung.py 11 14
 
 Ohne Argumente werden alle gestoppten Sessions geprüft, deren WAV noch da ist.
 Ändert nichts — liest nur.

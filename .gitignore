@@ -2,7 +2,7 @@
 .env
 .env.*
 !.env.example
-audio-service/.env
+audio_service/.env
 
 # ── Datenbank (Betriebsdaten, gehoert nicht ins Repo) ───────────────────────
 data/*.db

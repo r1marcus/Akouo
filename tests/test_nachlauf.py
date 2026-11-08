@@ -7,7 +7,7 @@ gelesen sein, bevor der Beitrag bewertet wird, den sie ankündigt.
 import json
 import sys
 
-sys.path.insert(0, "audio-service")
+sys.path.insert(0, "audio_service")
 
 import automode
 import classifier

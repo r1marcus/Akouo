@@ -6,7 +6,7 @@ import wave
 import numpy as np
 import pytest
 
-sys.path.insert(0, "audio-service")
+sys.path.insert(0, "audio_service")
 
 
 def _write_wav(path: pathlib.Path, blocks, rate=48000):

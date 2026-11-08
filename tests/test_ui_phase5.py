@@ -29,14 +29,14 @@ async def test_timers(tmp_path):
 
 @pytest.mark.asyncio
 async def test_waveform():
-    # UI-06: audio-service exposes /api/session/audio-level as SSE
+    # UI-06: audio_service exposes /api/session/audio-level as SSE
     # Verify contract by inspecting: route exists, returns EventSourceResponse,
     # and get_rms_level() is callable. Avoids hanging on infinite ASGI SSE stream.
     import importlib.util
     from pathlib import Path
     spec = importlib.util.spec_from_file_location(
         "audio_service_main",
-        Path(__file__).parent.parent / "audio-service" / "main.py",
+        Path(__file__).parent.parent / "audio_service" / "main.py",
     )
     audio_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(audio_mod)
@@ -68,7 +68,7 @@ async def test_waveform():
 @pytest.mark.asyncio
 async def test_marker_nudge(tmp_path):
     # UI-07: PATCH /api/sessions/markers/{id}/nudge updates DB row's start_nudge/end_nudge,
-    # leaves placed_at_ts unchanged, and never crashes when audio-service unreachable.
+    # leaves placed_at_ts unchanged, and never crashes when audio_service unreachable.
     import sys
     import os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "api"))
@@ -116,10 +116,10 @@ async def test_marker_nudge(tmp_path):
     app.dependency_overrides[_db_module.get_db] = override_get_db
 
     try:
-        # ConnectError on audio-service sync must be swallowed
+        # ConnectError on audio_service sync must be swallowed
         with patch("api.routers.sessions.httpx.AsyncClient") as mock_client:
             from httpx import ConnectError
-            mock_client.return_value.__aenter__.return_value.patch.side_effect = ConnectError("audio-service down")
+            mock_client.return_value.__aenter__.return_value.patch.side_effect = ConnectError("audio_service down")
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 r = await client.patch(
                     f"/api/sessions/markers/{marker_id}/nudge",

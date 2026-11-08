@@ -8,7 +8,7 @@
   Dienst eine angemeldete Benutzersitzung. Die Web-API dagegen ist ein LaunchDaemon
   und laeuft schon vor der Anmeldung.
 
-  Die Platzhalter setzt audio-service/install.sh ein. Ziel:
+  Die Platzhalter setzt audio_service/install.sh ein. Ziel:
   ~/Library/LaunchAgents/de.akouo.audio.plist
 -->
 <plist version="1.0">

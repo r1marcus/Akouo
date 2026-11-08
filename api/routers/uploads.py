@@ -118,7 +118,7 @@ async def upload_mp3(
             uploaded_at = data.get("uploaded_at")
         else:
             nas_status = "failed"
-            nas_error = f"audio-service returned {r.status_code}"
+            nas_error = f"audio_service returned {r.status_code}"
     except httpx.ConnectError:
         nas_status = "failed"
         nas_error = "audio service unreachable"

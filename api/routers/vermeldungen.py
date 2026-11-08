@@ -1,6 +1,6 @@
 """Nach dem Gottesdienst: „Stimmen die Vermeldungen so zum Hochladen?“
 
-Akouo liest die Vermeldungen-Tracks aus dem Transkript (audio-service/vermeldungen.py),
+Akouo liest die Vermeldungen-Tracks aus dem Transkript (audio_service/vermeldungen.py),
 zeigt die Einträge in der Segmentliste, der Tontechniker korrigiert und wählt aus, und erst
 dann gehen Termine in den Kalender und Hinweise aufs Schwarze Brett der Gemeinde-App.
 """

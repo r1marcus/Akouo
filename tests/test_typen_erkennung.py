@@ -9,7 +9,7 @@ import sys
 
 import httpx
 
-sys.path.insert(0, "audio-service")
+sys.path.insert(0, "audio_service")
 
 import automode  # noqa: E402
 import classifier  # noqa: E402

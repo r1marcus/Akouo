@@ -12,7 +12,7 @@ doppelt im Archiv — einmal von hier, einmal aus einem Nachtrag von Hand. Desha
 Ordner- und Dateiregel unten aus build_meta.py übernommen, nicht neu erfunden.
 
 Hier wird nur der Eintrag gebaut. Hochladen und Eintragen macht der Audio-Dienst, der die
-Datei hat (audio-service/online.py).
+Datei hat (audio_service/online.py).
 """
 from __future__ import annotations
 

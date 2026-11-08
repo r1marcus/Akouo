@@ -11,7 +11,7 @@ import pytest
 def _drain_queues():
     """Prevent cross-test queue pollution."""
     import sys
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     try:
         from recorder import _rec_q, _str_q
         while not _rec_q.empty():
@@ -34,7 +34,7 @@ def _drain_queues():
 def test_continuous_start(mock_audio_device_4ch, tmp_recordings):
     """REC-07: start_session() returns status=recording with WAV path on disk."""
     import sys
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     from recorder import ContinuousRecorder
     import config as cfg_module
     cfg_module.config.sessions_dir = tmp_recordings / "sessions"
@@ -59,7 +59,7 @@ def test_continuous_start(mock_audio_device_4ch, tmp_recordings):
 async def test_wav_grows_on_disk(mock_audio_device_4ch, tmp_recordings):
     """REC-07: WAV file size grows as audio callback feeds chunks (no in-memory buffer)."""
     import sys
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     from recorder import ContinuousRecorder, _rec_q
 
     import config as cfg_module
@@ -103,7 +103,7 @@ async def test_wav_grows_on_disk(mock_audio_device_4ch, tmp_recordings):
 def test_add_marker(mock_audio_device_4ch, tmp_recordings):
     """REC-08: place_marker('Predigt') returns dict with offset_seconds."""
     import sys
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     from recorder import ContinuousRecorder
 
     import config as cfg_module
@@ -136,7 +136,7 @@ def test_marker_type_validation(mock_audio_device_4ch, tmp_recordings, monkeypat
     genau deshalb eine Fehlerquelle.
     """
     import sys
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     import recorder as recorder_modul
     from recorder import ContinuousRecorder
 
@@ -171,7 +171,7 @@ def test_marker_ohne_geschobene_liste_wird_nicht_geprueft(mock_audio_device_4ch,
     API unbenutzbar — und genau dann laeuft moeglicherweise eine Aufnahme.
     """
     import sys
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     import recorder as recorder_modul
     from recorder import ContinuousRecorder
 
@@ -196,7 +196,7 @@ def test_marker_ohne_geschobene_liste_wird_nicht_geprueft(mock_audio_device_4ch,
 def test_channel_deinterleave(mock_audio_device_4ch, tmp_recordings, monkeypatch):
     """REC-10: rec PCM (ch1+2) != stream PCM (ch3+4) from same indata."""
     import sys
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     from recorder import ContinuousRecorder, _rec_q, _str_q, stream_enabled
 
     import config as cfg_module
@@ -243,7 +243,7 @@ def test_meter_live_without_recording(tmp_recordings):
     """Level meter is fed whenever the input is open; idle input queues no WAV or stream chunks."""
     import sys
     from unittest.mock import MagicMock
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     from recorder import ContinuousRecorder, _rec_q, _str_q
 
     rec = ContinuousRecorder()
@@ -263,7 +263,7 @@ def test_input_device_search_follows_configured_names(tmp_recordings):
     """Device search walks config.device_names in order — Dante first, Focusrite as fallback."""
     import sys
     from unittest.mock import patch
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     from recorder import ContinuousRecorder
     import config as cfg_module
 
@@ -290,7 +290,7 @@ def test_input_device_search_follows_configured_names(tmp_recordings):
 async def test_stop_keeps_input_open(mock_audio_device_4ch, tmp_recordings):
     """Stopping a session keeps the input stream open (meter stays live) and the next session reuses it."""
     import sys
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     from recorder import ContinuousRecorder
 
     import config as cfg_module
@@ -321,7 +321,7 @@ async def test_stop_keeps_input_open(mock_audio_device_4ch, tmp_recordings):
 async def test_pause_resume(mock_audio_device_4ch, tmp_recordings):
     """REC-13: pause stops WAV writes, resume records gap with start+end offsets."""
     import sys
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     from recorder import ContinuousRecorder, _rec_q
 
     import config as cfg_module
@@ -408,7 +408,7 @@ def test_session_gets_own_folder(mock_audio_device_4ch, tmp_recordings):
     """Every session gets its own folder <Datum>_<Typ>_<NNN>/ holding aufnahme.wav."""
     import sys
     from datetime import datetime
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     from recorder import ContinuousRecorder
 
     import config as cfg_module
@@ -441,7 +441,7 @@ def test_session_counter_respects_old_flat_recordings(tmp_recordings, mock_audio
     """Old flat WAVs in sessions/ still count — a number is never handed out twice."""
     import sys
     from datetime import datetime
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     from recorder import ContinuousRecorder
 
     import config as cfg_module
@@ -466,7 +466,7 @@ def test_session_counter_respects_old_flat_recordings(tmp_recordings, mock_audio
 def test_export_dir_follows_layout(tmp_recordings):
     """Export target: exports/ inside the session folder — old flat WAVs keep the shared folder."""
     import sys
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     import config as cfg_module
 
     session_folder = tmp_recordings / "sessions" / "2026-09-18_Gebetsstunde_003"
@@ -483,7 +483,7 @@ def test_export_dir_follows_layout(tmp_recordings):
 def test_transcript_paths_follow_layout(tmp_recordings):
     """Transcripts: transcript.txt/.jsonl in the session folder, old names for flat WAVs."""
     import sys
-    sys.path.insert(0, "audio-service")
+    sys.path.insert(0, "audio_service")
     from transcriber import LiveTranscriber
 
     session_folder = tmp_recordings / "sessions" / "2026-09-18_Gebetsstunde_003"

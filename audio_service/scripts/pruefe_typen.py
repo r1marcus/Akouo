@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Wie gut trifft „Neu erkennen" den Typ? Gegen die Marker, die von Hand stehen.
 
-    ~/tontechnik-audio-venv/bin/python audio-service/scripts/pruefe_typen.py            # alle
-    ~/tontechnik-audio-venv/bin/python audio-service/scripts/pruefe_typen.py --ohne-modell 28 31
+    ~/tontechnik-audio-venv/bin/python audio_service/scripts/pruefe_typen.py            # alle
+    ~/tontechnik-audio-venv/bin/python audio_service/scripts/pruefe_typen.py --ohne-modell 28 31
 
 Jeder abgeschlossene Marker wird dem erkannten Beitrag zugeordnet, der ihn am weitesten
 überlappt. Gezählt wird, ob der Typ stimmt, und eine Verwechslungsliste zeigt, was mit

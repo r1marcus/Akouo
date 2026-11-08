@@ -9,10 +9,8 @@ Die Reihenfolge ist damit festgelegt, bis sie jemand ändert:
 
 1. ~~**Aktivierung**~~ — erledigt am 16. Oktober 2026, samt `de.akouo.*`-Dienstnamen und
    dreisprachiger Oberfläche. Siehe [stand.md, Abschnitt 1a](stand.md).
-2. **Umbenennung `audio-service` → `audio_service`** — danach, als eigener Schritt. Sie fasst
-   Importe, Tests, Plists, Makefile, Installer und Doku gleichzeitig an; mit in die Aktivierung
-   genommen, würde sie deren Befehle ungültig machen (`bash audio-service/install.sh` gibt es
-   danach nicht mehr). Erst aktivieren, prüfen, dann umbenennen.
+2. ~~**Umbenennung `audio-service` → `audio_service`**~~ — erledigt am 8. November 2026.
+   Wer einen alten Checkout hat: `bash audio_service/install.sh` schreibt das Plist neu.
 3. ~~**`.env`-Bereich auf der Einstellungsseite**~~ — gebaut am 6. November 2026 (betrieb.md, Abschnitt 4)., mit Neustart-Knopf daneben — gesperrt, solange
    eine Aufnahme läuft. Danach ist nichts mehr ausschließlich über die Kommandozeile einstellbar.
 4. Dann die Punkte unten, in dieser Folge: **Programmblatt vorab einlesen** (Punkt 2),
@@ -168,7 +166,7 @@ angesagt wurde.
 **Bedingung:** Das Modell darf nur aus der festen Typenliste antworten, und fällt Ollama aus,
 bleibt Stufe 2 stehen. Die Automatik darf nie an einem Sprachmodell hängen.
 
-**Gemessen am 6. November 2026** (`audio-service/scripts/pruefe_typen.py`, 15 Gottesdienste,
+**Gemessen am 6. November 2026** (`audio_service/scripts/pruefe_typen.py`, 15 Gottesdienste,
 120 von Hand bestätigte Tracks): „Neu erkennen“ trifft den Typ in 70/120 (58 %). Stufe 3 mit
 qwen2.5:14b nach dem Gottesdienst ergab 68/120 und ist deshalb aus (`EINORDNUNG_AN=1` schaltet sie
 ein). Predigt 28/28 und Chorlied 18/20 sitzen; die Fehler liegen fast ganz in den Musik-Unterarten

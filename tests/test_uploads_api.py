@@ -1,6 +1,6 @@
 """Tests for POST /api/uploads/mp3 and GET /api/uploads/{id} (EXP-03).
 
-Uses in-memory SQLite and monkeypatches httpx.AsyncClient to mock audio-service NAS push.
+Uses in-memory SQLite and monkeypatches httpx.AsyncClient to mock audio_service NAS push.
 Pattern mirrors test_segments_api.py.
 """
 import os
@@ -207,7 +207,7 @@ async def test_upload_mp3_oversized(db_session, monkeypatch, tmp_path):
 
 @pytest.mark.anyio
 async def test_upload_mp3_nas_failed_on_connect_error(db_session, monkeypatch, tmp_path):
-    """nas_status='failed' when audio-service raises httpx.ConnectError."""
+    """nas_status='failed' when audio_service raises httpx.ConnectError."""
     import routers.uploads as uploads_mod
     monkeypatch.setattr(uploads_mod, "UPLOADS_DIR", tmp_path)
 

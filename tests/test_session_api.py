@@ -1,6 +1,6 @@
 """Tests for /api/sessions/* router.
 
-Uses in-memory SQLite and monkeypatches httpx.AsyncClient to mock the audio-service.
+Uses in-memory SQLite and monkeypatches httpx.AsyncClient to mock the audio_service.
 Pattern: set DATABASE_URL before importing api modules, then use TestClient.
 """
 import os
@@ -72,7 +72,7 @@ def _mock_response(status_code: int, json_data: dict):
 
 @pytest.mark.asyncio
 async def test_start_session_persists_row(db_session):
-    """POST /api/sessions/start: audio-service returns 200; RecordingSession row inserted."""
+    """POST /api/sessions/start: audio_service returns 200; RecordingSession row inserted."""
     import sys
     api_dir = os.path.join(os.path.dirname(__file__), "..", "api")
     if api_dir not in sys.path:

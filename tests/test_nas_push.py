@@ -1,4 +1,4 @@
-"""Tests for audio-service POST /api/uploads/nas-push endpoint (EXP-03 helper).
+"""Tests for audio_service POST /api/uploads/nas-push endpoint (EXP-03 helper).
 
 Pattern mirrors test_segment_export.py audio_client fixture setup.
 """
@@ -13,14 +13,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
-# ─── Fixture: load audio-service/main.py without shadowing api/main.py ───────
+# ─── Fixture: load audio_service/main.py without shadowing api/main.py ───────
 
 @pytest.fixture(scope="module")
 def audio_client(tmp_path_factory):
-    """TestClient for audio-service main.py with hardware mocked."""
+    """TestClient for audio_service main.py with hardware mocked."""
     import os
 
-    audio_service_dir = os.path.join(os.path.dirname(__file__), "..", "audio-service")
+    audio_service_dir = os.path.join(os.path.dirname(__file__), "..", "audio_service")
     main_path = os.path.join(audio_service_dir, "main.py")
 
     mock_stream_obj = MagicMock()
@@ -35,7 +35,7 @@ def audio_client(tmp_path_factory):
         ]
         mock_stream.return_value = mock_stream_obj
 
-        # Force-reload audio-service modules so api/main.py doesn't shadow
+        # Force-reload audio_service modules so api/main.py doesn't shadow
         for mod_name in list(sys.modules.keys()):
             if mod_name in ("main", "recorder", "streamer", "segment_exporter", "nas_client",
                             "audio_service_main_naspush"):

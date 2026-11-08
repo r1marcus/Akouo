@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Akouo — Autostart einrichten: Web-API, whisper-server, Dashboard.
 #
-# Der Audio-Dienst hat sein eigenes Skript: audio-service/install.sh
+# Der Audio-Dienst hat sein eigenes Skript: audio_service/install.sh
 #
 # Umstellbar ueber Umgebungsvariablen:
 #   AKOUO_LISTEN_HOST   Standard 0.0.0.0 (im ganzen LAN erreichbar — es gibt KEINE
@@ -152,7 +152,7 @@ echo "Logs: $LOG_DIR"
 echo
 echo "Noch zu erledigen:"
 echo "  1. Audio-Dienst einrichten — ohne ihn nimmt nichts auf:"
-echo "       bash $REPO_DIR/audio-service/install.sh"
+echo "       bash $REPO_DIR/audio_service/install.sh"
 echo "  2. Ruhezustand abschalten:  sudo pmset -a sleep 0 disksleep 0 displaysleep 0 womp 1"
 echo "  3. Automatische Anmeldung aktivieren, damit der Audio-LaunchAgent nach"
 echo "     einem Stromausfall ohne Eingriff hochkommt (geht nur ohne FileVault)."

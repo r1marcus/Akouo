@@ -24,7 +24,7 @@ ist auf macOS kaputt):
 
 - `api/` auf Port 8000 — FastAPI, Jinja2, HTMX, Alpine, Tailwind, SQLite über SQLAlchemy async,
   Alembic. venv: `.venv`
-- `audio-service/` auf Port 8001 — sounddevice/CoreAudio, FFmpeg, whisper.cpp, Ollama.
+- `audio_service/` auf Port 8001 — sounddevice/CoreAudio, FFmpeg, whisper.cpp, Ollama.
   Eigenes venv, weil es ein eigener Dienst mit eigenem Lebenszyklus ist.
 
 Daneben: whisper-server auf 8090, Ollama auf 11434. Der Browser spricht ausschließlich mit 8000;
@@ -40,7 +40,7 @@ Für beides existiert kein Code und keine Abhängigkeit.
 
 - **Templates sind heiß.** Jinja liest `api/templates/` bei jedem Request neu — ein Tippfehler
   macht das Dashboard sofort kaputt. Während eines Gottesdienstes nur mit Bedacht anfassen.
-- **Python ist kalt.** Änderungen in `api/**.py` und `audio-service/**.py` wirken erst beim
+- **Python ist kalt.** Änderungen in `api/**.py` und `audio_service/**.py` wirken erst beim
   Dienst-Neustart. Man kann also während einer Aufnahme gefahrlos Backend-Code schreiben.
 - **`api/static/app.css` ist gebaut, nicht heiß.** Neue Tailwind-Klassen brauchen `make css`.
 - **Vor jedem Dienst-Neustart prüfen, ob eine Aufnahme läuft:**
@@ -77,7 +77,7 @@ Für beides existiert kein Code und keine Abhängigkeit.
 - Rückgabetypen annotieren (`-> dict`, `-> None`); Parameter sind es meist schon.
 - Keine nackten `except:` und kein `except Exception` für Kontrollfluss — gezielt fangen
   (`httpx.ConnectError`, `OSError`, `queue.Empty`). `except …: pass` nur in Aufräumpfaden.
-- `logging`, nicht `print()` — außer in `audio-service/scripts/`, das sind CLI-Werkzeuge.
+- `logging`, nicht `print()` — außer in `audio_service/scripts/`, das sind CLI-Werkzeuge.
 - Zugangsdaten gehören nie ins Log. Stream-Ziele über `public_target()` ausgeben.
 - **Maschinenspezifisches gehört in `.env` oder in einen `*_PLACEHOLDER` im Plist, nie in den
   Code.** Keine absoluten Pfade, keine IP-Adressen, keine fest verdrahteten Gerätenamen.
@@ -88,7 +88,7 @@ Für beides existiert kein Code und keine Abhängigkeit.
 
 ### Tests
 `make test` fährt beide Gruppen. Sie laufen **getrennt**, weil `api/main.py` und
-`audio-service/main.py` beide `main` heißen und sich in einem Prozess verdecken.
+`audio_service/main.py` beide `main` heißen und sich in einem Prozess verdecken.
 Tests schreiben ausschließlich in temporäre Verzeichnisse — wer einen findet, der
 `~/Recordings` anfasst, hat einen Fehler gefunden.
 

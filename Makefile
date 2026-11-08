@@ -1,7 +1,7 @@
 # Akouo — gaengige Entwicklungsaufgaben.
 #
 # Die Tests laufen in ZWEI Prozessen, nicht aus Bequemlichkeit: api/main.py und
-# audio-service/main.py heissen beide "main" und verdecken sich in einem Prozess
+# audio_service/main.py heissen beide "main" und verdecken sich in einem Prozess
 # gegenseitig. Siehe CONTRIBUTING.md.
 
 PY        ?= .venv/bin/python
@@ -48,13 +48,13 @@ test-audio:
 	@test -n "$(AUDIO_PY)" || { \
 	  echo "Kein venv des Audio-Dienstes gefunden. Anlegen mit:"; \
 	  echo "  python3.12 -m venv ~/akouo-audio-venv"; \
-	  echo "  ~/akouo-audio-venv/bin/pip install -r audio-service/requirements.txt"; \
+	  echo "  ~/akouo-audio-venv/bin/pip install -r audio_service/requirements.txt"; \
 	  exit 1; }
 	@echo "── Audio-Service ──"
 	@$(TESTENV) TRANSCRIBE_ENABLED=0 $(AUDIO_PY) -m pytest -q $(AUDIO_TESTS)
 
 lint:
-	@$(PY) -m ruff check api audio-service tests conftest.py migrations
+	@$(PY) -m ruff check api audio_service tests conftest.py migrations
 
 css:
 	@test -x ./tailwindcss-macos-arm64 || { \

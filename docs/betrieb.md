@@ -18,7 +18,7 @@ Docker ist nicht installiert — beide Dienste laufen nativ.
 | Dienst | Port | Erreichbar | Läuft als | Python-Umgebung |
 |---|---|---|---|---|
 | Web-API + Dashboard (`api/`) | 8000 | ganzes Netzwerk (`0.0.0.0`) | LaunchDaemon `de.akouo.api` | `<repo>/.venv` |
-| Audio-Service (`audio-service/`) | 8001 | nur lokal (`127.0.0.1`) | LaunchAgent `de.akouo.audio` | `~/akouo-audio-venv` (hier: `~/tontechnik-audio-venv`) |
+| Audio-Service (`audio_service/`) | 8001 | nur lokal (`127.0.0.1`) | LaunchAgent `de.akouo.audio` | `~/akouo-audio-venv` (hier: `~/tontechnik-audio-venv`) |
 | whisper-server (Transkription) | 8090 | nur lokal | LaunchAgent `de.akouo.whisper` | — (Homebrew `whisper-cpp`) |
 | Ollama (KI-Auswertung) | 11434 | nur lokal | LaunchAgent `homebrew.mxcl.ollama` | — |
 | Dashboard im Browser öffnen | — | — | LaunchAgent `de.akouo.dashboard` | — |
@@ -71,7 +71,7 @@ werden sie von den beiden Installern; von Hand ist daran nichts zu tun.
 AKOUO_WHISPER_MODEL=~/ai/models/ggml-large-v3-turbo.bin bash autostart/install.sh
 
 # Audio-Dienst, braucht kein sudo
-bash audio-service/install.sh
+bash audio_service/install.sh
 ```
 
 Beide Skripte sind wiederholbar: sie entladen das jeweilige Label, schreiben die Plist neu und
@@ -125,8 +125,8 @@ Einrichtung einmalig — Python **3.12 genau**, nicht neuer:
 
 ```bash
 /opt/homebrew/bin/python3.12 -m venv ~/akouo-audio-venv
-~/akouo-audio-venv/bin/pip install -r audio-service/requirements.txt
-bash audio-service/install.sh
+~/akouo-audio-venv/bin/pip install -r audio_service/requirements.txt
+bash audio_service/install.sh
 ```
 
 Der Installer nimmt ein vorhandenes `~/tontechnik-audio-venv`, wenn es da ist — das venv wird
@@ -209,11 +209,11 @@ nicht lesen, gilt Deutsch.
 | `DATABASE_URL` | `~/run-akouo-api.sh` | `./data/akouo.db` (hier: `data/tontechnik.db`) | SQLite-Datenbank. Im Betrieb immer absolut, siehe Abschnitt 2. |
 | `AUDIO_DEVICE_NAMES` | Umgebung des Audio-Service | `Dante,Focusrite` | Namensteile der Audiogeräte, in dieser Reihenfolge durchsucht. Erstes Gerät mit genug Eingängen gewinnt. |
 | `AUDIO_SAMPLE_RATE` | Umgebung des Audio-Service | `48000` | Abtastrate der Aufnahme; muss zur Einstellung der Soundkarte passen (Dante läuft mit 48000). |
-| `AUDIO_RECORD_CHANNELS` | `audio-service/.env` | `1,2` (hier: `44,45`) | Kanalpaar für die Aufnahme, 1-basiert wie in Dante Controller. |
-| `STREAM_URL` | `audio-service/.env` | leer | Icecast-Ziel **mit Zugangsdaten**, aktuell `icecast://…@<icecast-host>:8000/<mount>`. Gehört nicht ins Repo. Fehlt in den Einstellungen ein Ziel, nutzt die API dieses hier. |
-| `AUDIO_STREAM_CHANNELS` | `audio-service/.env` | `1,2` (hier: `50,51`) | Kanalpaar für den Livestream. Darf dasselbe Paar wie die Aufnahme sein. |
-| `NAS_*` | `audio-service/.env` | leer (hier: gesetzt) | NAS über SMB, seit dem 16.10.2026 aktiv. Das Dienstkonto braucht auf der Freigabe **Lesen/Schreiben** — ein „Kein Zugriff“ bei ihm oder einer seiner Gruppen sperrt es aus, auch als Admin. Prüfen mit `audio-service/scripts/check_nas.py`. Ohne `NAS_SERVER` werden Exporte als *übersprungen* gemeldet. |
-| `EXPORT_COVER` | `audio-service/.env` | leer (hier: `data/cover.jpg`) | Bild, das jede MP3 als Cover trägt. Ein PNG mit durchsichtigem Grund zeigen viele Player schwarz, deshalb auf Weiß als JPEG. `data/cover.*` ist vom Repository ausgenommen. |
+| `AUDIO_RECORD_CHANNELS` | `audio_service/.env` | `1,2` (hier: `44,45`) | Kanalpaar für die Aufnahme, 1-basiert wie in Dante Controller. |
+| `STREAM_URL` | `audio_service/.env` | leer | Icecast-Ziel **mit Zugangsdaten**, aktuell `icecast://…@<icecast-host>:8000/<mount>`. Gehört nicht ins Repo. Fehlt in den Einstellungen ein Ziel, nutzt die API dieses hier. |
+| `AUDIO_STREAM_CHANNELS` | `audio_service/.env` | `1,2` (hier: `50,51`) | Kanalpaar für den Livestream. Darf dasselbe Paar wie die Aufnahme sein. |
+| `NAS_*` | `audio_service/.env` | leer (hier: gesetzt) | NAS über SMB, seit dem 16.10.2026 aktiv. Das Dienstkonto braucht auf der Freigabe **Lesen/Schreiben** — ein „Kein Zugriff“ bei ihm oder einer seiner Gruppen sperrt es aus, auch als Admin. Prüfen mit `audio_service/scripts/check_nas.py`. Ohne `NAS_SERVER` werden Exporte als *übersprungen* gemeldet. |
+| `EXPORT_COVER` | `audio_service/.env` | leer (hier: `data/cover.jpg`) | Bild, das jede MP3 als Cover trägt. Ein PNG mit durchsichtigem Grund zeigen viele Player schwarz, deshalb auf Weiß als JPEG. `data/cover.*` ist vom Repository ausgenommen. |
 | `auto_refine_boundaries` | Einstellungsseite (DB) | an | Schnittkanten beim Stoppen automatisch korrigieren |
 
 ### Ablage der Aufnahmen — ein Ordner je Session
@@ -324,7 +324,7 @@ Zusammenfassung, Bibelstellen), falls sie vorher gelaufen ist. Neu transkribiert
 - Überschrieben wird in der App nur, was von hier schon einmal hochgeladen wurde.
 - Fehlt einem Track die KI-Auswertung, läuft sie vor dem Export von selbst (*Einstellungen →
   Export → KI-Auswertung vor dem Export*, Standard an). Scheitert sie, wird ohne Thema exportiert.
-- Zugangsdaten in `audio-service/.env` (`ONLINE_*`, Vorlage in `.env.example`); ohne sie meldet
+- Zugangsdaten in `audio_service/.env` (`ONLINE_*`, Vorlage in `.env.example`); ohne sie meldet
   die Zeile *übersprungen*. Vorauswahl unter *Einstellungen → NAS-Ablage → Beim Export online
   stellen*, hier seit 6. November eingeschaltet (Standard im Code: aus).
 
@@ -354,7 +354,7 @@ Hochladen?“** Darunter stehen die Einträge als Karten:
 - Der Kalender führt jeden Termin als eigene Zeile — eine Änderung trifft genau diesen Tag.
 - **Ja, hochladen** trägt ein; danach steht dort, wie viele angekommen sind, mit **Rückgängig**.
   **Nicht hochladen** verwirft; **Neu lesen** fragt das Modell noch einmal.
-- Braucht dieselben Zugangsdaten wie *Online stellen* (`ONLINE_*` in `audio-service/.env`).
+- Braucht dieselben Zugangsdaten wie *Online stellen* (`ONLINE_*` in `audio_service/.env`).
 
 ### Vorschlag beim Start: was laut Kalender dran ist
 
@@ -463,7 +463,7 @@ zwischen „Stream starten" und „Stream stoppen" anhand des echten Zustands vo
 
 - Ziel: `icecast://<icecast-host>:8000/<mount>` (Icecast 2.4.4). **Mithören:**
   `http://<icecast-host>:8000/<mount>`, Übersicht unter `http://<icecast-host>:8000/status-json.xsl`.
-- Die Zugangsdaten stehen in `audio-service/.env`; das Dashboard und die Logs zeigen die Adresse
+- Die Zugangsdaten stehen in `audio_service/.env`; das Dashboard und die Logs zeigen die Adresse
   immer ohne Passwort.
 - Ist in den Einstellungen kein Ziel hinterlegt, sendet der Audio-Service an das Ziel aus der `.env`.
 - Das Stoppen einer Aufnahme lässt einen laufenden Stream **weiterlaufen** (seit 18.10.2026) —
@@ -489,7 +489,7 @@ Audio-Eingang (Signal vom Dante-Gerät), Live-Transkript (whisper), Sprachmodell
 den eingestellten Modellen) und NAS. Alles grün heißt *Alle Dienste bereit*; sonst steht da,
 was fehlt und warum. Alle 15 Sekunden neu geprüft — gedacht für **vor** dem Gottesdienst.
 
-**Einstellungen → Audio-Dienst** zeigt dieselbe Prüfung und die Werte aus `audio-service/.env`,
+**Einstellungen → Audio-Dienst** zeigt dieselbe Prüfung und die Werte aus `audio_service/.env`,
 die man im Betrieb ändern will: Gerät, Kanäle für Aufnahme und Stream, Abtastrate, Transkript,
 whisper- und Ollama-Adresse, Modelle, Name des Streams. **Zugangsdaten stehen dort bewusst
 nicht** (NAS, Stream-Ziel, Gemeinde-App, Telefon) — das Dashboard hat keine Anmeldung.
@@ -503,7 +503,7 @@ nicht** (NAS, Stream-Ziel, Gemeinde-App, Telefon) — das Dashboard hat keine An
 
 Seit dem 18.09.2026 kommt der Ton über die **Dante Virtual Soundcard** (64 Kanäle, 48 kHz) statt
 über ein Focusrite-Interface. **Aufnahme auf Dante-Kanal 44+45, Livestream auf 50+51**
-(`AUDIO_RECORD_CHANNELS` / `AUDIO_STREAM_CHANNELS` in `audio-service/.env`; Stand 25.10.2026).
+(`AUDIO_RECORD_CHANNELS` / `AUDIO_STREAM_CHANNELS` in `audio_service/.env`; Stand 25.10.2026).
 Der Stream-Mix lag zuletzt rund 10 dB leiser als der Aufnahme-Mix.
 PortAudio öffnet immer ab Kanal 1, für Kanal 51 werden also 51 Kanäle geöffnet und die richtigen
 Spalten herausgeschnitten. Kanäle ändern: Zeile in `.env` anpassen, dann
@@ -544,7 +544,7 @@ Spitzenwert-Haltung). Sie läuft **immer**, nicht nur während einer Aufnahme. R
 - **Pegel bleibt bei Stille, obwohl „verbunden" steht:** Dann läuft der Stream, es ist nur nichts
   auf die benutzten Dante-Kanäle geroutet. In **Dante Controller** unter *Routing* die
   Sender-Kanäle des Pults auf die Empfangskanäle **44+45 und 50+51** der *Dante Virtual Soundcard* setzen —
-  44+45 für die Aufnahme, 50+51 für den Stream. Welche es sind, steht in `audio-service/.env`.
+  44+45 für die Aufnahme, 50+51 für den Stream. Welche es sind, steht in `audio_service/.env`.
 - Beim ersten Öffnen fragt macOS nach dem Mikrofonzugriff für
   `~/tontechnik-audio-venv/bin/python` — erlauben (Systemeinstellungen → Datenschutz & Sicherheit →
   Mikrofon).
@@ -562,7 +562,7 @@ der Checkliste, etwa zehn Sekunden hinter dem gesprochenen Wort.
   `~/ai/models/ggml-large-v3-turbo.bin`. Das Modell bleibt im Speicher, dadurch dauert ein
   Häppchen nur rund 0,35 Sekunden. Log: `~/Library/Logs/Akouo/whisper.log`.
 - Der Audio-Service schneidet alle 10 Sekunden ein Stück aus der laufenden Aufnahme
-  (`audio-service/transcriber.py`), rechnet es auf 16 kHz Mono herunter und schickt es hin.
+  (`audio_service/transcriber.py`), rechnet es auf 16 kHz Mono herunter und schickt es hin.
 - **Geschnitten wird an der leisesten Stelle** der letzten zwei Sekunden, nicht stur nach Uhr.
   Sonst zerreißt es Wörter und whisper erfindet Text.
 - Ergebnis landet live im Dashboard und als `transcript.txt` und `transcript.jsonl`
@@ -576,7 +576,7 @@ der Checkliste, etwa zehn Sekunden hinter dem gesprochenen Wort.
 
 ## 5b. Schnittkanten automatisch korrigieren
 
-`audio-service/boundaries.py` sucht den echten Anfang und Schluss eines Tracks, wenn der Knopf
+`audio_service/boundaries.py` sucht den echten Anfang und Schluss eines Tracks, wenn der Knopf
 zu früh oder zu spät kam. Knopf „Kanten korrigieren“ im Segment-Bereich.
 
 - Misst das Grundrauschen im Umkreis von 8 Sekunden und sucht den nächstgelegenen Übergang von
@@ -713,7 +713,7 @@ fort. Gemessen: 17 erkannte Beiträge bei 17 Programmpunkten, 14 davon in richti
 
 **Titel sind nur Anzeige** und gehen nicht in Marker oder Dateinamen — von sechs vergebenen waren
 drei richtig. Ein falscher Typ steht sichtbar im Auswahlfeld, ein falscher Titel wandert unbemerkt
-ins Archiv. Abschaltbar über `PROGRAMM_AUTOMATISCH=0` in `audio-service/.env`.
+ins Archiv. Abschaltbar über `PROGRAMM_AUTOMATISCH=0` in `audio_service/.env`.
 
 **Typen, die nie geraten werden**
 
@@ -837,7 +837,7 @@ bleibt bei dem einen Strom.
 - Livestream und Telefon sind unabhängig: Fällt Icecast aus, bleibt das Telefon verbunden, und
   umgekehrt.
 - Telefon heißt Schmalband (G.711). Predigt und Gebet klingen gut, Chor und Orchester dünn.
-- Ohne die `TELEFON_*`-Werte in `audio-service/.env` erscheint die Zeile gar nicht.
+- Ohne die `TELEFON_*`-Werte in `audio_service/.env` erscheint die Zeile gar nicht.
 
 Einrichten, einmalig:
 
@@ -847,7 +847,7 @@ brew install --cask blackhole-2ch   # will das Passwort; startet den macOS-Audio
                                     # NIE während einer Aufnahme
 ```
 
-Dann `TELEFON_*` in `audio-service/.env` eintragen (Vorlage in `.env.example`) und den
+Dann `TELEFON_*` in `audio_service/.env` eintragen (Vorlage in `.env.example`) und den
 Audio-Dienst neu starten. Die SIP-Zugangsdaten vergibt der Verwalter der Telefonanlage für ein
 „SIP-Gerät ohne Provisionierung". Wer sie hat, telefoniert auf Kosten der Gemeinde — sie
 gehören nur in die `.env`.
@@ -931,7 +931,7 @@ Stand 20.10.2026: **240 Tests grün** (171 API, 69 Audio-Dienst).
 
 ## 8a. Aktualisieren — eine neue Version in Betrieb nehmen
 
-Python ist kalt: Änderungen an `api/**.py` und `audio-service/**.py` wirken erst, wenn der
+Python ist kalt: Änderungen an `api/**.py` und `audio_service/**.py` wirken erst, wenn der
 jeweilige Dienst neu startet. Templates dagegen sind heiß und wirken sofort. Deshalb ist das
 Aktivieren ein eigener, bewusster Schritt — und kein Nebenprodukt des Speicherns.
 
@@ -997,7 +997,7 @@ make css
 # 6. Die neuen Dienste einrichten und starten. Die Installer entladen die alten
 #    whisper- und Dashboard-Labels selbst und benutzen die vorhandene Datenbank.
 AKOUO_WHISPER_MODEL=~/ai/models/ggml-large-v3-turbo.bin bash autostart/install.sh
-bash audio-service/install.sh
+bash audio_service/install.sh
 ```
 
 Danach prüfen, ob die Einstellbarkeit wirklich angekommen ist — das ist der Punkt der ganzen
@@ -1121,8 +1121,8 @@ ollama list                                    # installierte Sprachmodelle
 **Erkennung und NAS prüfen**
 
 ```bash
-~/tontechnik-audio-venv/bin/python audio-service/scripts/pruefe_erkennung.py 14
-~/tontechnik-audio-venv/bin/python audio-service/scripts/check_nas.py
+~/tontechnik-audio-venv/bin/python audio_service/scripts/pruefe_erkennung.py 14
+~/tontechnik-audio-venv/bin/python audio_service/scripts/check_nas.py
 ```
 
 **Wichtige Pfade**
@@ -1131,7 +1131,7 @@ ollama list                                    # installierte Sprachmodelle
 |---|---|
 | Aufnahmen | `~/Recordings/Tontechnik/sessions/<Datum>_<Typ>_<Nr>/` |
 | Logs | alle unter `~/Library/Logs/Akouo/`: `api.log`, `audio.log`, `audio-error.log`, `whisper.log`, `dashboard.log` |
-| Konfiguration | `audio-service/.env`, `~/run-akouo-api.sh`, Einstellungsseite |
+| Konfiguration | `audio_service/.env`, `~/run-akouo-api.sh`, Einstellungsseite |
 | Datenbank | `data/tontechnik.db` — Alembic-Stand **017** |
 | Ablauf je Aufnahme | `marker.json` und `ablauf.txt` im Session-Ordner |
 | whisper-Modelle | `~/ai/models/ggml-large-v3-turbo.bin` |

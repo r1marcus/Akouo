@@ -83,7 +83,7 @@ freigegeben. Der Server ist die einzige Stelle mit öffentlicher Adresse.
 
 ### 3. Mac Studio: neuer Teil im Audio-Dienst
 
-Ein neues Modul `audio-service/uebersetzung.py` nach dem Muster von `telefon.py`:
+Ein neues Modul `audio_service/uebersetzung.py` nach dem Muster von `telefon.py`:
 
 - **Hinweg (Deutsch → Server):**
   - Ein eigener Abgriff `_uebs_q` im Recorder, genau wie `_tel_q`. Der Ton kommt also aus
@@ -176,7 +176,7 @@ Grob ein bis zwei Tage bis zum Probelauf, je nachdem, was der Durchstich zeigt.
   - `uebersetzer` darf `de` lesen und `ru` senden.
   - Zusätzlich verschlüsselt eine SRT-Passphrase das Senden auf `de` und das Lesen von
     `ru`.
-  - Alle Werte stehen in `audio-service/.env` (`UEBERSETZUNG_*`) und auf dem Server in
+  - Alle Werte stehen in `audio_service/.env` (`UEBERSETZUNG_*`) und auf dem Server in
     `/root/uebersetzung/mediamtx.yml`.
 
 **Getestet:**

@@ -89,6 +89,12 @@ plutil -lint "$PLIST_DEST" >/dev/null
 echo "[AUDIO] Plist: $PLIST_DEST"
 
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+# bootout kehrt zurück, bevor der alte Prozess weg ist; ein sofortiges bootstrap scheitert
+# dann still mit "Input/output error" und der Dienst bleibt aus (so geschehen am 08.11.).
+for _ in $(seq 1 20); do
+    launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || break
+    sleep 0.5
+done
 launchctl bootstrap "gui/$(id -u)" "$PLIST_DEST"
 
 # ─── 3. Nachsehen, ob er wirklich laeuft ────────────────────────────────────

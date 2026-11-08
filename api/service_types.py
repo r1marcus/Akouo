@@ -17,7 +17,7 @@ SERVICE_TYPES = [
 # Regular services — shown as large tiles in the header picker; all others sit behind "Weitere"
 PRIMARY_SERVICE_TYPES = ["Sonntagmorgen", "Sonntagabend", "Bibelstunde", "Gebetsstunde"]
 
-# Track types an operator can mark during a service (mirrors audio-service/recorder.py)
+# Track types an operator can mark during a service (mirrors audio_service/recorder.py)
 MARKER_TYPES = [
     # Beiträge, die ins Archiv gehen
     "Chorlied", "Orchester", "Jugendchor", "Kinderchor", "Gruppenlied",

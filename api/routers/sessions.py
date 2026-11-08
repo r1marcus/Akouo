@@ -208,7 +208,7 @@ async def set_marker_type(marker_id: int, req: MarkerTypeRequest, db: AsyncSessi
 
 @router.get("/transcript")
 async def session_transcript(since: int = 0):
-    """Proxy the live transcript from the audio-service (browser only talks to port 8000)."""
+    """Proxy the live transcript from the audio_service (browser only talks to port 8000)."""
     async with httpx.AsyncClient(timeout=5.0) as client:
         try:
             response = await client.get(f"{AUDIO_SERVICE_URL}/api/session/transcript", params={"since": since})
@@ -321,7 +321,7 @@ async def export_session(session_id: int, db: AsyncSession = Depends(get_db)):
     """Trigger MP3 export for a stopped session.
 
     Looks up RecordingSession by id, derives wav_path from the DB row, forwards
-    to audio-service POST /api/session/export with a 120s timeout.
+    to audio_service POST /api/session/export with a 120s timeout.
     90-min WAV export takes ~10-30s on M4; 120s = 4x headroom (T-05-10).
     wav_path is DB-controlled (written only at session start) — no path traversal (T-05-09).
     """
@@ -397,7 +397,7 @@ async def nudge_marker_endpoint(
     await db.refresh(marker)
     await session_dokument.schreiben(marker.session_id, db)
 
-    # Best-effort sync to audio-service for in-memory consistency during active session.
+    # Best-effort sync to audio_service for in-memory consistency during active session.
     if marker.audio_service_index is not None and req.field == "start":
         try:
             async with httpx.AsyncClient(timeout=3.0) as client:
@@ -406,7 +406,7 @@ async def nudge_marker_endpoint(
                     json={"field": req.field, "delta_seconds": req.delta_seconds},
                 )
         except httpx.ConnectError:
-            pass  # DB is authoritative; audio-service will pick up DB on next read
+            pass  # DB is authoritative; audio_service will pick up DB on next read
 
     return {
         "id": marker.id,
@@ -458,7 +458,7 @@ async def session_levels(
     The browser asks once for the whole recording and afterwards only for the tail since its
     last value, which keeps a live curve at one short read every couple of seconds. The wav
     path never comes from the browser: for a stored session it is looked up here, so the
-    audio-service only ever gets a path this process chose.
+    audio_service only ever gets a path this process chose.
     """
     params: dict = {"from_seconds": from_seconds, "block_ms": block_ms}
     if session_id is not None:
@@ -482,7 +482,7 @@ async def session_levels(
 
 @router.get("/monitor.mp3")
 async def monitor_proxy():
-    """Relay the audio-service monitor stream — it listens on localhost only, tablets don't."""
+    """Relay the audio_service monitor stream — it listens on localhost only, tablets don't."""
     async def relay():
         async with httpx.AsyncClient(timeout=None) as client:
             async with client.stream("GET", f"{AUDIO_SERVICE_URL}/api/session/monitor.mp3") as upstream:
@@ -495,7 +495,7 @@ async def monitor_proxy():
 
 @router.get("/audio-level")
 async def audio_level_proxy():
-    """Proxy SSE stream from audio-service to browser (avoids host.docker.internal in browser)."""
+    """Proxy SSE stream from audio_service to browser (avoids host.docker.internal in browser)."""
     async def relay():
         async with httpx.AsyncClient(timeout=None) as client:
             async with client.stream("GET", f"{AUDIO_SERVICE_URL}/api/session/audio-level") as upstream:

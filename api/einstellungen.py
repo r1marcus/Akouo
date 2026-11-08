@@ -1,7 +1,7 @@
 """Alle Einstellungen an einer Stelle — was es gibt, was sie bedeuten, wer sie braucht.
 
 Vorher lagen diese Werte verstreut: zwei Schlüssel in der settings-Tabelle, der Rest als
-Konstanten in audio-service/classifier.py, boundaries.py und exporter.py. Wer die
+Konstanten in audio_service/classifier.py, boundaries.py und exporter.py. Wer die
 Schnittkanten anders wollte, musste Code ändern.
 
 Die Registry hier ist die Quelle für drei Dinge:
@@ -189,7 +189,7 @@ FELDER: tuple[Feld, ...] = (
     Feld("export_online", "NAS-Ablage", "Beim Export online stellen", "bool", False,
          hilfe="Vorauswahl für den Schalter „Online stellen“ beim Export: lädt jeden Track "
                "eines Gottesdienstes mit Untertiteln und KI-Auswertung in die Gemeinde-App. "
-               "Die Zugangsdaten stehen in audio-service/.env (ONLINE_*)."),
+               "Die Zugangsdaten stehen in audio_service/.env (ONLINE_*)."),
     Feld("nas_vorlage_standard", "NAS-Ablage", "Ordnervorlage", "text",
          nas_pfad.STANDARD_VORLAGEN["nas_vorlage_standard"],
          hilfe="Gilt für alle Gottesdienstarten ohne eigene Vorlage. "

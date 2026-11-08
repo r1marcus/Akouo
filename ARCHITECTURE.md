@@ -12,7 +12,7 @@ This document is about the shape of it.
  Console ──(Dante / USB)──┐
                           ▼
           ┌───────────────────────────────┐
-          │ audio-service  :8001          │   native process, launchd
+          │ audio_service  :8001          │   native process, launchd
           │                               │
           │ ONE open CoreAudio stream     │
           │  ├─ recording pair → WAV      │
@@ -52,7 +52,7 @@ private predecessor repository still has them.
 
 ## The single stream, and why it matters
 
-**This is the one thing to understand about the system.** `audio-service/recorder.py` opens exactly
+**This is the one thing to understand about the system.** `audio_service/recorder.py` opens exactly
 one `sounddevice.InputStream` for the entire service and fans the audio out from there:
 
 - the configured recording channel pair is written to `aufnahme.wav`
@@ -218,7 +218,7 @@ unhandled `FileNotFoundError` and an HTTP 500 rather than a useful message.
 
 Honest list, so nobody has to discover these by reading the code:
 
-- `api/` and `audio-service/` both contain a top-level `main.py`. Because `audio-service` contains a
+- `api/` and `audio_service/` both contain a top-level `main.py`. Because `audio_service` contains a
   hyphen it is not a valid Python package name, so both directories sit flat on `sys.path` and the
   two modules shadow each other. The test suite works around it with explicit `importlib` loading
   and has to run in two separate processes. The real fix is renaming to `audio_service/` with

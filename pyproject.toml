@@ -15,10 +15,10 @@ license = { text = "Apache-2.0" }
 requires-python = "==3.12.*"
 
 [tool.pytest.ini_options]
-# Ersetzt rund fünfzig verstreute sys.path.insert(0, "audio-service")-Aufrufe, von denen
+# Ersetzt rund fünfzig verstreute sys.path.insert(0, "audio_service")-Aufrufe, von denen
 # viele relativ waren und daher nur funktionierten, wenn pytest genau aus dem Repo-Wurzel-
 # verzeichnis gestartet wurde.
-pythonpath = ["api", "audio-service"]
+pythonpath = ["api", "audio_service"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 filterwarnings = [

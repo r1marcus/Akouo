@@ -1,7 +1,7 @@
 """Phase 5 Plan 04 — MP3 export tests for REC-11 and REC-12.
 
 Tests are synchronous (pydub is a sync library).
-audio-service/ is on sys.path via root conftest.py, so `from exporter import` works.
+audio_service/ is on sys.path via root conftest.py, so `from exporter import` works.
 
 Requirements covered:
 - REC-11: 192kbit/s, 48kHz sample rate, peak normalization at -3dBFS

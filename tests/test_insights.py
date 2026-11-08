@@ -2,7 +2,7 @@
 import json
 import sys
 
-sys.path.insert(0, "audio-service")
+sys.path.insert(0, "audio_service")
 
 
 def test_transcript_slice_picks_overlapping_lines(tmp_path):

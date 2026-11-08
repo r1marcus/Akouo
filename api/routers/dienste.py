@@ -1,6 +1,6 @@
 """Läuft alles, was ein Gottesdienst braucht? Und die .env des Audio-Dienstes.
 
-Die Prüfungen selbst macht der Audio-Dienst (audio-service/dienst.py) — er kennt seine
+Die Prüfungen selbst macht der Audio-Dienst (audio_service/dienst.py) — er kennt seine
 Adressen, sein Gerät und die Modelle. Hier kommt dazu, ob er überhaupt antwortet, und
 alles wird übersetzt: die Zeile steht oben in der Checkliste, auf Deutsch, Englisch
 oder Russisch.

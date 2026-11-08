@@ -105,7 +105,7 @@ oder löschen** — die Oberfläche nennt beim Versuch den Grund:
 ### 20. September 2026 — Livestream läuft
 
 - **Der Stream ließ sich vom Dashboard nie starten.** Die Oberfläche las das Ziel aus der
-  Datenbank, die leer war; das echte Ziel steht in `audio-service/.env`. Fehlt ein Eintrag in den
+  Datenbank, die leer war; das echte Ziel steht in `audio_service/.env`. Fehlt ein Eintrag in den
   Einstellungen, nutzt die API jetzt das Ziel des Audio-Service. **Vom Betreiber live bestätigt.**
 - Dashboard zeigt Ziel (ohne Zugangsdaten) und Kanalpaar statt einer fest verdrahteten Angabe.
 - **Kanalaufteilung:** Aufnahme 44+45, **Livestream 46+47**. Der Stream-Mix lag rund 10 dB leiser
@@ -261,7 +261,7 @@ ihn wieder auf 137.)
 | `docs/MAC-STUDIO.md` | enthielt das sudo-Passwort im Klartext, dazu SSH-Alias, LAN-Adresse, Tailscale-Namen. Liegt jetzt unter `~/Akouo-privat/`. |
 | `docs/transkription.md` | nennt Gemeinde und einen Prediger namentlich, dazu ein Inventar von 16.875 Archivdateien mit wörtlichen Zitaten. Ebenfalls nach `~/Akouo-privat/`. |
 | `.planning/` (87 Dateien) | beschreibt einen Mac Mini mit Docker und führt die KI-Funktionen als „out of scope“ — das Gegenteil des heutigen Stands. Ausgetrackt, liegt für das Werkzeug weiter da. |
-| `streaming-service/` | toter Code, durch `audio-service/streamer.py` ersetzt. Sein `install.sh` war kaputt ausgeliefert: es lud ein Plist, dessen Interpreter nie erzeugt wird. |
+| `streaming-service/` | toter Code, durch `audio_service/streamer.py` ersetzt. Sein `install.sh` war kaputt ausgeliefert: es lud ein Plist, dessen Interpreter nie erzeugt wird. |
 | `Dockerfile`, `docker-compose.yml`, `docs/setup.md` | beschrieben einen Aufbau, den diese Anleitung selbst als nicht existent bezeichnet. |
 
 **Dazugekommen:** `README.md`, `LICENSE` (Apache-2.0), `NOTICE`, `THIRD-PARTY-LICENSES.md`,
@@ -295,7 +295,7 @@ die Privatordner aller 25 NAS-Benutzer lesen (siehe „Rechte des NAS-Kontos“ 
 Abschnitt 4).
 
 **Ebenfalls offen:** Screenshots für das README (es gibt bisher kein einziges Bild),
-ein Demo-Modus ohne Audio-Hardware, die Umbenennung von `audio-service` nach `audio_service`
+ein Demo-Modus ohne Audio-Hardware, die Umbenennung von `audio_service` nach `audio_service`
 (danach funktioniert `pytest` ohne Argumente), und das Anlegen des neuen öffentlichen
 Repositorys.
 
@@ -454,14 +454,14 @@ ist nicht von einem Muttersprachler gegengelesen.
 ## 2i. Telefon-Übertragung — gebaut, nicht in Betrieb (16. Oktober 2026)
 
 Der zweite PC, der mit der Cloudya-Web-App in der Telefonkonferenz sitzt, soll wegfallen.
-Gebaut ist der Ersatz im Audio-Dienst (`audio-service/telefon.py`, Bedienung in
+Gebaut ist der Ersatz im Audio-Dienst (`audio_service/telefon.py`, Bedienung in
 [betrieb.md, Abschnitt 5g](betrieb.md)): „Stream starten" wählt sich zusätzlich per baresip in
 die Konferenz ein, der Ton läuft über BlackHole, die Stream-Karte zeigt eine Zeile *Telefon*.
 Ohne `TELEFON_*`-Werte bleibt alles wie vorher; getestet nur gegen ein nachgespieltes baresip.
 
 Was über die Anlage bekannt ist (Stand 16.10.):
 - Die App wählt intern die Nebenstelle **1** („Gottesdienst"); Hörer rufen die Gemeindenummer an
-  und geben eine PIN ein. Die PIN steht in `audio-service/.env`, nicht im Repository.
+  und geben eine PIN ein. Die PIN steht in `audio_service/.env`, nicht im Repository.
 - Das Konto der Web-App ist ein Benutzerkonto ohne Verwaltung. **Es fehlen SIP-Zugangsdaten für
   ein „Fremdgerät"** an einer Nebenstelle — die vergibt nur der Verwalter der Anlage bzw. NFON.
   `siptrunk.nfon.com` ist das falsche Produkt (SIP Trunk) und verweigert den Zugang.
@@ -553,7 +553,7 @@ Der Ablauf liegt danach als `ablauf.txt` und `marker.json` im Session-Ordner.
 **Committet, noch nicht gepusht** (Stand 18.10.2026): die Arbeit vom 16. bis 18. Oktober liegt
 auf `main`, das öffentliche `origin` ist noch nicht nachgezogen — siehe Abschnitt 2f zu den
 beiden Repositories. Nicht im Repo:
-die laufende Datenbank `data/tontechnik.db`, die Aufnahmen selbst und `audio-service/.env`
+die laufende Datenbank `data/tontechnik.db`, die Aufnahmen selbst und `audio_service/.env`
 (enthält das Icecast-Passwort).
 
 ---

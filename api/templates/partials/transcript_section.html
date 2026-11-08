@@ -40,7 +40,7 @@ function transcriptPanel() {
     init() {
       this.tick();
       setInterval(() => this.tick(), 3000);
-      // new session → audio-service starts a fresh transcript
+      // new session → audio_service starts a fresh transcript
       window.addEventListener('session:started', () => { this.lines = []; this.next = 0; });
     },
     async tick() {

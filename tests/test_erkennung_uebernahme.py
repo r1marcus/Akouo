@@ -11,7 +11,7 @@ ausdrücklich ab.
 """
 import sys
 
-sys.path.insert(0, "audio-service")
+sys.path.insert(0, "audio_service")
 
 import pytest
 

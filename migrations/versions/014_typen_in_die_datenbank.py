@@ -1,7 +1,7 @@
 """Gottesdienstarten, Beitragsarten und Ansage-Regeln in die Datenbank
 
 Vorher standen diese Listen im Code — die Beitragsarten sogar zweimal, in
-api/service_types.py und audio-service/recorder.py, und die beiden wichen bereits
+api/service_types.py und audio_service/recorder.py, und die beiden wichen bereits
 voneinander ab (der Audio-Dienst kannte "Unbenannt", die API nicht).
 
 Mitgewandert ist, was die Erkennung ueber einen Typ weiss: Klangklasse, typische

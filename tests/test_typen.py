@@ -1,7 +1,7 @@
 """Gottesdienstarten und Beitragsarten kommen aus der Datenbank, nicht aus dem Code.
 
 Die Naht, die hier geprüft wird: vorher stand die Liste der Beitragsarten in
-api/service_types.py UND in audio-service/recorder.py, und die beiden wichen schon
+api/service_types.py UND in audio_service/recorder.py, und die beiden wichen schon
 voneinander ab (der Audio-Dienst kannte "Unbenannt", die API nicht). Jetzt besitzt die
 API die Liste und schiebt dem Audio-Dienst, was er für die Erkennung braucht.
 """

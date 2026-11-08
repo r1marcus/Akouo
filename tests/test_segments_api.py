@@ -1,6 +1,6 @@
 """Tests for /api/sessions/{id}/segments and /api/sessions/{id}/segments/{marker_id}/export.
 
-Uses in-memory SQLite and monkeypatches httpx.AsyncClient to mock the audio-service.
+Uses in-memory SQLite and monkeypatches httpx.AsyncClient to mock the audio_service.
 Pattern mirrors test_session_api.py.
 """
 import os
@@ -226,7 +226,7 @@ async def test_export_segment_404_wrong_marker(db_session):
 
 @pytest.mark.asyncio
 async def test_export_segment_creates_segment_export_row(db_session):
-    """export_segment with mocked audio-service creates exactly one SegmentExport row."""
+    """export_segment with mocked audio_service creates exactly one SegmentExport row."""
     from sqlalchemy import select, func
     from models import SegmentExport
     from routers.segments import export_segment
@@ -325,7 +325,7 @@ async def test_export_segment_idempotent_second_call(db_session):
 
 @pytest.mark.asyncio
 async def test_export_segment_failed_nas_status(db_session):
-    """When audio-service returns nas.status='failed', SegmentExport row has nas_status='failed' and nas_error."""
+    """When audio_service returns nas.status='failed', SegmentExport row has nas_status='failed' and nas_error."""
     from sqlalchemy import select
     from models import SegmentExport
     from routers.segments import export_segment

@@ -271,7 +271,7 @@ def test_jede_einstellung_hat_uebersetzungen():
 def test_dienste_und_umgebung_haben_uebersetzungen():
     """Status-Zeile und .env-Bereich übersetzen Namen aus Tabellen — am Template-Test vorbei."""
     import pathlib
-    sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "audio-service"))
+    sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "audio_service"))
     import dienst
     from routers import dienste
     texte = [t for w in dienst.UMGEBUNG for t in (w.name, w.hilfe)]

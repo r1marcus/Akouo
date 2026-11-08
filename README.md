@@ -69,7 +69,7 @@ And the honest operational caveats:
 - **There is no authentication.** Anyone on the network can open the dashboard, stop the recording
   and delete markers. See [Security](#security).
 - One deployment, one maintainer. Expect to adapt things.
-- `audio-service/classifier.py` carries thresholds measured in **this** room with **this** console.
+- `audio_service/classifier.py` carries thresholds measured in **this** room with **this** console.
   They are a starting point, not a constant of nature.
 
 ## What it does
@@ -159,7 +159,7 @@ written for one specific machine; adapting it to yours is the actual work.
  Console ──(Dante / USB)──┐
                           ▼
           ┌───────────────────────────────┐
-          │ audio-service  :8001          │   native, launchd — not Docker
+          │ audio_service  :8001          │   native, launchd — not Docker
           │ one open CoreAudio stream     │
           │  ├─ recording pair → WAV      │
           │  ├─ stream pair → FFmpeg ─────┼──→ Icecast / RTMP

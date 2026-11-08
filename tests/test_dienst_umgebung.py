@@ -1,7 +1,7 @@
 """Die .env des Audio-Dienstes von der Einstellungsseite: nur erlaubte Werte, nichts geht verloren."""
 import sys
 
-sys.path.insert(0, "audio-service")
+sys.path.insert(0, "audio_service")
 
 import dienst  # noqa: E402
 

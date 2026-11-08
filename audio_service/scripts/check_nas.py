@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Prüft die NAS-Verbindung, bevor der Upload scharfgeschaltet wird.
 
-    ~/akouo-audio-venv/bin/python audio-service/scripts/check_nas.py
+    ~/akouo-audio-venv/bin/python audio_service/scripts/check_nas.py
 
-Liest NAS_* aus audio-service/.env und geht denselben Weg wie der Export:
+Liest NAS_* aus audio_service/.env und geht denselben Weg wie der Export:
 Anmeldung, Freigabe öffnen, Testdatei hochladen, wieder löschen. Das Passwort
 wird nie ausgegeben — auch nicht in Fehlermeldungen.
 
@@ -17,7 +17,7 @@ import sys
 import tempfile
 from datetime import datetime
 
-HERE = pathlib.Path(__file__).resolve().parent.parent   # audio-service/
+HERE = pathlib.Path(__file__).resolve().parent.parent   # audio_service/
 sys.path.insert(0, str(HERE))
 
 from dotenv import load_dotenv
@@ -34,7 +34,7 @@ def mask(value: str) -> str:
 
 
 def main() -> int:
-    print("NAS-Einstellungen aus audio-service/.env")
+    print("NAS-Einstellungen aus audio_service/.env")
     print(f"  NAS_SERVER    {config.nas_server or 'LEER'}")
     print(f"  NAS_SHARE     {config.nas_share or 'LEER'}")
     print(f"  NAS_USER      {config.nas_user or 'LEER'}")

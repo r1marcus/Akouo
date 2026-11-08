@@ -14,7 +14,7 @@ Soundcard licence or a multi-channel USB interface. That is a real wall, and it 
 - **The dashboard, API and templates.** The API starts on its own — see the Quickstart in the
   README. You get a working dashboard with the audio service reported as offline, which is the
   correct behaviour.
-- **The classifier rules** in `audio-service/classifier.py`. Pure functions over level envelopes
+- **The classifier rules** in `audio_service/classifier.py`. Pure functions over level envelopes
   and transcript text. This is where the detection quality actually lives.
 - **Documentation**, including the parts of `docs/` that are written for one specific machine and
   should not be.
@@ -38,7 +38,7 @@ make test
 ```
 
 Or the two groups by hand. They are run **separately on purpose**: `api/main.py` and
-`audio-service/main.py` are both top-level modules named `main`, so in a single process they
+`audio_service/main.py` are both top-level modules named `main`, so in a single process they
 shadow each other and the API tests end up talking to the audio app. Until the directories are
 renamed to proper Python packages, plain `pytest` with no arguments does not work.
 
@@ -101,7 +101,7 @@ fix(export): Segment bis zum Dateiende schneiden statt abzulehnen
 specifically (`httpx.ConnectError`, `OSError`, `queue.Empty`). `except ...: pass` only in cleanup
 paths such as closing a stream or deleting a temp file.
 
-**Logging.** `logging`, not `print()` — except in `audio-service/scripts/`, which are CLI tools
+**Logging.** `logging`, not `print()` — except in `audio_service/scripts/`, which are CLI tools
 where `print` is correct.
 
 **Machine-specific values** belong in `.env` or in a `*_PLACEHOLDER` in a plist, never in code. No
