@@ -156,3 +156,44 @@ def test_upload_file_unc_remote_path():
     )
     assert "2026" in result["nas_path"]
     assert "sermon.mp3" in result["nas_path"]
+
+
+def test_abgelaufene_sitzung_wird_neu_angemeldet():
+    """08.11.: Über Nacht hatte das NAS die Sitzung beendet; danach scheiterte jeder Upload
+    mit "No username or password was specified", bis der Dienst neu startete. Jetzt meldet
+    sich der Client neu an und versucht es noch einmal."""
+    from smbprotocol.exceptions import SMBAuthenticationError
+
+    from nas_client import NASClient
+
+    cfg = _make_cfg()
+    kopiert = MagicMock(side_effect=[SMBAuthenticationError("Failed to authenticate with server"), None])
+    with patch("smbclient.register_session") as anmelden, \
+         patch("smbclient.reset_connection_cache") as verwerfen, \
+         patch("smbclient.makedirs"), \
+         patch("smbclient.stat", side_effect=FileNotFoundError), \
+         patch("smbclient.shutil.copyfile", kopiert):
+        client = NASClient(cfg)
+        client._registered = True          # angemeldet seit zwei Tagen
+        result = client.upload_file(LOCAL, REMOTE_SUBPATH)
+
+    assert result["status"] == "uploaded"
+    assert verwerfen.call_count == 1
+    assert anmelden.call_count == 1
+    assert anmelden.call_args.kwargs == {"username": "u", "password": "p"}
+    assert kopiert.call_count == 2
+
+
+def test_anmeldung_scheitert_auch_beim_zweiten_mal():
+    """Stimmen die Zugangsdaten wirklich nicht, kommt der Fehler an — kein Endlosversuch."""
+    from smbprotocol.exceptions import SMBAuthenticationError
+
+    from nas_client import NASClient
+
+    with patch("smbclient.register_session"), \
+         patch("smbclient.reset_connection_cache"), \
+         patch("smbclient.makedirs", side_effect=SMBAuthenticationError("Failed to authenticate")), \
+         patch("smbclient.stat", side_effect=FileNotFoundError):
+        result = NASClient(_make_cfg()).upload_file(LOCAL, REMOTE_SUBPATH)
+    assert result["status"] == "failed"
+    assert "authenticate" in result["error"]

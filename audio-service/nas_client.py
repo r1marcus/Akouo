@@ -19,6 +19,7 @@ from typing import Optional
 
 import smbclient
 import smbclient.shutil
+import smbprotocol.exceptions
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +39,30 @@ class NASClient:
         )
         self._registered = True
 
+    def _neu_anmelden(self) -> None:
+        """Verbindung verwerfen und frisch anmelden.
+
+        Am 08.11. lief der Dienst seit zwei Tagen; über Nacht hatte das NAS die Sitzung
+        beendet. smbprotocol baute die Verbindung danach selbst neu auf — aber ohne
+        Zugangsdaten ("No username or password was specified"), und weil wir uns als
+        angemeldet merkten, scheiterte jeder Upload, bis der Dienst neu startete."""
+        try:
+            smbclient.reset_connection_cache()
+        except Exception:      # noqa: BLE001 — Aufräumen; scheitert es, melden wir uns trotzdem neu an
+            pass
+        self._registered = False
+        self._ensure_session()
+
+    def _mit_anmeldung(self, arbeit):
+        """Einmal versuchen; scheitert die Anmeldung, neu anmelden und noch einmal."""
+        self._ensure_session()
+        try:
+            return arbeit()
+        except smbprotocol.exceptions.SMBAuthenticationError:
+            log.info("NAS-Sitzung abgelaufen — melde mich neu an")
+            self._neu_anmelden()
+            return arbeit()
+
     def _build_remote_path(self, remote_subpath: str) -> str:
         """Build UNC path: \\\\server\\share\\base\\subpath (backslashes)."""
         parts = [self.cfg.nas_server, self.cfg.nas_share]
@@ -51,8 +76,8 @@ class NASClient:
         if not self.cfg.nas_server:
             return False
         try:
-            self._ensure_session()
-            return self._exists(self._build_remote_path(remote_subpath))
+            remote = self._build_remote_path(remote_subpath)
+            return self._mit_anmeldung(lambda: self._exists(remote))
         except Exception:      # unreachable or no permission — caller must not assume "free"
             return True
 
@@ -60,6 +85,8 @@ class NASClient:
         try:
             smbclient.stat(remote)
             return True
+        except smbprotocol.exceptions.SMBAuthenticationError:
+            raise              # keine Antwort über die Datei — die Anmeldung fehlt
         except Exception:      # not found, or no permission to look — treat as absent
             return False
 
@@ -84,9 +111,9 @@ class NASClient:
                 "nas_path": None,
                 "uploaded_at": None,
             }
-        try:
-            self._ensure_session()
-            remote = self._build_remote_path(remote_subpath)
+        remote = self._build_remote_path(remote_subpath)
+
+        def hochladen() -> dict:
             if not allow_overwrite and self._exists(remote):
                 return {
                     "status": "failed",
@@ -104,6 +131,9 @@ class NASClient:
                 "nas_path": remote,
                 "uploaded_at": datetime.now(),
             }
+
+        try:
+            return self._mit_anmeldung(hochladen)
         except Exception as exc:  # noqa: BLE001 — NAS is best-effort, never crash export
             log.warning("NAS upload failed for %s: %s", local_path, exc)
             return {
