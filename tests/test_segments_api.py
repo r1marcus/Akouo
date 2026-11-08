@@ -1241,3 +1241,27 @@ async def test_ki_auswertung_laesst_handtitel_stehen(db_session):
 
     assert r["title"] == "Starke Ehen" and r["titel_von_hand"]
     assert r["speaker"] == "KI-Sprecher" and r["summary"] == "Z" and r["ki"]
+
+
+@pytest.mark.asyncio
+async def test_kantenkorrektur_zieht_nicht_vor_das_ende_des_vorigen(db_session):
+    """Zwei Vermeldungen hintereinander: die Suche nach einem leisen Anfang darf den zweiten
+    Track nicht in den ersten ziehen."""
+    from routers.segments import refine_session
+    started = datetime(2026, 11, 8, 9, 30)
+    sess = await _make_session(db_session, started_at=started, stopped_at=started + timedelta(seconds=400),
+                               service_type="Sonntagmorgen")
+    a = await _make_marker(db_session, sess.id, "Vermeldungen", placed_at_ts=100.0)
+    a.ended_at_ts = 200.0
+    b = await _make_marker(db_session, sess.id, "Vermeldungen", placed_at_ts=205.0)
+    b.ended_at_ts = 300.0
+    await db_session.commit()
+
+    client = AsyncMock()
+    client.post.return_value = _mock_response(200, {"start_delta": -15.0, "end_delta": 0.0})
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=False)
+    with patch("httpx.AsyncClient", return_value=client):
+        await refine_session(sess, db_session)
+    assert a.start_nudge == -15.0
+    assert b.start_nudge == -5.0          # bis ans Ende des vorigen, nicht weiter
