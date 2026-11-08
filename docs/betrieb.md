@@ -581,6 +581,11 @@ zu früh oder zu spät kam. Knopf „Kanten korrigieren“ im Segment-Bereich.
 
 - Misst das Grundrauschen im Umkreis von 8 Sekunden und sucht den nächstgelegenen Übergang von
   **echter Stille** (mindestens 1,2 s) zu **anhaltendem Ton** (mindestens 0,4 s).
+- **Vor deiner Marke sucht es weiter (12 s) und nachsichtiger** — zu spät gedrückt wird viel
+  öfter als zu früh. Dort genügen 70 % Ton in den 0,4 s, ein einzelnes Knacken bricht die Stille
+  nicht, und ein leises Intro gewinnt gegen den lauteren Einsatz danach, wenn keine echte Pause
+  dazwischen liegt. Hinter der Marke gilt die strenge Regel; die nachsichtige Suche zieht einen
+  Anfang also höchstens nach vorn, nie nach hinten.
 - Lässt 0,25 s Luft davor und 0,4 s danach.
 - **Gibt es keine echte Pause — etwa bei durchgehender Rede — bleibt deine Marke stehen.**
   Satzpausen von einer halben Sekunde zählen bewusst nicht.
@@ -683,8 +688,9 @@ Sekunden Ton haben, bevor er als solcher zählt.
 
 | Schritt | Mittel | Messwert |
 |---|---|---|
-| Sprache oder Musik | fünf Klangmerkmale, Mehrheitsentscheid | 26 von 27 Tracks richtig, steht nach 3 s |
+| Sprache oder Musik | fünf Klangmerkmale, Mehrheitsentscheid; dazu die Stereo-Korrelation als halbe Stimme | 26 von 27 Tracks richtig, steht nach 3 s |
 | Grobe Grenzen | mindestens 8 s Ruhe, mindestens 45 s Beitrag | im Erntedankfest 15 von 15 |
+| Anfang | zweite, tiefere Schwelle: vom erkannten Anfang bis zu 15 s zurück, solange es über dem örtlichen Grundpegel + 6 dB bleibt | Chorlied am 08.11. abends: 683,25 → 677,5 s (Intro ab ~676) |
 | Feine Grenzen | Schnitt am Klassenwechsel, mehrheitsgeglättet | ohne ihn verschmelzen Chorlied und Ansage |
 | Orchester | spektrale Flachheit unter 0,22 | instrumental 0,14–0,17, gesungen 0,27–0,37 |
 | Gesang trotz Sprach-Klang | Whisper wiederholt sich bzw. wirft Füllsätze aus; reine Stellenangaben wie „Vers 2." zählen nicht | über 106 beschriftete Abschnitte 25 Treffer, kein Fehlalarm |
@@ -693,6 +699,23 @@ Sekunden Ton haben, bevor er als solcher zählt.
 
 Die acht Sekunden Mindest-Stille sind gemessen, nicht geschätzt: bei fünf Sekunden zerschneiden
 Sprechpausen die Predigt, bei fünfzehn verschmelzen aufeinanderfolgende Beiträge.
+
+**Leise Anfänge.** Die Stille-Schwelle liegt 6 dB über dem Ruhepegel, und den schätzt der Modus
+live aus allem bisher Gehörten — nach ein paar lauten Liedern steht sie so hoch, dass ein leises
+Intro darunter bleibt. Am 8. November abends begann ein Chorlied bei −53 dBFS, die Schwelle
+stand bei −32, und der Marker lag 7,5 s im Lied. Seitdem gibt es eine zweite Schwelle nur für den
+Anfang: Ist ein Beitrag bestätigt, geht der Modus von dort zurück, solange der Pegel über dem
+Ruhepegel der halben Minute davor + 6 dB liegt — höchstens 15 s, nie in den Beitrag davor, und
+an stummem Kanal (digitale Stille) ist sofort Schluss. Findet er den Anfang erst ein paar Takte
+später, zieht er auch den schon gesetzten Marker nach vorn — aber nur seinen eigenen und nur,
+solange niemand ihn umbenannt oder verschoben hat.
+
+**Stereo-Korrelation.** Das Rednerpult-Mikrofon liegt mittig auf beiden Kanälen, Chor und
+Instrumente kommen verteilt. Gemessen am 8. November morgens: Predigt, Gebet, Ansage und
+Vermeldungen 0,999–1,000, Lieder 0,4–0,8. Über 0,95 gibt das eine Stimme mehr für Sprache,
+unter 0,8 eine weniger, dazwischen und bei Mono keine. Nie ein Veto: ein Musikstück lag bei 0,96,
+ein Kinderlied über ein einzelnes Mikrofon bei 0,85. Die Einstellung „Stimmen für Sprache"
+behält ihre Skala von 0 bis 5.
 
 **Das angesagte Programm**
 
