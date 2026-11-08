@@ -1158,3 +1158,30 @@ async def test_angaben_nicht_waehrend_der_aufnahme(db_session):
     with pytest.raises(HTTPException) as e:
         await angaben_aendern(sess.id, Angaben(thema="x"), db_session)
     assert e.value.status_code == 409
+
+
+
+@pytest.mark.asyncio
+async def test_typwechsel_nach_stopp_zieht_auswahl_und_nas_ordner_mit(db_session):
+    """Die Review verschwand nach einem Typwechsel, weil die Auswahl beim alten Typ blieb."""
+    import json as _json
+    from models import Setting
+    from routers.export_check import Angaben, angaben_aendern
+    from service_types import CURRENT_SERVICE_KEY
+    from datetime import datetime as _dt
+    sess, _ = await _gottesdienst_mit_luecken(db_session)
+    sess.status, sess.stopped_at = "stopped", _dt.now()
+    sess.nas_folder = "Gottesdienste/alt"
+    db_session.add(Setting(key=CURRENT_SERVICE_KEY,
+                           value=_json.dumps({"service_type": sess.service_type, "gewaehlt_am": "x"})))
+    await db_session.commit()
+    neu = next(a for a in __import__("typen").aktuell.gottesdienstarten if a != sess.service_type)
+
+    await angaben_aendern(sess.id, Angaben(service_type=neu), db=db_session)
+
+    await db_session.refresh(sess)
+    zeile = (await db_session.execute(__import__("sqlalchemy").select(Setting).where(
+        Setting.key == CURRENT_SERVICE_KEY))).scalar_one()
+    assert _json.loads(zeile.value)["service_type"] == neu
+    assert _json.loads(zeile.value)["gewaehlt_am"] == "x"
+    assert sess.nas_folder is None          # noch nichts exportiert → Ordner folgt dem Typ

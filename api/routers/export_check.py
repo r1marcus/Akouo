@@ -25,7 +25,8 @@ import nas_pfad
 import online as online_modul
 import typen
 from database import get_db
-from models import CopyCenterAblage, Marker, RecordingSession, SegmentInsight
+from models import CopyCenterAblage, Marker, RecordingSession, SegmentExport, SegmentInsight, Setting
+from service_types import CURRENT_SERVICE_KEY
 from routers.segments import (AUDIO_SERVICE_URL, _build_segments, _nas_folder, _nas_track_name,
                               mp3_dateiname)
 from sprache import uebersetze
@@ -178,6 +179,7 @@ async def angaben_aendern(session_id: int, req: Angaben, db: AsyncSession = Depe
     if session.status in ("recording", "paused"):
         raise HTTPException(status_code=409,
                             detail=uebersetze("Während der Aufnahme nicht änderbar"))
+    alt = session.service_type
     if req.service_type is not None:
         if req.service_type not in typen.aktuell.gottesdienstarten:
             raise HTTPException(status_code=422,
@@ -185,8 +187,40 @@ async def angaben_aendern(session_id: int, req: Angaben, db: AsyncSession = Depe
         session.service_type = req.service_type
     if req.thema is not None:
         session.thema = req.thema.strip() or None
+    if session.service_type != alt:
+        # Noch nichts exportiert: der NAS-Ordner folgt dem neuen Typ. Sonst bleibt er, wo die
+        # ersten Dateien schon liegen — das sagt die Oberfläche vorher.
+        schon = (await db.execute(select(SegmentExport.id).where(
+            SegmentExport.session_id == session_id).limit(1))).first()
+        if schon is None:
+            session.nas_folder = None
+        await _auswahl_mitziehen(db, session, alt)
     await db.commit()
     return {"service_type": session.service_type, "thema": session.thema or ""}
+
+
+async def _auswahl_mitziehen(db: AsyncSession, session: RecordingSession, alt: Optional[str]) -> None:
+    """Die Trackliste im Dashboard zeigt nur die Aufnahme zum gewählten Gottesdienst. Ändert
+    man bei der letzten Aufnahme den Typ, muss die Auswahl mitgehen — sonst verschwand die
+    Karte beim nächsten Neuladen (gefunden am 08.11.)."""
+    letzte = (await db.execute(
+        select(RecordingSession).where(RecordingSession.status == "stopped")
+        .order_by(RecordingSession.stopped_at.desc()).limit(1))).scalar_one_or_none()
+    if letzte is None or letzte.id != session.id:
+        return
+    zeile = (await db.execute(select(Setting).where(Setting.key == CURRENT_SERVICE_KEY))).scalar_one_or_none()
+    try:
+        daten = json.loads(zeile.value) if zeile and zeile.value else {}
+    except (ValueError, TypeError):
+        daten = {}
+    if daten.get("service_type") not in (None, alt):
+        return              # jemand hat inzwischen einen anderen Gottesdienst gewählt
+    daten["service_type"] = session.service_type
+    daten["thema"] = session.thema
+    if zeile is None:
+        db.add(Setting(key=CURRENT_SERVICE_KEY, value=json.dumps(daten)))
+    else:
+        zeile.value = json.dumps(daten)
 
 
 class TrackAngaben(BaseModel):

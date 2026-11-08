@@ -139,6 +139,16 @@ async def _export_vorgaben(db: AsyncSession) -> dict:
             "online_standard": bool(werte.get("export_online"))}
 
 
+def wav_laenge_s(wav_path) -> Optional[float]:
+    """Länge einer WAV-Datei aus dem Kopf — liest keine Samples."""
+    import wave
+    try:
+        with wave.open(str(wav_path), "rb") as w:
+            return w.getnframes() / float(w.getframerate())
+    except (OSError, EOFError, wave.Error, TypeError):
+        return None
+
+
 async def _build_segments(session: RecordingSession, db: AsyncSession) -> list[dict]:
     """Compute segment boundaries from markers.
 
@@ -153,8 +163,12 @@ async def _build_segments(session: RecordingSession, db: AsyncSession) -> list[d
     if not markers:
         return []
 
-    # Session end in WAV-relative seconds: prefer (stopped_at - started_at), fallback to last marker + 60s
-    if session.stopped_at and session.started_at:
+    # Session end in WAV-relative seconds: die Länge der Datei selbst. (stopped_at - started_at)
+    # zählt Pausen mit, in denen nichts geschrieben wurde — nur noch Rückfall.
+    wav_dauer = wav_laenge_s(session.wav_path) if session.stopped_at else None
+    if wav_dauer:
+        session_end_seconds = max(wav_dauer, markers[-1].placed_at_ts + 1.0)
+    elif session.stopped_at and session.started_at:
         session_end_seconds = max(
             (session.stopped_at - session.started_at).total_seconds(),
             markers[-1].placed_at_ts + 1.0,

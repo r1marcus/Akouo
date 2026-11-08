@@ -378,7 +378,9 @@ async def test_pause_resume(mock_audio_device_4ch, tmp_recordings):
     gap = rec._gaps[0]
     assert gap["start_offset"] is not None
     assert gap["end_offset"] is not None
-    assert gap["end_offset"] > gap["start_offset"]
+    # In der WAV ist die Pause eine Stelle, keine Strecke: Ende == Anfang, die Dauer steht daneben
+    assert abs(gap["end_offset"] - gap["start_offset"]) < 0.05
+    assert gap["dauer_s"] >= 0
 
     # Feed more chunks after resume — wav should grow
     for _ in range(5):
@@ -496,3 +498,22 @@ def test_transcript_paths_follow_layout(tmp_recordings):
     tr._wav_path = flat
     assert tr._transcript_path("txt") == flat.with_suffix(".txt")
     assert tr._transcript_path("jsonl") == flat.with_suffix(".transcript.jsonl")
+
+
+def test_marker_nach_pause_sitzt_an_der_wav_stelle():
+    """08.11.: 87 s Pause, danach lag jeder Marker 87 s hinter seinem Ton in der Datei."""
+    import sys
+    from datetime import datetime, timedelta
+    sys.path.insert(0, "audio_service")
+    from recorder import ContinuousRecorder
+
+    rec = ContinuousRecorder()
+    jetzt = datetime.now()
+    rec._is_recording = True
+    rec.start_time = jetzt - timedelta(seconds=300)
+    rec._pausiert_s = 87.0                      # eine abgeschlossene Pause
+    assert abs(rec.current_offset() - 213.0) < 0.5
+
+    rec._pause_started = jetzt - timedelta(seconds=20)   # gerade wieder pausiert
+    rec._paused = True
+    assert abs(rec.current_offset() - 193.0) < 0.5        # steht still, solange pausiert

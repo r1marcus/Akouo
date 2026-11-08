@@ -64,6 +64,7 @@ class ContinuousRecorder:
         self.start_time: Optional[datetime] = None
         self._paused: bool = False
         self._pause_started: Optional[datetime] = None
+        self._pausiert_s = 0.0      # Summe abgeschlossener Pausen — in der WAV fehlen sie
         self._markers: list = []
         self._gaps: list = []
         self._drain_task: Optional[asyncio.Task] = None
@@ -236,6 +237,7 @@ class ContinuousRecorder:
         self._paused = False
         self._markers = []
         self._gaps = []
+        self._pausiert_s = 0.0
         self._is_recording = True
 
         try:
@@ -258,7 +260,7 @@ class ContinuousRecorder:
         # schon; eine zweite, womoeglich veraltete Liste hier war die Fehlerquelle.
         if BEITRAGSARTEN and marker_type not in BEITRAGSARTEN:
             return {"status": "error", "message": f"Unbekannte Beitragsart: {marker_type}"}
-        offset = (datetime.now() - self.start_time).total_seconds()
+        offset = self._wav_offset()
         entry = {
             "type": marker_type,
             "offset_seconds": offset,
@@ -285,9 +287,9 @@ class ContinuousRecorder:
         if not self._is_recording or self._paused:
             return {"status": "error", "message": "Cannot pause"}
         self._paused = True
+        offset = self._wav_offset()
         self._pause_started = datetime.now()
-        offset = (self._pause_started - self.start_time).total_seconds()
-        self._gaps.append({"start_offset": offset, "end_offset": None})
+        self._gaps.append({"start_offset": offset, "end_offset": None, "dauer_s": None})
         return {"status": "paused", "paused_at_offset": offset}
 
     def resume(self) -> dict:
@@ -295,11 +297,13 @@ class ContinuousRecorder:
             return {"status": "error", "message": "Not paused"}
         self._paused = False
         now = datetime.now()
-        end_offset = (now - self.start_time).total_seconds()
         gap_seconds = (now - self._pause_started).total_seconds() if self._pause_started else 0.0
+        self._pausiert_s += gap_seconds
+        self._pause_started = None
+        end_offset = self._wav_offset(now)      # in der WAV: dieselbe Stelle wie der Pausenbeginn
         if self._gaps and self._gaps[-1]["end_offset"] is None:
             self._gaps[-1]["end_offset"] = end_offset
-        self._pause_started = None
+            self._gaps[-1]["dauer_s"] = gap_seconds
         return {
             "status": "recording",
             "resumed_at_offset": end_offset,
@@ -328,7 +332,7 @@ class ContinuousRecorder:
         if self._wav_file:
             self._wav_file.close()  # writes nframes header
             self._wav_file = None
-        duration = int((datetime.now() - self.start_time).total_seconds())
+        duration = int(self._wav_offset())
         result = {
             "status": "stopped",
             "wav_path": str(self._wav_path),
@@ -342,12 +346,13 @@ class ContinuousRecorder:
         self._service_type = None
         self._markers = []
         self._gaps = []
+        self._pausiert_s = 0.0
         return result
 
     def status(self) -> dict:
         if not self._is_recording:
             return {"state": "idle"}
-        elapsed = int((datetime.now() - self.start_time).total_seconds()) if self.start_time else 0
+        elapsed = int(self._wav_offset()) if self.start_time else 0
         return {
             "state": "paused" if self._paused else "recording",
             "elapsed_seconds": elapsed,
@@ -366,11 +371,21 @@ class ContinuousRecorder:
             self._wav_file = None
         self.close_input()
 
+    def _wav_offset(self, jetzt: Optional[datetime] = None) -> float:
+        """Stelle in der WAV-Datei: Zeit seit dem Start ohne die Pausen.
+
+        Während einer Pause wird nichts geschrieben. Bis 08.11. zählte hier die reine Uhrzeit —
+        jeder Marker nach einer Pause lag um die Pausenlänge zu spät in der Datei (Sonntagabend:
+        Kindersegnung, 87 s Pause, das letzte Chorlied saß 87 s hinter seinem Ton)."""
+        jetzt = jetzt or datetime.now()
+        laufend = (jetzt - self._pause_started).total_seconds() if self._pause_started else 0.0
+        return max(0.0, (jetzt - self.start_time).total_seconds() - self._pausiert_s - laufend)
+
     def current_offset(self) -> Optional[float]:
-        """Seconds since session start (WAV-relative), or None when not recording."""
+        """Seconds since session start (WAV-relative, pauses excluded), or None when not recording."""
         if not self._is_recording or self.start_time is None:
             return None
-        return (datetime.now() - self.start_time).total_seconds()
+        return self._wav_offset()
 
     def get_rms_level(self) -> float:
         """Most recent ch1+2 RMS in [0.0, 1.0] — live whenever the input is open, recording or not."""
