@@ -18,6 +18,10 @@ MIN_SILENCE_MS = 1200         # …and this much quiet must sit in front of it (
 LEAD_IN_MS = 250              # keep a little air before the first sound
 TAIL_MS = 400                 # and after the last one
 THRESHOLD_OVER_FLOOR_DB = 12.0
+SEARCH_BACK_FACTOR = 1.5      # rückwärts weiter suchen als vorwärts: zu spät gedrückt wird viel
+                              #  öfter als zu früh — erst hört man das Lied, dann reagiert man
+SOUND_SHARE = 0.7             # ein leises Intro flackert um die Schwelle; 70 % des Haltefensters
+                              #  darüber genügen als Einsatz, nicht jeder einzelne Block
 ABSOLUTE_FLOOR_DBFS = -60.0
 FLOOR_PERCENTILE = 20
 
@@ -84,16 +88,63 @@ def _sustained(loud: np.ndarray, blocks: int) -> np.ndarray:
     return np.lib.stride_tricks.sliding_window_view(loud, blocks).all(axis=1)
 
 
-def _onsets(levels: np.ndarray, threshold: float, hold: int, quiet: int) -> np.ndarray:
-    """Indices where real silence turns into lasting sound."""
+def _mostly(loud: np.ndarray, blocks: int, share: float) -> np.ndarray:
+    """Wahr bei Index i, wenn Block i laut ist und mindestens `share` der nächsten `blocks`."""
+    if len(loud) < blocks:
+        return np.zeros(len(loud), dtype=bool)
+    window = np.lib.stride_tricks.sliding_window_view(loud, blocks)
+    return window[:, 0] & (window.mean(axis=1) >= share)
+
+
+def _ohne_knackser(loud: np.ndarray) -> np.ndarray:
+    """Einzelne laute Blöcke (50 ms) zwischen leisen zählen als leise — ein Knacken."""
+    vorher = np.concatenate(([False], loud[:-1]))
+    nachher = np.concatenate((loud[1:], [False]))
+    return loud & (vorher | nachher)
+
+
+def _onsets(levels: np.ndarray, threshold: float, hold: int, quiet: int,
+            nachsichtig: bool = False) -> np.ndarray:
+    """Indices where real silence turns into lasting sound.
+
+    `nachsichtig` ist für die Suche VOR dem Zeitstempel: ein leises Intro (Session 37:
+    −53 bis −34 dBFS) springt um die Schwelle herum, und in der Stille davor knackt es
+    einmal kurz. Dann genügen SOUND_SHARE Ton nach einer Stille, die nur einzelne
+    Knackser unterbrechen. Hinter dem Zeitstempel gilt die strenge Regel — dort wäre ein
+    falscher Treffer ein abgeschnittener Anfang. Durchgehende Rede rastet in keinem Fall
+    ein: ihre Atempausen sind keine 1,2 s Stille, und nachsichtig zählt eine Stille nur,
+    wenn sie im Mittel (Median) nahe am Grundpegel liegt — eine Sprechpause zwischen zwei
+    Sätzen liegt weit darüber (Session 36, Vermeldungen bei 7641 s).
+    """
     loud = levels > threshold
-    sound_ahead = _sustained(loud, hold)
-    silence_ahead = _sustained(~loud, quiet)
+    if nachsichtig:
+        sound_ahead = _mostly(loud, hold, SOUND_SHARE)
+        silence_ahead = _sustained(~_ohne_knackser(loud), quiet)
+        if len(levels) >= quiet:
+            grund = float(np.percentile(levels, FLOOR_PERCENTILE))
+            median = np.median(np.lib.stride_tricks.sliding_window_view(levels, quiet), axis=1)
+            silence_ahead = silence_ahead & (median <= grund + THRESHOLD_OVER_FLOOR_DB / 2)
+    else:
+        sound_ahead = _sustained(loud, hold)
+        silence_ahead = _sustained(~loud, quiet)
     candidates = []
     for i in range(quiet, len(sound_ahead)):
         if sound_ahead[i] and i - quiet < len(silence_ahead) and silence_ahead[i - quiet]:
             candidates.append(i)
     return np.array(candidates, dtype=int)
+
+
+def _intro_davor(levels: np.ndarray, threshold: float, quiet: int, intros: np.ndarray,
+                 index: int) -> int:
+    """Liegt vor dem gefundenen Einsatz ein leiser, ohne echte Stille dazwischen? Dann
+    beginnt der Beitrag dort. Sonst gewinnt der volle Einsatz, nur weil er näher am
+    Zeitstempel liegt — und das Intro fehlt in der Aufnahme."""
+    still = _sustained(~_ohne_knackser(levels > threshold), quiet)
+    for kandidat in sorted((int(c) for c in intros if c < index), reverse=True):
+        if still[kandidat: max(kandidat, index - quiet + 1)].any():
+            break
+        index = kandidat
+    return index
 
 
 def _offsets(levels: np.ndarray, threshold: float, hold: int, quiet: int) -> np.ndarray:
@@ -108,12 +159,17 @@ def _offsets(levels: np.ndarray, threshold: float, hold: int, quiet: int) -> np.
     return np.array(candidates, dtype=int)
 
 
-def _nearest(candidates: np.ndarray, window_start: float, block_s: float, target: float):
-    """Candidate closest to the operator's timestamp — not simply the first one in the window."""
+def _nearest(candidates: np.ndarray, window_start: float, block_s: float, target: float,
+             back_factor: float = 1.0):
+    """Candidate closest to the operator's timestamp — not simply the first one in the window.
+
+    Mit back_factor > 1 zählt Abstand vor dem Zeitstempel weniger als danach.
+    """
     if candidates.size == 0:
         return None
-    seconds = window_start + candidates * block_s
-    return int(candidates[int(np.argmin(np.abs(seconds - target)))])
+    offset = window_start + candidates * block_s - target
+    distance = np.where(offset < 0, -offset / back_factor, offset)
+    return int(candidates[int(np.argmin(distance))])
 
 
 def refine(wav_path, start_seconds: float, end_seconds: float) -> dict:
@@ -129,17 +185,32 @@ def refine(wav_path, start_seconds: float, end_seconds: float) -> dict:
         "threshold_dbfs": None,
     }
 
+    back = SEARCH_SECONDS * SEARCH_BACK_FACTOR
     levels, window_start, _ = _block_levels(
-        wav_path, start_seconds - SEARCH_SECONDS, min(start_seconds + SEARCH_SECONDS, end_seconds)
+        wav_path, start_seconds - back, min(start_seconds + SEARCH_SECONDS, end_seconds)
     )
     if levels.size:
-        threshold = _threshold(levels)
+        # Die strenge Suche bleibt, wie sie war: Grundpegel aus ±SEARCH_SECONDS, Kandidaten
+        # auf beiden Seiten. Dazu kommt vor dem Zeitstempel die nachsichtige, mit dem
+        # Grundpegel des ganzen, nach hinten verlängerten Fensters — ein leises Intro nach
+        # stummem Kanal hebt den Grundpegel im engen Fenster sonst über sich selbst.
+        # So können neue Kandidaten einen Anfang nur nach vorn ziehen, nie nach hinten.
+        nah = int(round((back - SEARCH_SECONDS) / block_s))
+        threshold = _threshold(levels[nah:] if levels.size > nah else levels)
         result["threshold_dbfs"] = round(threshold, 1)
-        index = _nearest(_onsets(levels, threshold, hold, quiet), window_start, block_s, start_seconds)
+        streng = _onsets(levels, threshold, hold, quiet)
+        weit = _threshold(levels)
+        nachsichtig = _onsets(levels, weit, hold, quiet, nachsichtig=True)
+        stempel = (start_seconds - window_start) / block_s
+        nachsichtig = nachsichtig[nachsichtig <= stempel]
+        kandidaten = np.union1d(streng, nachsichtig)
+        index = _nearest(kandidaten, window_start, block_s, start_seconds, SEARCH_BACK_FACTOR)
+        if index is not None:
+            index = _intro_davor(levels, weit, quiet, nachsichtig, index)
         if index is not None:
             onset = window_start + index * block_s - LEAD_IN_MS / 1000.0
             onset = max(0.0, onset)
-            if abs(onset - start_seconds) <= SEARCH_SECONDS:
+            if -back <= onset - start_seconds <= SEARCH_SECONDS:
                 result["start_seconds"] = round(onset, 2)
                 result["start_delta"] = round(onset - start_seconds, 2)
 
