@@ -50,6 +50,11 @@ monitor_enabled = threading.Event()
 _tel_q: queue.Queue = queue.Queue()
 telefon_enabled = threading.Event()
 
+# Rückspiel: Blöcke float32 (Frames × Ausgangskanäle), die der Callback in den Ausgang
+# legt. Begrenzt, damit ein Zuführer nie mehr als einige Sekunden vorausliest; der
+# Zuführer wartet mit put(timeout=…) — im Callback wird nur get_nowait() aufgerufen.
+RUECKSPIEL_MAX_BLOECKE = 64
+
 METER_STALE_SECONDS = 0.5   # no callback for this long → meter reads 0.0
 INPUT_LOST_SECONDS = 3.0    # no callback for this long → close stream and rescan devices
 INPUT_POLL_SECONDS = 3.0
@@ -57,7 +62,8 @@ INPUT_POLL_SECONDS = 3.0
 
 class ContinuousRecorder:
     def __init__(self):
-        self._stream: Optional[sd.InputStream] = None
+        self._stream: Optional[sd.InputStream | sd.Stream] = None
+        self._device: Optional[int] = None
         self._wav_file: Optional[wave.Wave_write] = None
         self._wav_path: Optional[pathlib.Path] = None
         self._service_type: Optional[str] = None
@@ -73,11 +79,19 @@ class ContinuousRecorder:
         self._last_callback_at: float = 0.0
         self._rec_idx: list = []   # 0-based column indices into indata
         self._str_idx: list = []
+        self._out_idx: list = []
+        # Rückspiel. _out_rest gehört allein dem Callback-Thread; die anderen Threads
+        # reden mit ihm nur über die Queue und das Event.
+        self._out_q: queue.Queue = queue.Queue(maxsize=RUECKSPIEL_MAX_BLOECKE)
+        self._out_rest: Optional[np.ndarray] = None
+        self._out_verwerfen = threading.Event()
+        self._duplex: bool = False
         self._refresh_channel_map()
 
     def _refresh_channel_map(self):
         self._rec_idx = [c - 1 for c in config.record_channels]
         self._str_idx = [c - 1 for c in config.stream_channels]
+        self._out_idx = [c - 1 for c in config.output_channels]
 
     def _find_input_device(self) -> Optional[int]:
         """Index of the first device from config.device_names with enough input channels."""
@@ -87,6 +101,13 @@ class ContinuousRecorder:
                 if wanted in dev["name"] and dev["max_input_channels"] >= config.continuous_channels:
                     return i
         return None
+
+    def _output_reicht(self, device: int) -> bool:
+        """Hat das Eingangsgerät genug Ausgangskanäle für das Rückspiel?"""
+        try:
+            return sd.query_devices(device).get("max_output_channels", 0) >= config.continuous_output_channels
+        except (sd.PortAudioError, ValueError, AttributeError):
+            return False
 
     def _generate_wav_path(self, service_type: str) -> pathlib.Path:
         """Create this session's own folder and return the WAV path inside it.
@@ -121,20 +142,40 @@ class ContinuousRecorder:
         if device is None:
             return False
         self._refresh_channel_map()
+        # Duplex nur, wenn eingerichtet UND das Gerät die Ausgänge hat. Sonst lieber ohne
+        # Rückspiel aufnehmen als gar nicht. Die Art des Streams folgt allein der .env und
+        # ändert sich damit nie während einer Aufnahme, nur beim Dienst-Neustart.
+        duplex = bool(config.output_channels)
+        if duplex and not self._output_reicht(device):
+            print(f"[input] Rückspiel: Gerät hat keine {config.continuous_output_channels} "
+                  f"Ausgangskanäle — nur Eingang", flush=True)
+            duplex = False
         try:
-            stream = sd.InputStream(
-                samplerate=config.sample_rate,
-                channels=config.continuous_channels,
-                dtype=config.continuous_dtype,
-                device=device,
-                blocksize=config.blocksize,
-                callback=self._audio_callback,
-            )
+            if duplex:
+                stream = sd.Stream(
+                    samplerate=config.sample_rate,
+                    channels=(config.continuous_channels, config.continuous_output_channels),
+                    dtype=config.continuous_dtype,
+                    device=(device, device),
+                    blocksize=config.blocksize,
+                    callback=self._duplex_callback,
+                )
+            else:
+                stream = sd.InputStream(
+                    samplerate=config.sample_rate,
+                    channels=config.continuous_channels,
+                    dtype=config.continuous_dtype,
+                    device=device,
+                    blocksize=config.blocksize,
+                    callback=self._audio_callback,
+                )
             stream.start()
         except Exception as exc:  # e.g. PortAudioError when microphone access is denied
             print(f"[input] could not open input device: {exc}", flush=True)
             return False
         self._stream = stream
+        self._device = device
+        self._duplex = duplex
         self._last_callback_at = monotonic()
         return True
 
@@ -147,6 +188,8 @@ class ContinuousRecorder:
         except Exception:
             pass
         self._stream = None
+        self._duplex = False
+        self.rueckspiel_stoppen()
         self._last_rms = 0.0
 
     def input_available(self) -> bool:
@@ -166,9 +209,11 @@ class ContinuousRecorder:
                     sd._initialize()
                     if self.ensure_input():
                         print(
-                            f"[input] input open: {sd.query_devices(self._stream.device)['name']} "
-                            f"({self._stream.channels} Kanäle, Aufnahme {config.record_channels}, "
-                            f"Stream {config.stream_channels})",
+                            f"[input] input open: {sd.query_devices(self._device)['name']} "
+                            f"({config.continuous_channels} Kanäle, Aufnahme {config.record_channels}, "
+                            f"Stream {config.stream_channels}"
+                            + (f", Rückspiel {config.output_channels}" if self._duplex else "")
+                            + ")",
                             flush=True,
                         )
             except Exception as exc:
@@ -197,6 +242,78 @@ class ContinuousRecorder:
                 _mon_q.put_nowait(stream_pcm)
             if telefon_enabled.is_set():
                 _tel_q.put_nowait(stream_pcm)
+
+    def _duplex_callback(self, indata: np.ndarray, outdata: np.ndarray, frames: int, time, status):
+        """PortAudio-Echtzeit-Thread im Duplex-Betrieb: Eingang wie immer, dazu den Ausgang
+        füllen. Dieselben Regeln: nur NumPy und get_nowait(), kein I/O, kein Logging."""
+        self._audio_callback(indata, frames, time, status)
+        self._ausgang_fuellen(outdata, frames)
+
+    def _ausgang_fuellen(self, outdata: np.ndarray, frames: int) -> None:
+        """Rückspiel-Blöcke in die konfigurierten Ausgangskanäle legen, Rest Stille."""
+        outdata.fill(0)
+        if self._out_verwerfen.is_set():
+            # Stopp: angefangenen Block wegwerfen, diesen Durchgang still bleiben. Die
+            # Queue leert rueckspiel_stoppen() selbst, nicht der Callback.
+            self._out_rest = None
+            self._out_verwerfen.clear()
+            return
+        pos = 0
+        rest = self._out_rest
+        while pos < frames:
+            if rest is None or len(rest) == 0:
+                try:
+                    rest = self._out_q.get_nowait()
+                except queue.Empty:
+                    rest = None
+                    break
+            n = min(frames - pos, len(rest))
+            outdata[pos:pos + n, self._out_idx] = rest[:n]
+            rest = rest[n:]
+            pos += n
+        self._out_rest = rest
+
+    # ─── Rückspiel ──────────────────────────────────────────────────────────
+
+    def rueckspiel_bereit(self) -> bool:
+        """True, wenn ein Duplex-Stream offen ist und Blöcke angenommen werden."""
+        return self._stream is not None and self._duplex
+
+    @property
+    def rueckspiel_kanaele(self) -> int:
+        return len(self._out_idx)
+
+    def rueckspiel_einreihen(self, pcm: np.ndarray, timeout: float = 1.0) -> bool:
+        """PCM (float32, Frames × Ausgangskanäle, Abtastrate des Streams) zum Abspielen
+        einreihen. Blockiert höchstens `timeout`, wenn der Puffer voll ist — also nie aus
+        dem Callback oder der Event-Loop aufrufen, nur aus einem Zuführer-Thread.
+        False heißt: kein Platz (oder kein Ausgang); der Zuführer versucht es erneut."""
+        if not self.rueckspiel_bereit():
+            return False
+        pcm = np.asarray(pcm, dtype=np.float32)
+        if pcm.ndim == 1:
+            pcm = pcm[:, None]
+        if pcm.shape[1] != len(self._out_idx):
+            raise ValueError(f"erwartet {len(self._out_idx)} Kanäle, bekommen {pcm.shape[1]}")
+        try:
+            self._out_q.put(np.clip(pcm, -1.0, 1.0), timeout=timeout)
+        except queue.Full:
+            return False
+        return True
+
+    def rueckspiel_stoppen(self) -> None:
+        """Puffer leeren und den angefangenen Block verwerfen — ab dem nächsten Callback
+        ist der Ausgang still."""
+        while True:
+            try:
+                self._out_q.get_nowait()
+            except queue.Empty:
+                break
+        self._out_verwerfen.set()
+
+    def rueckspiel_puffer_s(self) -> float:
+        """Grob, wie viel noch im Puffer liegt — für die Statusanzeige."""
+        return self._out_q.qsize() * config.blocksize / config.sample_rate
 
     async def _drain_rec_queue(self):
         """Async consumer — safe to call wave.writeframes here."""

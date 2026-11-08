@@ -27,6 +27,7 @@ import classifier
 import laufzeit
 import recorder as recorder_modul
 from recorder import ContinuousRecorder
+from rueckspiel import Rueckspiel, RueckspielFehler
 from streamer import StreamAdapter, public_target
 from telefon import TelefonAdapter
 import online as online_modul
@@ -68,6 +69,7 @@ telefon = TelefonAdapter()                  # Stream-Mix in die Telefonkonferenz
 auto_modus = AutoModus(continuous_recorder)  # erkennt Beiträge, schreibt aber nichts
 nas_client = NASClient(config)              # Phase 7
 transcriber = LiveTranscriber()             # live transcription
+rueckspiel = Rueckspiel(continuous_recorder, config.blocksize, config.sample_rate)
 
 
 @app.get("/healthz")
@@ -187,7 +189,9 @@ class ErkennungConfig(BaseModel):
     export_peak_dbfs: Optional[float] = None
     export_fade_ms: Optional[int] = None
     export_normalisierung: Optional[str] = None
-    export_lufs: Optional[float] = None
+    export_lufs: Optional[float] = None     # alt: ein Ziel für beide Klassen
+    export_lufs_sprache: Optional[float] = None
+    export_lufs_musik: Optional[float] = None
     # Schnittkanten
     grenzen_suchfenster_s: Optional[float] = None
     grenzen_min_ton_ms: Optional[int] = None
@@ -225,7 +229,8 @@ async def erkennung_lesen():
     stand["export_peak_dbfs"] = laufzeit.EXPORT["peak_dbfs"]
     stand["export_fade_ms"] = laufzeit.EXPORT["fade_ms"]
     stand["export_normalisierung"] = laufzeit.EXPORT["normalisierung"]
-    stand["export_lufs"] = laufzeit.EXPORT["lufs"]
+    stand["export_lufs_sprache"] = laufzeit.EXPORT["lufs_sprache"]
+    stand["export_lufs_musik"] = laufzeit.EXPORT["lufs_musik"]
     return stand
 
 
@@ -568,6 +573,42 @@ async def session_resume():
     return result
 
 
+# ─── Rückspiel über den Dante-Ausgang ──────────────────────────────────────
+# Nur mit AUDIO_OUTPUT_CHANNELS in der .env; sonst 409. Die Meldungen sind feste
+# deutsche Sätze, die die API übersetzt.
+
+class RueckspielRequest(BaseModel):
+    wav_path: str
+    from_s: float
+    to_s: float
+
+
+@app.post("/api/session/rueckspiel")
+async def session_rueckspiel(req: RueckspielRequest):
+    if not config.output_channels:
+        raise HTTPException(status_code=409, detail="Rückspiel ist nicht eingerichtet")
+    # Nur innerhalb des Aufnahmeordners — der Pfad kommt aus einem anderen Prozess.
+    wav = pathlib.Path(req.wav_path).resolve()
+    if not wav.is_relative_to(config.output_dir.resolve()):
+        raise HTTPException(status_code=400, detail="Pfad liegt außerhalb des Aufnahmeordners")
+    try:
+        return await asyncio.to_thread(rueckspiel.starten, wav, req.from_s, req.to_s)
+    except RueckspielFehler as e:
+        raise HTTPException(status_code=e.status, detail=e.nachricht)
+
+
+@app.post("/api/session/rueckspiel/stop")
+async def session_rueckspiel_stop():
+    if not config.output_channels:
+        raise HTTPException(status_code=409, detail="Rückspiel ist nicht eingerichtet")
+    return await asyncio.to_thread(rueckspiel.stoppen)
+
+
+@app.get("/api/session/rueckspiel")
+async def session_rueckspiel_status():
+    return {"eingerichtet": bool(config.output_channels), **rueckspiel.status()}
+
+
 class ExportRequest(BaseModel):
     wav_path: str
     mp3_path: Optional[str] = None
@@ -590,6 +631,10 @@ class SegmentExportRequest(BaseModel):
     online_ersetzen: bool = False
     # Stücke mitten im Track, die nicht dazugehören ([[von, bis], …], absolute Sekunden)
     luecken: list[list[float]] = []
+    # Für die Ziellautheit: Klangklasse der Beitragsart ("musik"/"sprache"/None) und ihr
+    # Name — ohne Klasse entscheidet der Name, siehe laufzeit.klasse_fuer().
+    klang_klasse: Optional[str] = None
+    marker_type: Optional[str] = None
 
 
 @app.post("/api/session/export")
@@ -613,6 +658,9 @@ async def session_export(req: ExportRequest):
         bitrate=laufzeit.EXPORT["bitrate"],
         peak_dbfs=laufzeit.EXPORT["peak_dbfs"],
         fade_ms=laufzeit.EXPORT["fade_ms"],
+        # Ein ganzer Gottesdienst ist überwiegend gesprochen — also das Sprachziel.
+        # Ohne diese Zeile blieb der Gesamt-Export bei der Spitze, auch bei „Lautheit“.
+        lufs=laufzeit.ziel_lufs("sprache"),
     )
     return result
 
@@ -652,7 +700,7 @@ async def session_segment_export(req: SegmentExportRequest):
             bitrate=laufzeit.EXPORT["bitrate"],
             fade_ms=laufzeit.EXPORT["fade_ms"],
             peak_dbfs=laufzeit.EXPORT["peak_dbfs"],
-            lufs=laufzeit.ziel_lufs(),
+            lufs=laufzeit.ziel_lufs(req.klang_klasse, req.marker_type),
             tags=req.tags,
             cover=config.export_cover or None,
             luecken=req.luecken,

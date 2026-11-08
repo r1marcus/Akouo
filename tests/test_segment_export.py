@@ -412,3 +412,71 @@ def test_luecken_fallen_aus_dem_track():
     teil = _ohne_luecken(ton, 5000, 15000, [[8.0, 11.0], [30.0, 40.0]])
     assert abs(len(teil) - (7000 - UEBERBLENDUNG_MS)) <= 5
     assert len(_ohne_luecken(ton, 5000, 15000, [])) == 10000
+
+
+def test_endpoint_waehlt_die_ziellautheit_nach_klangklasse(audio_client, monkeypatch, tmp_path):
+    """Lieder bekommen das Musikziel, Predigten das Sprachziel, Unbekanntes das Sprachziel."""
+    client, audio_main, _ = audio_client
+    for k, v in {"normalisierung": "Lautheit", "lufs_sprache": -16.0, "lufs_musik": -14.0}.items():
+        monkeypatch.setitem(audio_main.laufzeit.EXPORT, k, v)
+    gesehen = []
+
+    def fake_export(*args, **kwargs):
+        gesehen.append(kwargs["lufs"])
+        return {"mp3_path": str(args[3]), "duration_ms": 1000, "frame_rate": 48000}
+
+    monkeypatch.setattr(audio_main, "export_segment", fake_export)
+    wav = tmp_path / "session.wav"
+    _make_silent_wav(wav, duration_ms=3000)
+    for klasse, typ in (("musik", "Chorlied"), ("sprache", "Predigt"), (None, "Gebetslied"),
+                        (None, "Unbenannt"), (None, None)):
+        r = client.post("/api/session/segment-export", json={
+            "wav_path": str(wav), "start_seconds": 0.0, "end_seconds": 2.0,
+            "mp3_filename": "x.mp3", "klang_klasse": klasse, "marker_type": typ})
+        assert r.status_code == 200, r.text
+    assert gesehen == [-14.0, -16.0, -14.0, -16.0, -16.0]
+
+
+def test_gesamt_export_nutzt_das_sprachziel(audio_client, monkeypatch, tmp_path):
+    """Früher ignorierte der Gesamt-Export die Lautheit und blieb bei der Spitze."""
+    client, audio_main, _ = audio_client
+    for k, v in {"normalisierung": "Lautheit", "lufs_sprache": -17.0, "lufs_musik": -14.0}.items():
+        monkeypatch.setitem(audio_main.laufzeit.EXPORT, k, v)
+    gesehen = {}
+
+    def fake_export(wav, mp3, **kwargs):
+        gesehen.update(kwargs)
+        return {"mp3_path": str(mp3), "duration_ms": 1000, "frame_rate": 48000}
+
+    monkeypatch.setattr(audio_main, "export_wav_to_mp3", fake_export)
+    wav = tmp_path / "session.wav"
+    _make_silent_wav(wav, duration_ms=1000)
+    assert client.post("/api/session/export", json={"wav_path": str(wav)}).status_code == 200
+    assert gesehen["lufs"] == -17.0
+
+
+def test_rueckspiel_ohne_ausgang_wird_abgelehnt(audio_client, monkeypatch, tmp_path):
+    """Standard ist nur Eingang — das Rückspiel antwortet dann mit 409, nie mit einem Fehler."""
+    client, audio_main, _ = audio_client
+    monkeypatch.setattr(audio_main.config, "output_channels", [])
+    r = client.post("/api/session/rueckspiel",
+                    json={"wav_path": str(tmp_path / "x.wav"), "from_s": 0, "to_s": 1})
+    assert r.status_code == 409 and r.json()["detail"] == "Rückspiel ist nicht eingerichtet"
+    assert client.post("/api/session/rueckspiel/stop").status_code == 409
+    assert client.get("/api/session/rueckspiel").json()["eingerichtet"] is False
+
+
+def test_rueckspiel_prueft_pfad_und_abtastrate(audio_client, monkeypatch):
+    client, audio_main, _ = audio_client
+    monkeypatch.setattr(audio_main.config, "output_channels", [3, 4])
+    monkeypatch.setattr(audio_main.continuous_recorder, "rueckspiel_bereit", lambda: True)
+
+    r = client.post("/api/session/rueckspiel", json={"wav_path": "/etc/hosts", "from_s": 0, "to_s": 1})
+    assert r.status_code == 400
+
+    wav = audio_main.config.output_dir / "rate.wav"
+    wav.parent.mkdir(parents=True, exist_ok=True)
+    _make_silent_wav(wav, duration_ms=1000, frame_rate=44_100)
+    r = client.post("/api/session/rueckspiel", json={"wav_path": str(wav), "from_s": 0, "to_s": 0.5})
+    assert r.status_code == 422
+    assert r.json()["detail"] == "Die Abtastrate der Aufnahme passt nicht zum Ausgang"

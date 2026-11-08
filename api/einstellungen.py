@@ -42,6 +42,9 @@ class Feld:
     wirkt: str = "sofort"
     # Name im Audio-Dienst, falls der Wert dorthin geschoben wird
     schiebt_als: Optional[str] = None
+    # Früherer Schlüssel: steht nur er in der Datenbank, gilt sein Wert. So geht eine
+    # Einstellung beim Aufteilen nicht verloren.
+    frueher: Optional[str] = None
 
     def pruefen(self, rohwert: Optional[str]) -> Any:
         """Eingabe in den richtigen Typ bringen und Grenzen prüfen.
@@ -97,10 +100,20 @@ FELDER: tuple[Feld, ...] = (
                "erreicht — leise Predigten bleiben leise. Lautheit: jedes Segment klingt gleich "
                "laut (EBU R 128), die Spitze bleibt unter −1 dBTP.",
          wirkt="geschoben", schiebt_als="export_normalisierung"),
-    Feld("export_lufs", "Export", "Ziellautheit", "float", -16.0,
+    # Zwei Ziele: Musik wird üblicherweise lauter gemastert als Sprache (Streaming um
+    # −14, Sprache und Podcasts um −16 LUFS). Mit dem Sprachziel wirkten die Lieder neben
+    # jeder anderen Aufnahme matt. Welches Ziel gilt, entscheidet die Klangklasse der
+    # Beitragsart. „export_lufs“ war das eine Ziel davor und gilt weiter, bis jemand speichert.
+    Feld("export_lufs_sprache", "Export", "Ziellautheit Sprache", "float", -16.0,
          einheit=" LUFS", von=-24.0, bis=-12.0,
-         hilfe="Nur bei „Lautheit“. −16 LUFS ist üblich für Sprache und Podcasts.",
-         wirkt="geschoben", schiebt_als="export_lufs"),
+         hilfe="Nur bei „Lautheit“. Für Predigt, Gedicht und alles ohne Klangklasse. "
+               "−16 LUFS ist üblich für Sprache und Podcasts.",
+         wirkt="geschoben", schiebt_als="export_lufs_sprache", frueher="export_lufs"),
+    Feld("export_lufs_musik", "Export", "Ziellautheit Musik", "float", -14.0,
+         einheit=" LUFS", von=-24.0, bis=-10.0,
+         hilfe="Nur bei „Lautheit“. Für Beitragsarten mit der Klangklasse „Musik“ sowie "
+               "Gebetslied, Musikstück und Kinderlied. −14 LUFS ist üblich für Musik.",
+         wirkt="geschoben", schiebt_als="export_lufs_musik", frueher="export_lufs"),
     Feld("export_fade_ms", "Export", "Ein- und Ausblende", "int", 1000,
          einheit=" ms", von=0, bis=5000,
          hilfe="Blende am Anfang und Ende jedes Segments.",
@@ -228,6 +241,8 @@ async def alle_lesen(db: AsyncSession) -> dict[str, Any]:
     werte: dict[str, Any] = {}
     for feld in FELDER:
         roh = gespeichert.get(feld.schluessel)
+        if roh is None and feld.frueher:
+            roh = gespeichert.get(feld.frueher)
         if roh is None:
             werte[feld.schluessel] = feld.standard
             continue

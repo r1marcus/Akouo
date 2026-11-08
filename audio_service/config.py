@@ -31,6 +31,11 @@ class Config:
     # zwei verschiedene Paare (hier: Dante 44,45 und 46,47).
     record_channels: list = field(default_factory=lambda: _channel_list("AUDIO_RECORD_CHANNELS", "1,2"))
     stream_channels: list = field(default_factory=lambda: _channel_list("AUDIO_STREAM_CHANNELS", "1,2"))
+    # Rückspiel über dasselbe Gerät (Dante): Ausgangskanäle, 1-basiert. Leer heißt: nur
+    # Eingang, genau wie bisher. Gesetzt öffnet der Dienst beim Start einen Duplex-Stream —
+    # ein zweiter Stream auf dasselbe Gerät würde gegen den Eingang driften. Wirkt nur beim
+    # Dienst-Neustart, nie mitten in einer Aufnahme.
+    output_channels: list = field(default_factory=lambda: _channel_list("AUDIO_OUTPUT_CHANNELS", ""))
     dtype: str = "int16"        # legacy
     continuous_dtype: str = "float32"
     blocksize: int = 1024       # ~21ms per callback at 48000Hz
@@ -87,6 +92,11 @@ class Config:
         """Channels the input stream must expose to reach the configured pairs (PortAudio always
         starts at channel 1, so channel 45 means opening 45 channels and slicing)."""
         return max(self.record_channels + self.stream_channels)
+
+    @property
+    def continuous_output_channels(self) -> int:
+        """Ausgangskanäle, die der Duplex-Stream öffnen muss — 0 heißt: kein Ausgang."""
+        return max(self.output_channels) if self.output_channels else 0
 
 
 config = Config()
