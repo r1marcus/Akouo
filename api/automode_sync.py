@@ -113,6 +113,21 @@ async def _abgleichen(zustand: dict):
             if marker is None:
                 continue
 
+            # Von Hand angefasst heißt: Marker von Hand gesetzt (zuletzt None), umbenannt
+            # oder verschoben. Dieselbe Regel wie beim Neu-Erkennen (_von_hand in
+            # routers/segments.py) — was die Hand gemacht hat, überschreibt nichts.
+            von_hand = (zuletzt is None or marker.marker_type != zuletzt
+                        or marker.nudge_manual or bool(marker.start_nudge))
+
+            # Anfang nachziehen: findet der Automodus den leisen Einsatz eines laufenden
+            # Beitrags erst ein paar Takte später, zieht er den Anfang nach vorn. Ohne
+            # diesen Abgleich blieb der Marker dort stehen, wo die Schwelle zuerst
+            # angeschlagen hatte — am 8. November acht Sekunden im Chorlied.
+            neu_start = b.get("start_s")
+            if not von_hand and neu_start is not None and neu_start < marker.placed_at_ts:
+                marker.placed_at_ts = neu_start
+                marker.placed_at_wall = session.started_at + timedelta(seconds=neu_start)
+
             # Typ nachschärfen, solange niemand von Hand eingegriffen hat
             if marker.marker_type == zuletzt and b["typ"] not in ("?", zuletzt):
                 marker.marker_type = b["typ"]
