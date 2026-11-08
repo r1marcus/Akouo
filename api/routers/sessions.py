@@ -12,6 +12,7 @@ from pydantic import BaseModel
 import httpx
 
 import automode_sync
+import einstellungen
 import session_dokument
 from database import get_db
 from models import (RecordingSession, Marker, ServiceTypeTemplate, ChecklistInstance,
@@ -99,6 +100,22 @@ async def start_session(req: StartSessionRequest, db: AsyncSession = Depends(get
     }
 
 
+async def _mit_vorlauf(db: AsyncSession, session_id: int, offset: float) -> float:
+    """Der Marker sitzt den eingestellten Vorlauf vor dem Knopfdruck: man drückt, wenn der
+    Beitrag hörbar angefangen hat. Nie vor den Anfang des vorigen Tracks oder sein Ende."""
+    vorlauf = float((await einstellungen.alle_lesen(db)).get("track_vorlauf_s") or 0.0)
+    if vorlauf <= 0:
+        return offset
+    voriger = (await db.execute(
+        select(Marker).where(Marker.session_id == session_id)
+        .order_by(Marker.placed_at_ts.desc()).limit(1))).scalar_one_or_none()
+    grenze = 0.0
+    if voriger is not None:
+        grenze = float(voriger.ended_at_ts) if voriger.ended_at_ts is not None \
+            else float(voriger.placed_at_ts) + 0.5
+    return max(grenze, offset - vorlauf, 0.0) if grenze <= offset else offset
+
+
 @router.post("/marker")
 async def place_marker(req: MarkerRequest, db: AsyncSession = Depends(get_db)):
     async with httpx.AsyncClient(timeout=5.0) as client:
@@ -120,7 +137,7 @@ async def place_marker(req: MarkerRequest, db: AsyncSession = Depends(get_db)):
         m = Marker(
             session_id=active.id,
             marker_type=req.marker_type,
-            placed_at_ts=float(marker_data.get("offset_seconds", 0.0)),
+            placed_at_ts=await _mit_vorlauf(db, active.id, float(marker_data.get("offset_seconds", 0.0))),
             placed_at_wall=datetime.fromisoformat(marker_data.get("wall_time")) if marker_data.get("wall_time") else datetime.now(),
             audio_service_index=int(asi) if asi is not None else None,
         )

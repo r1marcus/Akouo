@@ -119,7 +119,7 @@ async def export_check(session_id: int, ids: str = "", station: Optional[bool] =
             hinweise.append(uebersetze("Schon exportiert — die Datei wird ersetzt"))
         if online and seg["online"] and seg["online"]["status"] == "uploaded":
             hinweise.append(uebersetze("Schon online — wird ersetzt"))
-        if insight is None:
+        if insight is None or not insight.ki_gelaufen:
             hinweise.append(uebersetze("KI-Auswertung läuft vor dem Export") if ki_vorher
                             else uebersetze("Ohne KI-Auswertung — in der App ohne Titel"))
 
@@ -134,7 +134,7 @@ async def export_check(session_id: int, ids: str = "", station: Optional[bool] =
             "nas_datei": nas_datei,
             "titel": (insight.title or "") if insight else "",
             "sprecher": (insight.speaker or "") if insight else "",
-            "ki": insight is not None,
+            "ki": insight is not None and insight.ki_gelaufen,
             "online_titel": eintrag["recording"]["title"] if eintrag else None,
             "online_art": eintrag["recording"]["recording_type"] if eintrag else None,
             "hinweise": hinweise,
@@ -231,20 +231,23 @@ class TrackAngaben(BaseModel):
 @router.patch("/{session_id}/segments/{marker_id}/angaben")
 async def track_angaben_aendern(session_id: int, marker_id: int, req: TrackAngaben,
                                 db: AsyncSession = Depends(get_db)) -> dict:
-    """Titel und Sprecher eines Tracks — sie stehen in der KI-Auswertung und gehen von
-    dort in die Gemeinde-App. Ohne Auswertung gibt es nichts zu ändern: ein leerer
-    Eintrag würde die Auswertung vor dem Export verhindern."""
+    """Titel und Sprecher eines Tracks. Sie stehen bei der KI-Auswertung und gehen von dort
+    in die Gemeinde-App. Gibt es noch keine Auswertung, entsteht ein Eintrag nur mit den
+    Handangaben (model = "hand"); die KI läuft vor dem Export trotzdem und lässt sie stehen."""
     marker = await db.get(Marker, marker_id)
     if marker is None or marker.session_id != session_id:
         raise HTTPException(status_code=404, detail=f"Marker {marker_id} not found")
     insight = (await db.execute(
         select(SegmentInsight).where(SegmentInsight.marker_id == marker_id))).scalar_one_or_none()
     if insight is None:
-        raise HTTPException(status_code=409, detail=uebersetze("Erst die KI-Auswertung machen"))
+        insight = SegmentInsight(session_id=session_id, marker_id=marker_id, model="hand")
+        db.add(insight)
     if req.titel is not None:
         insight.title = req.titel.strip() or None
+        insight.titel_von_hand = insight.title is not None
     if req.sprecher is not None:
         insight.speaker = req.sprecher.strip() or None
+        insight.sprecher_von_hand = insight.speaker is not None
     await db.commit()
     return {"titel": insight.title or "", "sprecher": insight.speaker or "",
             "keywords": json.loads(insight.keywords or "[]")}

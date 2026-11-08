@@ -1138,13 +1138,15 @@ async def test_angaben_im_export_check_aendern(db_session):
     assert e.value.status_code == 422
 
     predigt = marker["Predigt"].id
-    with pytest.raises(HTTPException) as e:
-        await track_angaben_aendern(sess.id, predigt, TrackAngaben(sprecher="P. F."), db_session)
-    assert e.value.status_code == 409
-    db_session.add(SegmentInsight(session_id=sess.id, marker_id=predigt, title="Alt"))
-    await db_session.commit()
+    # Ohne Auswertung entsteht ein Eintrag nur mit Handangaben — die KI gilt als nicht gelaufen
+    r = await track_angaben_aendern(sess.id, predigt, TrackAngaben(sprecher="P. F."), db_session)
+    assert r["sprecher"] == "P. F."
+    zeile = (await db_session.execute(__import__("sqlalchemy").select(SegmentInsight).where(
+        SegmentInsight.marker_id == predigt))).scalar_one()
+    assert zeile.model == "hand" and not zeile.ki_gelaufen and zeile.sprecher_von_hand
     r = await track_angaben_aendern(sess.id, predigt, TrackAngaben(titel="Neu", sprecher="P. F."), db_session)
     assert (r["titel"], r["sprecher"]) == ("Neu", "P. F.")
+    assert zeile.titel_von_hand
 
 
 @pytest.mark.asyncio
@@ -1185,3 +1187,25 @@ async def test_typwechsel_nach_stopp_zieht_auswahl_und_nas_ordner_mit(db_session
     assert _json.loads(zeile.value)["service_type"] == neu
     assert _json.loads(zeile.value)["gewaehlt_am"] == "x"
     assert sess.nas_folder is None          # noch nichts exportiert → Ordner folgt dem Typ
+
+
+@pytest.mark.asyncio
+async def test_ki_auswertung_laesst_handtitel_stehen(db_session):
+    """Von Hand gesetzter Titel gewinnt; die KI füllt den Rest und gilt danach als gelaufen."""
+    from routers.export_check import TrackAngaben, track_angaben_aendern
+    from routers.insights import create_insight
+
+    sess, marker = await _gottesdienst_mit_luecken(db_session)
+    predigt = marker["Predigt"].id
+    await track_angaben_aendern(sess.id, predigt, TrackAngaben(titel="Starke Ehen"), db_session)
+
+    client = AsyncMock()
+    client.post.return_value = _mock_response(200, {"titel": "KI-Titel", "zusammenfassung": "Z",
+                                                    "sprecher": "KI-Sprecher", "model": "qwen"})
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=False)
+    with patch("httpx.AsyncClient", return_value=client):
+        r = await create_insight(sess.id, predigt, db_session)
+
+    assert r["title"] == "Starke Ehen" and r["titel_von_hand"]
+    assert r["speaker"] == "KI-Sprecher" and r["summary"] == "Z" and r["ki"]

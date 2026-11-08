@@ -119,6 +119,11 @@ FELDER: tuple[Feld, ...] = (
          hilfe="Verschiebt den Schnitt auf die leiseste Stelle in der Nähe. Von Hand "
                "gesetzte Kanten bleiben unangetastet.",
          wirkt="sofort"),
+    Feld("track_vorlauf_s", "Erkennung", "Vorlauf bei „Track starten“", "float", 3.0,
+         einheit=" s", von=0.0, bis=15.0,
+         hilfe="Der Marker landet so viele Sekunden vor dem Druck auf „Track starten“. "
+               "Man wartet, bis der Beitrag wirklich anfängt, und drückt dann.",
+         wirkt="sofort"),
     Feld("min_stille_s", "Erkennung", "Mindest-Stille zwischen Beiträgen", "float", 8.0,
          einheit=" s", von=2.0, bis=30.0,
          hilfe="Gemessen, nicht geschätzt: bei 5 s zerschneiden Sprechpausen die Predigt, "

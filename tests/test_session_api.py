@@ -159,7 +159,7 @@ async def test_marker_persists_with_session_fk(db_session):
     )).scalars().all()
     assert len(markers) == 1
     assert markers[0].marker_type == "Predigt"
-    assert markers[0].placed_at_ts == 42.5
+    assert markers[0].placed_at_ts == 42.5 - 3.0      # Standard-Vorlauf 3 s
 
 
 @pytest.mark.asyncio
@@ -245,3 +245,26 @@ def test_streaming_paths_updated():
     assert 'STREAMING_SERVICE_URL}/status"' not in source
     assert 'STREAMING_SERVICE_URL}/start"' not in source
     assert 'STREAMING_SERVICE_URL}/stop"' not in source
+
+
+@pytest.mark.asyncio
+async def test_vorlauf_setzt_marker_vor_den_knopfdruck(db_session):
+    """Man drückt, wenn der Beitrag angefangen hat — der Marker sitzt den Vorlauf davor,
+    aber nie vor dem vorigen Track."""
+    from models import Marker, RecordingSession, Setting
+    from routers.sessions import _mit_vorlauf
+
+    sess = RecordingSession(service_type="Sonntagmorgen", status="recording", wav_path="/tmp/x.wav",
+                            started_at=__import__("datetime").datetime.now())
+    db_session.add(sess)
+    await db_session.commit()
+    assert await _mit_vorlauf(db_session, sess.id, 100.0) == 97.0          # Standard 3 s
+
+    db_session.add(Marker(session_id=sess.id, marker_type="Gebet", placed_at_ts=98.0,
+                          placed_at_wall=__import__("datetime").datetime.now()))
+    await db_session.commit()
+    assert await _mit_vorlauf(db_session, sess.id, 100.0) == 98.5          # nicht vor den vorigen
+
+    db_session.add(Setting(key="track_vorlauf_s", value="0"))
+    await db_session.commit()
+    assert await _mit_vorlauf(db_session, sess.id, 120.0) == 120.0

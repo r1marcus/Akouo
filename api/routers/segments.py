@@ -623,7 +623,7 @@ async def export_segment(
         select(SegmentInsight).where(SegmentInsight.marker_id == marker_id))).scalar_one_or_none()
     # Ohne KI-Auswertung hieße der Track in der App nur "Predigt · Track 01" — also vorher
     # nachholen. Ein Fehler dabei hält den Export nicht auf: lieber ohne Thema als gar nicht.
-    if insight is None and werte_db.get("export_ki_auswertung", True):
+    if (insight is None or not insight.ki_gelaufen) and werte_db.get("export_ki_auswertung", True):
         from routers.insights import create_insight   # hier, sonst kreisen die Importe
         try:
             await create_insight(session_id, marker_id, db)

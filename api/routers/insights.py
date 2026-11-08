@@ -29,6 +29,8 @@ def _as_dict(row: SegmentInsight) -> dict:
         "keywords": json.loads(row.keywords) if row.keywords else [],
         "speaker": row.speaker,
         "model": row.model,
+        "titel_von_hand": bool(row.titel_von_hand),
+        "ki": row.ki_gelaufen,
         "transcript_chars": len(row.transcript or ""),
     }
 
@@ -82,11 +84,13 @@ async def create_insight(
     if row is None:
         row = SegmentInsight(session_id=session_id, marker_id=marker_id)
         db.add(row)
-    row.title = data.get("titel")
+    if not row.titel_von_hand:
+        row.title = data.get("titel")
     row.summary = data.get("zusammenfassung")
     row.bible_refs = json.dumps(data.get("bibelstellen") or [], ensure_ascii=False)
     row.keywords = json.dumps(data.get("schlagwoerter") or [], ensure_ascii=False)
-    row.speaker = data.get("sprecher")
+    if not row.sprecher_von_hand:
+        row.speaker = data.get("sprecher")
     row.transcript = data.get("transcript")
     row.model = data.get("model")
     await db.commit()
