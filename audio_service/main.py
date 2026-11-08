@@ -27,6 +27,7 @@ import classifier
 import laufzeit
 import recorder as recorder_modul
 from recorder import ContinuousRecorder
+from rueckspiel import Rueckspiel, RueckspielFehler
 from streamer import StreamAdapter, public_target
 from telefon import TelefonAdapter
 import online as online_modul
@@ -68,6 +69,7 @@ telefon = TelefonAdapter()                  # Stream-Mix in die Telefonkonferenz
 auto_modus = AutoModus(continuous_recorder)  # erkennt Beiträge, schreibt aber nichts
 nas_client = NASClient(config)              # Phase 7
 transcriber = LiveTranscriber()             # live transcription
+rueckspiel = Rueckspiel(continuous_recorder, config.blocksize, config.sample_rate)
 
 
 @app.get("/healthz")
@@ -521,6 +523,42 @@ async def session_resume():
     if result["status"] == "error":
         raise HTTPException(status_code=409, detail=result["message"])
     return result
+
+
+# ─── Rückspiel über den Dante-Ausgang ──────────────────────────────────────
+# Nur mit AUDIO_OUTPUT_CHANNELS in der .env; sonst 409. Die Meldungen sind feste
+# deutsche Sätze, die die API übersetzt.
+
+class RueckspielRequest(BaseModel):
+    wav_path: str
+    from_s: float
+    to_s: float
+
+
+@app.post("/api/session/rueckspiel")
+async def session_rueckspiel(req: RueckspielRequest):
+    if not config.output_channels:
+        raise HTTPException(status_code=409, detail="Rückspiel ist nicht eingerichtet")
+    # Nur innerhalb des Aufnahmeordners — der Pfad kommt aus einem anderen Prozess.
+    wav = pathlib.Path(req.wav_path).resolve()
+    if not wav.is_relative_to(config.output_dir.resolve()):
+        raise HTTPException(status_code=400, detail="Pfad liegt außerhalb des Aufnahmeordners")
+    try:
+        return await asyncio.to_thread(rueckspiel.starten, wav, req.from_s, req.to_s)
+    except RueckspielFehler as e:
+        raise HTTPException(status_code=e.status, detail=e.nachricht)
+
+
+@app.post("/api/session/rueckspiel/stop")
+async def session_rueckspiel_stop():
+    if not config.output_channels:
+        raise HTTPException(status_code=409, detail="Rückspiel ist nicht eingerichtet")
+    return await asyncio.to_thread(rueckspiel.stoppen)
+
+
+@app.get("/api/session/rueckspiel")
+async def session_rueckspiel_status():
+    return {"eingerichtet": bool(config.output_channels), **rueckspiel.status()}
 
 
 class ExportRequest(BaseModel):

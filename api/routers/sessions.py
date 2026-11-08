@@ -344,6 +344,44 @@ async def export_session(session_id: int, db: AsyncSession = Depends(get_db)):
             raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
 
 
+class RueckspielRequest(BaseModel):
+    from_s: float
+    to_s: float
+
+
+async def _rueckspiel_weiterreichen(pfad: str, json: Optional[dict] = None) -> dict:
+    """An den Audio-Dienst weiterreichen; seine Meldungen sind feste deutsche Sätze und
+    werden hier übersetzt, weil sie ungefiltert im Toast landen."""
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            response = await client.post(f"{AUDIO_SERVICE_URL}{pfad}", json=json)
+        except httpx.ConnectError:
+            raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
+    if response.status_code != 200:
+        detail = response.json().get("detail")
+        raise HTTPException(status_code=response.status_code,
+                            detail=uebersetze(detail) if isinstance(detail, str) else detail)
+    return response.json()
+
+
+@router.post("/{session_id}/rueckspiel")
+async def rueckspiel_starten(session_id: int, req: RueckspielRequest,
+                            db: AsyncSession = Depends(get_db)) -> dict:
+    """Einen Abschnitt der Aufnahme über den Dante-Ausgang abspielen (nur mit
+    AUDIO_OUTPUT_CHANNELS). Der Pfad kommt aus der Datenbank, nicht vom Browser."""
+    session = await db.get(RecordingSession, session_id)
+    if session is None or not session.wav_path:
+        raise HTTPException(status_code=404, detail=uebersetze("Aufnahme nicht gefunden"))
+    return await _rueckspiel_weiterreichen(
+        "/api/session/rueckspiel",
+        {"wav_path": session.wav_path, "from_s": req.from_s, "to_s": req.to_s})
+
+
+@router.post("/rueckspiel/stop")
+async def rueckspiel_stoppen() -> dict:
+    return await _rueckspiel_weiterreichen("/api/session/rueckspiel/stop")
+
+
 @router.get("/markers")
 async def list_active_markers(db: AsyncSession = Depends(get_db)):
     active = await _get_active_session(db)
