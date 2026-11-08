@@ -118,8 +118,9 @@ def transcript_path(wav_path) -> Optional[pathlib.Path]:
     return None
 
 
-def transcript_slice(wav_path, start_seconds: float, end_seconds: float) -> str:
-    """The spoken text between two points in time, joined into one block."""
+def transcript_slice(wav_path, start_seconds: float, end_seconds: float, luecken=None) -> str:
+    """The spoken text between two points in time, joined into one block.
+    Zeilen, die ganz in einer Lücke des Tracks liegen, gehören nicht dazu."""
     path = transcript_path(wav_path)
     if path is None:
         return ""
@@ -131,7 +132,10 @@ def transcript_slice(wav_path, start_seconds: float, end_seconds: float) -> str:
             except ValueError:
                 continue
             # keep every line that overlaps the segment
-            if float(line.get("end", 0)) > start_seconds and float(line.get("start", 0)) < end_seconds:
+            z_von, z_bis = float(line.get("start", 0)), float(line.get("end", 0))
+            if any(z_von >= a and z_bis <= b for a, b in (luecken or [])):
+                continue
+            if z_bis > start_seconds and z_von < end_seconds:
                 text = str(line.get("text", "")).strip()
                 # Füllsätze raus, und dieselbe Zeile nur einmal hintereinander
                 if text and _echte_zeile(text) and (not texts or texts[-1] != text):

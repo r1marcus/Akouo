@@ -15,6 +15,7 @@ from datetime import timedelta
 import httpx
 from sqlalchemy import select
 
+import ki_live
 import session_dokument
 import typen
 from database import AsyncSessionLocal
@@ -78,6 +79,7 @@ async def _abgleichen(zustand: dict):
         session = await _aktive_session(db)
         if session is None:
             return
+        fertig: list[int] = []          # Tracks, die gerade ein Ende bekamen → KI live
         for b in beitraege:
             nr = b["nr"]
             eintrag = _bekannt.get(nr)
@@ -94,6 +96,7 @@ async def _abgleichen(zustand: dict):
                     _bekannt[nr] = (hand.id, None)
                     if b.get("ende_s") is not None and hand.ended_at_ts is None:
                         hand.ended_at_ts = b["ende_s"]
+                        fertig.append(hand.id)
                     continue
                 marker = Marker(
                     session_id=session.id,
@@ -123,7 +126,10 @@ async def _abgleichen(zustand: dict):
 
             if b.get("ende_s") is not None and marker.ended_at_ts is None:
                 marker.ended_at_ts = b["ende_s"]
+                fertig.append(marker.id)
         await db.commit()
+        for marker_id in fertig:
+            ki_live.einreihen(session.id, marker_id)
         # Ablauf neben der Aufnahme aktuell halten, damit der Ordner für sich steht
         await session_dokument.schreiben(session.id, db)
 

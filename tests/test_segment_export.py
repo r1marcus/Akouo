@@ -399,3 +399,16 @@ def test_aufnahme_stoppen_laesst_den_stream_laufen(audio_client, monkeypatch):
 
     assert client.post("/api/session/stop").status_code == 200
     stream_stopp.assert_not_called()
+
+
+def test_luecken_fallen_aus_dem_track():
+    """Track unterbrechen: 10 s Track, 3 s Lücke → 7 s Ton, mit kurzer Überblendung."""
+    import sys
+    sys.path.insert(0, "audio_service")
+    from pydub.generators import Sine
+    from segment_exporter import UEBERBLENDUNG_MS, _ohne_luecken
+
+    ton = Sine(440).to_audio_segment(duration=20000)
+    teil = _ohne_luecken(ton, 5000, 15000, [[8.0, 11.0], [30.0, 40.0]])
+    assert abs(len(teil) - (7000 - UEBERBLENDUNG_MS)) <= 5
+    assert len(_ohne_luecken(ton, 5000, 15000, [])) == 10000

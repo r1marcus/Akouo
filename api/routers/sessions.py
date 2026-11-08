@@ -13,10 +13,11 @@ import httpx
 
 import automode_sync
 import einstellungen
+import ki_live
 import session_dokument
 from database import get_db
 from models import (RecordingSession, Marker, ServiceTypeTemplate, ChecklistInstance,
-                    SegmentExport, SegmentInsight)
+                    MarkerLuecke, SegmentExport, SegmentInsight)
 from service_types import ensure_checklist_for_service
 import typen
 from routers.segments import refine_session
@@ -174,9 +175,14 @@ async def end_marker(db: AsyncSession = Depends(get_db)):
             raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
 
     marker.ended_at_ts = max(offset, float(marker.placed_at_ts) + 0.5)
+    # Eine noch offene Unterbrechung endet mit dem Track
+    for luecke in (await db.execute(select(MarkerLuecke).where(
+            MarkerLuecke.marker_id == marker.id, MarkerLuecke.bis_s.is_(None)))).scalars():
+        luecke.bis_s = marker.ended_at_ts
     await db.commit()
     await db.refresh(marker)
     await session_dokument.schreiben(marker.session_id, db)
+    ki_live.einreihen(marker.session_id, marker.id)
     return {
         "id": marker.id,
         "marker_type": marker.marker_type,
@@ -202,6 +208,7 @@ async def delete_marker(marker_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"Marker {marker_id} nicht gefunden")
     await db.execute(sa_delete(SegmentInsight).where(SegmentInsight.marker_id == marker_id))
     await db.execute(sa_delete(SegmentExport).where(SegmentExport.marker_id == marker_id))
+    await db.execute(sa_delete(MarkerLuecke).where(MarkerLuecke.marker_id == marker_id))
     session_id = marker.session_id
     await db.delete(marker)
     await db.commit()
@@ -387,7 +394,7 @@ async def list_active_markers(db: AsyncSession = Depends(get_db)):
 
 class MarkerNudgeRequest(BaseModel):
     field: str            # "start" or "end"
-    delta_seconds: float  # -1.0 or 1.0
+    delta_seconds: float  # ±0.1 … ±30
 
 
 @router.patch("/markers/{marker_id}/nudge")
@@ -398,8 +405,9 @@ async def nudge_marker_endpoint(
 ):
     if req.field not in ("start", "end"):
         raise HTTPException(status_code=422, detail=f"field must be 'start' or 'end', got {req.field!r}")
-    if req.delta_seconds not in (-1.0, 1.0):
-        raise HTTPException(status_code=422, detail="delta_seconds must be -1.0 or 1.0")
+    # Feinschritte aus der Großansicht (0,1 / 0,5 s) und grobe bis 30 s
+    if req.delta_seconds == 0 or abs(req.delta_seconds) > 30.0:
+        raise HTTPException(status_code=422, detail="delta_seconds must be within ±30 s and not 0")
     marker = await db.get(Marker, marker_id)
     if marker is None:
         raise HTTPException(status_code=404, detail=f"Marker {marker_id} not found")
@@ -467,6 +475,7 @@ async def automode_schalten(schalter: str):
 async def session_levels(
     session_id: Optional[int] = None,
     from_seconds: float = 0.0,
+    to_seconds: Optional[float] = None,
     block_ms: int = 250,
     db: AsyncSession = Depends(get_db),
 ):
@@ -477,7 +486,10 @@ async def session_levels(
     path never comes from the browser: for a stored session it is looked up here, so the
     audio_service only ever gets a path this process chose.
     """
-    params: dict = {"from_seconds": from_seconds, "block_ms": block_ms}
+    # Feine Auflösung (50 ms) nur für einen Ausschnitt — die Großansicht eines Tracks
+    params: dict = {"from_seconds": from_seconds, "block_ms": max(50, block_ms)}
+    if to_seconds is not None:
+        params["to_seconds"] = to_seconds
     if session_id is not None:
         session = await db.get(RecordingSession, session_id)
         if session is None:

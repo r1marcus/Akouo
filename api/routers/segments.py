@@ -15,7 +15,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models import (AutoMarker, CopyCenterAblage, Marker, OnlineAblage, RecordingSession, SegmentExport,
+from models import (AutoMarker, CopyCenterAblage, Marker, MarkerLuecke, OnlineAblage, RecordingSession, SegmentExport,
                     SegmentInsight)
 import einstellungen
 import nas_pfad
@@ -149,6 +149,26 @@ def wav_laenge_s(wav_path) -> Optional[float]:
         return None
 
 
+def luecken_und_teile(start: float, ende: float, luecken) -> tuple[list, list]:
+    """Lücken auf den Track beschnitten, und was vom Track übrig bleibt.
+    Eine noch offene Lücke reicht bis zum Trackende."""
+    geschnitten = []
+    for luecke in luecken:
+        von = max(start, float(luecke.von_s))
+        bis = min(ende, float(luecke.bis_s) if luecke.bis_s is not None else ende)
+        if bis - von > 0.05:
+            geschnitten.append([round(von, 3), round(bis, 3)])
+    geschnitten.sort()
+    teile, pos = [], start
+    for von, bis in geschnitten:
+        if von > pos:
+            teile.append([round(pos, 3), round(von, 3)])
+        pos = max(pos, bis)
+    if ende > pos:
+        teile.append([round(pos, 3), round(ende, 3)])
+    return geschnitten, teile or [[round(start, 3), round(ende, 3)]]
+
+
 async def _build_segments(session: RecordingSession, db: AsyncSession) -> list[dict]:
     """Compute segment boundaries from markers.
 
@@ -188,6 +208,13 @@ async def _build_segments(session: RecordingSession, db: AsyncSession) -> list[d
         select(OnlineAblage).where(OnlineAblage.marker_id.in_([m.id for m in markers])))
     online_by_marker = {o.marker_id: o for o in online_q.scalars().all()}
 
+    luecken_q = await db.execute(
+        select(MarkerLuecke).where(MarkerLuecke.marker_id.in_([m.id for m in markers]))
+        .order_by(MarkerLuecke.von_s))
+    luecken_je_marker: dict[int, list[MarkerLuecke]] = {}
+    for luecke in luecken_q.scalars().all():
+        luecken_je_marker.setdefault(luecke.marker_id, []).append(luecke)
+
     segments: list[dict] = []
     for idx, m in enumerate(markers):
         start = float(m.placed_at_ts) + float(m.start_nudge or 0.0)
@@ -203,6 +230,7 @@ async def _build_segments(session: RecordingSession, db: AsyncSession) -> list[d
         if end <= start:
             end = start + 0.5  # guarantee non-empty range; export endpoint will still validate
 
+        luecken, teile = luecken_und_teile(start, end, luecken_je_marker.get(m.id, []))
         existing = exports_by_marker.get(m.id)
         segments.append({
             "marker_id": m.id,
@@ -210,7 +238,9 @@ async def _build_segments(session: RecordingSession, db: AsyncSession) -> list[d
             "index": idx + 1,
             "start_seconds": round(start, 3),
             "end_seconds": round(end, 3),
-            "duration_seconds": round(end - start, 3),
+            "duration_seconds": round(sum(b - a for a, b in teile), 3),
+            "luecken": luecken,         # [[von, bis], …] innerhalb des Tracks, fehlen im Export
+            "teile": teile,
             "nudge_manual": bool(m.nudge_manual),
             # Gemeindegesang, Gebet, Ansagen werden markiert, damit der Ablauf
             # vollständig ist — beim Sammel-Export aber übersprungen.
@@ -650,6 +680,7 @@ async def export_segment(
         "wav_path": session.wav_path,
         "start_seconds": seg["start_seconds"],
         "end_seconds": seg["end_seconds"],
+        "luecken": seg["luecken"],
         "mp3_filename": mp3_filename,
         "remote_subpath": remote_subpath,
         "allow_overwrite": allow_overwrite,

@@ -173,7 +173,7 @@ async def test_nudge_api(tmp_path):
                                      json={"field": "middle", "delta_seconds": 1.0})
             assert r1.status_code == 422
             r2 = await client.patch("/api/sessions/markers/9999/nudge",
-                                     json={"field": "start", "delta_seconds": 5.0})
+                                     json={"field": "start", "delta_seconds": 45.0})   # über ±30 s
             assert r2.status_code == 422
             r3 = await client.patch("/api/sessions/markers/9999/nudge",
                                      json={"field": "start", "delta_seconds": 1.0})

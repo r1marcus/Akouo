@@ -295,6 +295,54 @@ async def session_levels(
     }
 
 
+CLIP_MAX_S = 600.0      # zehn Minuten reichen zum Reinhören; mehr ist ein Export
+
+
+def _wav_im_aufnahmeordner(wav_path: Optional[str]) -> str:
+    """Die laufende Aufnahme oder eine fertige — immer nur im Aufnahmeordner."""
+    if wav_path is None:
+        wav_path = continuous_recorder.status().get("wav_path")
+        if wav_path is None:
+            raise HTTPException(status_code=409, detail="Keine laufende Aufnahme")
+    target = pathlib.Path(wav_path).resolve()
+    if not target.is_relative_to(config.output_dir.resolve()):
+        raise HTTPException(status_code=400, detail="Pfad liegt außerhalb des Aufnahmeordners")
+    if not target.exists():
+        raise HTTPException(status_code=404, detail=f"Aufnahme nicht gefunden: {target}")
+    return str(target)
+
+
+@app.get("/api/session/clip.mp3")
+async def session_clip(von: float, bis: float, wav_path: Optional[str] = None):
+    """Ein Stück der Aufnahme zum Reinhören — auch während sie läuft.
+
+    Gelesen wird die Datei, nicht das Gerät: der eine CoreAudio-Stream bleibt unberührt. Die
+    WAV-Kopfzeile wird bei jedem Schreiben nachgeführt, darum liest FFmpeg auch eine
+    wachsende Datei bis zur aktuellen Stelle. Niedrige Priorität, damit Whisper vorgeht."""
+    pfad = _wav_im_aufnahmeordner(wav_path)
+    von = max(0.0, von)
+    dauer = min(max(0.1, bis - von), CLIP_MAX_S)
+    befehl = ["nice", "-n", "10", "ffmpeg", "-nostdin", "-loglevel", "error",
+              "-ss", f"{von:.3f}", "-t", f"{dauer:.3f}", "-i", pfad,
+              "-ac", "2", "-codec:a", "libmp3lame", "-b:a", "128k", "-f", "mp3", "pipe:1"]
+    proc = await asyncio.create_subprocess_exec(
+        *befehl, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+
+    async def strom():
+        try:
+            while True:
+                stueck = await proc.stdout.read(32768)
+                if not stueck:
+                    break
+                yield stueck
+        finally:
+            if proc.returncode is None:
+                with contextlib.suppress(ProcessLookupError):
+                    proc.kill()
+            await proc.wait()
+    return StreamingResponse(strom(), media_type="audio/mpeg")
+
+
 class _MonitorHub:
     """One FFmpeg encoder feeding every listener.
 
@@ -540,6 +588,8 @@ class SegmentExportRequest(BaseModel):
     # Gemeinde-App: der fertige Eintrag aus api/online.py; ohne ihn bleibt es beim Archiv.
     online: Optional[dict] = None
     online_ersetzen: bool = False
+    # Stücke mitten im Track, die nicht dazugehören ([[von, bis], …], absolute Sekunden)
+    luecken: list[list[float]] = []
 
 
 @app.post("/api/session/export")
@@ -605,6 +655,7 @@ async def session_segment_export(req: SegmentExportRequest):
             lufs=laufzeit.ziel_lufs(),
             tags=req.tags,
             cover=config.export_cover or None,
+            luecken=req.luecken,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
@@ -711,13 +762,14 @@ class InsightsRequest(BaseModel):
     start_seconds: float
     end_seconds: float
     marker_type: str = "Predigt"
+    luecken: list[list[float]] = []
 
 
 @app.post("/api/session/insights")
 async def session_insights(req: InsightsRequest):
     """Title, summary, Bible references and keywords for one segment (AI-02)."""
     transcript = await asyncio.to_thread(
-        transcript_slice, req.wav_path, req.start_seconds, req.end_seconds
+        transcript_slice, req.wav_path, req.start_seconds, req.end_seconds, req.luecken
     )
     return await analyse_segment(transcript, req.marker_type)
 

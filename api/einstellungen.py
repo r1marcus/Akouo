@@ -109,6 +109,9 @@ FELDER: tuple[Feld, ...] = (
          hilfe="Fehlt einem Track die KI-Auswertung, läuft sie vor dem Export von selbst — "
                "damit stehen Thema, Zusammenfassung und Bibelstellen in der MP3 und in der "
                "Gemeinde-App. Kostet je Track einige Sekunden. Scheitert sie, wird trotzdem exportiert."),
+    Feld("ki_live", "Export", "KI-Auswertung schon während des Gottesdienstes", "bool", True,
+         hilfe="Jeder fertige Track wird gleich ausgewertet, einer nach dem anderen — so sieht "
+               "man Titel und Bibelstellen noch in der Kirche. Lieder bekommen keinen KI-Titel."),
     Feld("export_interpret", "Export", "Interpret", "text", "",
          hilfe="Steht in jeder MP3 als Interpret, meist der Name der Gemeinde. Leer lassen, "
                "wenn kein Interpret eingetragen werden soll."),

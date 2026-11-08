@@ -197,6 +197,17 @@ class VermeldungStand(Base):
     am: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
 
 
+class MarkerLuecke(Base):
+    """Ein Stück mitten in einem Track, das nicht dazugehört — die Aufnahme lief weiter.
+    bis_s ist leer, solange die Unterbrechung noch andauert."""
+    __tablename__ = "marker_luecken"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    marker_id: Mapped[int] = mapped_column(Integer, ForeignKey("markers.id"), nullable=False, index=True)
+    von_s: Mapped[float] = mapped_column(sa_Float, nullable=False)
+    bis_s: Mapped[Optional[float]] = mapped_column(sa_Float, nullable=True)
+
+
 class SegmentInsight(Base):
     """What the local language model extracted from a segment's transcript."""
     __tablename__ = "segment_insights"

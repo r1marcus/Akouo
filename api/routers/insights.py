@@ -69,6 +69,7 @@ async def create_insight(
                     "start_seconds": segment["start_seconds"],
                     "end_seconds": segment["end_seconds"],
                     "marker_type": marker.marker_type,
+                    "luecken": segment.get("luecken", []),
                 },
             )
         except httpx.ConnectError:

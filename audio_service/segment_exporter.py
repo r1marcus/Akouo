@@ -14,6 +14,33 @@ from pydub import AudioSegment
 from exporter import export_wav_to_mp3
 
 
+UEBERBLENDUNG_MS = 150     # kurz genug, dass kein Wort verschluckt wird, lang genug gegen Knacken
+
+
+def _ohne_luecken(audio: AudioSegment, start_ms: int, end_ms: int, luecken: list) -> AudioSegment:
+    """Den Track schneiden und die Lücken darin auslassen. Die Teile werden mit einer kurzen
+    Überblendung aneinandergesetzt; Blende und Normalisierung gelten danach für den ganzen
+    Track wie bisher."""
+    teile, pos = [], start_ms
+    for von, bis in sorted(luecken):
+        von_ms = max(start_ms, int(round(von * 1000)))
+        bis_ms = min(end_ms, int(round(bis * 1000)))
+        if bis_ms <= von_ms:
+            continue
+        if von_ms > pos:
+            teile.append(audio[pos:von_ms])
+        pos = max(pos, bis_ms)
+    if end_ms > pos:
+        teile.append(audio[pos:end_ms])
+    if not teile:
+        raise ValueError("Der Track besteht nur aus Lücken")
+    ergebnis = teile[0]
+    for teil in teile[1:]:
+        blende = min(UEBERBLENDUNG_MS, len(ergebnis), len(teil))
+        ergebnis = ergebnis.append(teil, crossfade=blende)
+    return ergebnis
+
+
 def export_segment(
     wav_path,
     start_seconds: float,
@@ -26,6 +53,7 @@ def export_segment(
     tags: Optional[dict] = None,
     cover: Optional[str] = None,
     lufs: Optional[float] = None,
+    luecken: Optional[list] = None,
 ) -> dict:
     """Slice [start_seconds, end_seconds) from wav_path and export as MP3.
 
@@ -79,7 +107,7 @@ def export_segment(
             f"(start_ms={start_ms}, total_ms={total_ms})"
         )
 
-    sliced = audio[start_ms:end_ms]
+    sliced = _ohne_luecken(audio, start_ms, end_ms, luecken or [])
 
     mp3_path.parent.mkdir(parents=True, exist_ok=True)
 
