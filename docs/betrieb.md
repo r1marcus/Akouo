@@ -507,7 +507,7 @@ den eingestellten Modellen) und NAS. Alles grün heißt *Alle Dienste bereit*; s
 was fehlt und warum. Alle 15 Sekunden neu geprüft — gedacht für **vor** dem Gottesdienst.
 
 **Einstellungen → Audio-Dienst** zeigt dieselbe Prüfung und die Werte aus `audio_service/.env`,
-die man im Betrieb ändern will: Gerät, Kanäle für Aufnahme und Stream, Abtastrate, Transkript,
+die man im Betrieb ändern will: Gerät, Kanäle für Aufnahme, Stream und Rückspiel, Abtastrate, Transkript,
 whisper- und Ollama-Adresse, Modelle, Name des Streams. **Zugangsdaten stehen dort bewusst
 nicht** (NAS, Stream-Ziel, Gemeinde-App, Telefon) — das Dashboard hat keine Anmeldung.
 
@@ -873,6 +873,51 @@ gehören nur in die `.env`.
 `TELEFON_SIP_ZUSATZ` (Transport) stimmen nicht. „Konferenz nicht erreicht" heißt Nummer falsch
 oder die Nebenstelle darf nicht nach außen wählen. Kommt man in die Konferenz, aber die PIN
 greift nicht, `TELEFON_PIN_VERZOEGERUNG` erhöhen.
+
+## 5h. Rückspiel über Dante (optional, Standard: aus)
+
+Ein Abschnitt einer Aufnahme lässt sich über Dante-Ausgänge zurück aufs Pult spielen — etwa um
+einen Beitrag nach dem Gottesdienst noch einmal über die Anlage zu hören. Der Audio-Dienst
+öffnet dafür keinen zweiten Strom: Ist das Rückspiel eingerichtet, wird der eine Dante-Strom
+beim Start als **Duplex** geöffnet (Eingang und Ausgang zusammen). Ohne Einrichtung bleibt
+alles wie bisher — nur Eingang.
+
+**Einschalten:**
+
+1. *Einstellungen → Audio-Dienst → Kanäle Rückspiel* (oder `AUDIO_OUTPUT_CHANNELS` in
+   `audio_service/.env`) auf die Dante-**Ausgangs**kanäle setzen, 1-basiert, z. B. `61,62`.
+   Leer heißt: aus.
+2. Im Dante Controller diese Ausgänge der virtuellen Soundkarte auf einen **freien**
+   Pult-Eingang routen.
+3. Den Audio-Dienst neu starten — **nur, wenn keine Aufnahme läuft**
+   (`curl -s localhost:8001/api/session/status`). Die Einstellung wirkt ausschließlich beim
+   Start; mitten in einer Aufnahme wechselt der Strom nie die Art.
+
+Im Log steht danach `[input] input open: … Rückspiel [61, 62]`. Hat das Gerät nicht genug
+Ausgänge, steht dort „nur Eingang" — dann wird normal aufgenommen, nur das Rückspiel antwortet
+mit *Der Ausgang ist nicht geöffnet*.
+
+**Bedienen** (vorerst ohne Knopf im Dashboard):
+
+```bash
+# Sekunde 600 bis 660 der Aufnahme mit der Session-ID 42 abspielen
+curl -s -X POST localhost:8000/api/sessions/42/rueckspiel \
+     -H 'Content-Type: application/json' -d '{"from_s": 600, "to_s": 660}'
+# sofort stoppen
+curl -s -X POST localhost:8000/api/sessions/rueckspiel/stop
+```
+
+Ein neuer Abschnitt beendet den laufenden. Die Aufnahme muss dieselbe Abtastrate haben wie der
+Ausgang (48000), sonst wird abgelehnt.
+
+> **Achtung, Rückkopplung.** Den Rückspiel-Ausgang **nie** auf einen Kanal routen, der
+> aufgenommen, gestreamt oder ins Telefon gespeist wird — und nie auf einen Pult-Eingang, der
+> in diese Summen gemischt ist. Sonst landet die Wiedergabe in der Aufnahme, wird wieder
+> abgespielt, und es pfeift. Im Zweifel den Pult-Eingang stumm lassen und nur auf den
+> Kopfhörer legen.
+
+**Nur außerhalb der Gottesdienstzeiten ausprobieren.** Einschalten heißt Neustart des
+Audio-Dienstes, und ein falsches Routing ist im Saal sofort zu hören.
 
 ---
 
