@@ -55,32 +55,15 @@ jobs:
 
       # Zwei Aufrufe, weil api/main.py und audio_service/main.py beide "main" heißen
       # und sich in einem Prozess gegenseitig verdecken. Siehe CONTRIBUTING.md.
+      # Die Testlisten stehen nur im Makefile. Eine eigene Liste hier lief am 07.11. auseinander
+      # (sie rief noch das gelöschte tests/test_recording.py auf) und hielt die CI rot.
+      # Die Umgebung (Datenbank im Speicher, Discard-Port statt echtem Dienst) setzt das
+      # Makefile selbst über TESTENV.
       - name: Tests — API
-        env:
-          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
-          # Discard-Port: die Lifespan der API schiebt die Erkennungskonfiguration zum
-          # Audio-Dienst. Kein Testlauf darf einen echten Dienst erreichen.
-          AUDIO_SERVICE_URL: "http://127.0.0.1:9"
-        run: |
-          pytest -q \
-            tests/test_archive.py tests/test_current_service.py tests/test_database.py \
-            tests/test_segments_api.py tests/test_service_types.py tests/test_session_api.py \
-            tests/test_settings_api.py tests/test_uploads_api.py tests/test_ui_phase5.py \
-            tests/test_typen.py tests/test_konfiguration_api.py tests/test_nas_pfad.py \
-            tests/test_sprache.py tests/test_vorlagen.py \
-            --deselect tests/test_ui_phase5.py::test_waveform
+        run: make test-api PY=python
 
       - name: Tests — Audio-Service
-        env:
-          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
-          TRANSCRIBE_ENABLED: "0"
-          AUDIO_SERVICE_URL: "http://127.0.0.1:9"
-        run: |
-          pytest -q \
-            tests/test_boundaries.py tests/test_continuous_recording.py tests/test_insights.py \
-            tests/test_mp3_export.py tests/test_nas_client.py tests/test_nas_push.py \
-            tests/test_recording.py tests/test_segment_export.py tests/test_stream_adapter.py \
-            tests/test_ui_phase5.py::test_waveform tests/test_erkennung_uebernahme.py
+        run: make test-audio AUDIO_PY=python
 
       - name: Keine Betriebsdaten im Repository
         run: |
