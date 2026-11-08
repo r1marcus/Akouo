@@ -1,7 +1,7 @@
 """Wie die Automatik ihre Erkennung in Marker überträgt — und wo sie die Hand respektiert."""
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -93,3 +93,70 @@ async def test_ohne_hand_setzt_die_automatik_und_schaerft_nach(fabrik):
     await _abgleichen(_zustand((12.0, None, "Chorlied")))
     await _abgleichen(_zustand((12.0, 200.0, "Gruppenlied")))
     assert await _marker(fabrik, sid) == [("Gruppenlied", 12.0, 200.0)]
+
+
+async def _roh(fabrik, sid):
+    from sqlalchemy import select
+    from models import Marker
+    async with fabrik() as db:
+        q = await db.execute(select(Marker).where(Marker.session_id == sid))
+        return q.scalars().first()
+
+
+@pytest.mark.asyncio
+async def test_vorgezogener_anfang_landet_im_marker(fabrik):
+    """Session 37: erst bei 683,25 s bestätigt, dann der leise Einsatz bei 677,5 s
+    gefunden — der eigene Marker wandert mit, samt Uhrzeit."""
+    from automode_sync import _abgleichen
+
+    sid = await _aufnahme(fabrik)
+    await _abgleichen(_zustand((683.25, None, "Chorlied"), gelesen=700.0))
+    await _abgleichen(_zustand((677.5, None, "Chorlied"), gelesen=703.0))
+    assert await _marker(fabrik, sid) == [("Chorlied", 677.5, None)]
+    m = await _roh(fabrik, sid)
+    assert m.placed_at_wall == datetime(2026, 10, 20, 19, 1) + timedelta(seconds=677.5)
+
+    # Nach hinten springt er nie
+    await _abgleichen(_zustand((680.0, 978.25, "Chorlied"), gelesen=990.0))
+    assert await _marker(fabrik, sid) == [("Chorlied", 677.5, 978.25)]
+
+
+@pytest.mark.asyncio
+async def test_von_hand_verschobener_anfang_bleibt(fabrik):
+    from automode_sync import _abgleichen
+    from models import Marker
+
+    sid = await _aufnahme(fabrik)
+    await _abgleichen(_zustand((683.25, None, "Chorlied"), gelesen=700.0))
+    async with fabrik() as db:
+        m = await db.get(Marker, (await _roh(fabrik, sid)).id)
+        m.start_nudge, m.nudge_manual = -10.0, True
+        await db.commit()
+    await _abgleichen(_zustand((677.5, None, "Chorlied"), gelesen=703.0))
+    m = await _roh(fabrik, sid)
+    assert (m.placed_at_ts, m.start_nudge) == (683.25, -10.0)
+
+
+@pytest.mark.asyncio
+async def test_umbenannter_marker_behaelt_anfang(fabrik):
+    from automode_sync import _abgleichen
+    from models import Marker
+
+    sid = await _aufnahme(fabrik)
+    await _abgleichen(_zustand((683.25, None, "Chorlied"), gelesen=700.0))
+    async with fabrik() as db:
+        m = await db.get(Marker, (await _roh(fabrik, sid)).id)
+        m.marker_type = "Gruppenlied"
+        await db.commit()
+    await _abgleichen(_zustand((677.5, None, "Chorlied"), gelesen=703.0))
+    assert await _marker(fabrik, sid) == [("Gruppenlied", 683.25, None)]
+
+
+@pytest.mark.asyncio
+async def test_hand_marker_bekommt_keinen_anderen_anfang(fabrik):
+    from automode_sync import _abgleichen
+
+    sid = await _aufnahme(fabrik, ("Chorlied", 690.0))
+    await _abgleichen(_zustand((683.25, None, "Chorlied"), gelesen=700.0))
+    await _abgleichen(_zustand((677.5, None, "Chorlied"), gelesen=703.0))
+    assert await _marker(fabrik, sid) == [("Chorlied", 690.0, None)]

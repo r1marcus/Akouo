@@ -472,6 +472,23 @@ danach den zweiten PC abschalten.
 
 ---
 
+## 2j. Erkennung nachgeschärft (9. November 2026)
+
+Anlass war der 8. November abends: ein Chorlied mit leisem Intro bekam seinen Marker 7,5 s zu spät.
+
+- **Leise Anfänge.** Der Automodus bestätigt einen Beitrag wie bisher an der Stille-Schwelle und
+  sucht dann mit einer zweiten, tieferen Schwelle rückwärts nach dem leisen Einsatz (höchstens
+  15 s, nie in den Beitrag davor, Schluss an digitaler Stille). Nachgespielt an Session 37:
+  683,25 → 677,5 s. Der Marker in der Datenbank wandert mit, solange niemand ihn angefasst hat.
+- **Schnittkanten** suchen vor der Marke weiter (12 s) und nehmen ein flackerndes Intro als
+  Anfang; ziehen nur nach vorn. Marker 204 roh: 683,25 → 677,2 s (vorher unverändert).
+- **Stereo-Korrelation** als zusätzliche Stimme für Sprache, nie als Veto. Je 6-s-Fenster über
+  alle Sessions 94,4 % → 94,9 % richtig; der Typ beim Neu-Erkennen bleibt bei 84 von 164.
+
+Details in [betrieb.md](betrieb.md), Abschnitte 5b und 5d.
+
+---
+
 ## 3. Ablauf im Gottesdienst
 
 1. Oben den Gottesdienst wählen — die Seite springt auf die Checkliste.

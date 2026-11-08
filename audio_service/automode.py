@@ -181,14 +181,27 @@ class AutoModus:
         self._offenen_nachschaerfen()
 
     def _grenzen_aus_pegel(self) -> list:
-        """Dieselbe Stille-Logik wie im Nachhinein, nur auf dem laufenden Pegel."""
+        """Dieselbe Stille-Logik wie im Nachhinein, nur auf dem laufenden Pegel.
+
+        Zwei Schwellen: die Stille-Schwelle bestätigt einen Beitrag, der Anfang wird
+        dann über classifier.start_vorziehen an den leisen Einsatz zurückgezogen. Live
+        ist das nötiger als im Nachhinein — der Grundpegel wird aus dem bisher
+        Gehörten geschätzt und steigt mit jedem lauten Beitrag.
+        """
         pegel = np.array(self._pegel)
         schwelle = float(np.percentile(pegel, 20)) + classifier.STILLE_UEBER_GRUND_DB
         laut = pegel > schwelle
         min_stille = int(classifier.MIN_STILLE_S / self._block_s)
         min_beitrag = int(classifier.MIN_BEITRAG_S / self._block_s)
+        # Abgeschlossene Beiträge sind fest: in sie hinein darf kein Anfang wandern,
+        # sonst überlappte er sie und würde als derselbe Beitrag wiedererkannt.
+        fest = [round(b.ende_s / self._block_s) for b in self.beitraege if b.ende_s is not None]
 
-        segmente, start, stille = [], None, 0
+        def anfang(start: int, voriges_ende: int) -> float:
+            grenze = max([voriges_ende] + [e for e in fest if e <= start])
+            return classifier.start_vorziehen(pegel, start, grenze, self._block_s) * self._block_s
+
+        segmente, start, stille, voriges_ende = [], None, 0, 0
         for i, ist_laut in enumerate(laut):
             if ist_laut:
                 if start is None:
@@ -199,10 +212,11 @@ class AutoModus:
                 if start is not None and stille >= min_stille:
                     ende = i - stille + 1
                     if ende - start >= min_beitrag:
-                        segmente.append((start * self._block_s, ende * self._block_s))
+                        segmente.append((anfang(start, voriges_ende), ende * self._block_s))
+                        voriges_ende = ende
                     start = None
         if start is not None and len(laut) - start >= min_beitrag:
-            segmente.append((start * self._block_s, None))   # None = läuft noch
+            segmente.append((anfang(start, voriges_ende), None))   # None = läuft noch
         return segmente
 
     def _ansagen_mitlesen(self):
@@ -239,8 +253,9 @@ class AutoModus:
         fenster = classifier.KLASSEN_FENSTER_S
         while (len(self._spur) + 1) * fenster <= jetzt:
             von = len(self._spur) * fenster
-            signal, rate = classifier._lade_mono(self._wav, von, von + fenster)
-            f = classifier.merkmale(signal, rate)
+            # Läuft im Analysefaden (asyncio.to_thread), die Korrelation kostet hier nichts
+            signal, rate, korrelation = classifier._lade(self._wav, von, von + fenster)
+            f = classifier.merkmale(signal, rate, korrelation)
             self._spur.append(
                 "?" if f is None else
                 ("Sprache" if classifier._stimmen_fuer_sprache(f) >= classifier.STIMMEN_FUER_SPRACHE

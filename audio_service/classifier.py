@@ -40,6 +40,16 @@ SCHWELLEN = {
 }
 STIMMEN_FUER_SPRACHE = 3
 
+# Stereo-Korrelation L/R als sechste, halbe Stimme. Das Rednerpult-Mikrofon liegt mittig
+# auf beiden Kanälen, Chor und Instrumente kommen über mehrere Mikrofone verteilt.
+# Gemessen am 8. November (Session 36): Predigt, Gebet, Ansage, Vermeldungen 0,999–1,000,
+# Chorlied, Gemeindegesang, Gruppenlied 0,38–0,82. Über zehn weitere Sessions dasselbe
+# Bild — aber ein Musikstück lag bei 0,96 und ein Kinderlied, das über ein einzelnes
+# Mikrofon lief, bei 0,85. Darum nie ein Veto: über der oberen Schwelle eine Stimme mehr
+# für Sprache, unter der unteren eine weniger, dazwischen und bei Mono gar nichts.
+KORRELATION_SPRACHE = 0.95
+KORRELATION_MUSIK = 0.8
+
 MUSIK_TYPEN = ("Chorlied", "Gruppenlied", "Orchester", "Jugendchor", "Kinderchor",
                "Gemeindegesang")
 SPRACH_TYPEN = ("Predigt", "Kindergeschichte", "Prosa", "Gedicht", "Ansage",
@@ -85,6 +95,50 @@ STILLE_UEBER_GRUND_DB = 6.0
 KLASSEN_FENSTER_S = 6.0
 KLASSEN_HALTEN_S = 30.0
 
+# Zweite, tiefere Schwelle für den Anfang. Die Stille-Schwelle oben bestätigt einen
+# Beitrag, setzt seinen Anfang aber zu spät, sobald er leise beginnt: am 8. November
+# (Sonntagabend) begann ein Chorlied mit einem Intro bei −53 bis −34 dBFS, die
+# Schwelle stand bei −32, und der Marker landete acht Sekunden hinter dem Anfang.
+# Von der bestätigten Stelle aus wird deshalb rückwärts gesucht, solange es über dem
+# örtlichen Grundpegel bleibt — höchstens so weit, nie in den Beitrag davor.
+VORLAUF_MAX_S = 15.0
+VORLAUF_UEBER_GRUND_DB = 6.0
+VORLAUF_LUECKE_S = 0.5        # so lange darf ein leises Intro kurz absacken
+DIGITALE_STILLE_DBFS = -60.0  # Untergrenze der Hüllkurve: Kanal stumm, hier ist sicher Schluss
+
+
+def start_vorziehen(pegel, start: int, grenze: int, block_s: float) -> int:
+    """Index, ab dem ein Beitrag wirklich anfängt — nie später als `start`.
+
+    `pegel` ist die Hüllkurve in dBFS je Block, `start` der Block, an dem die
+    Stille-Schwelle den Beitrag bestätigt hat, `grenze` der erste Block, den er
+    belegen darf (Ende des vorigen Beitrags).
+
+    Der Grundpegel wird örtlich gemessen, aus der halben Minute davor: über die ganze
+    Aufnahme gemittelt steigt er mit jeder lauten Strecke, und genau daran scheitert
+    ein leises Intro. Digitale Stille ist eine harte Grenze — davor kann nichts
+    gesungen worden sein.
+    """
+    pegel = np.asarray(pegel, dtype=float)
+    max_bloecke = int(VORLAUF_MAX_S / block_s)
+    untergrenze = max(0, grenze, start - max_bloecke)
+    if untergrenze >= start or start > len(pegel):
+        return start
+    umgebung = pegel[max(0, start - 2 * max_bloecke): start]
+    leise = float(np.percentile(umgebung, 20)) + VORLAUF_UEBER_GRUND_DB
+    luecke_max = max(1, round(VORLAUF_LUECKE_S / block_s))
+    neu, luecke = start, 0
+    for i in range(start - 1, untergrenze - 1, -1):
+        if pegel[i] <= DIGITALE_STILLE_DBFS:
+            break
+        if pegel[i] > leise:
+            neu, luecke = i, 0
+        else:
+            luecke += 1
+            if luecke > luecke_max:
+                break
+    return neu
+
 
 @dataclass
 class Einschaetzung:
@@ -97,24 +151,45 @@ class Einschaetzung:
     dauer_s: float = 0.0
 
 
-def _lade_mono(wav_path, von_s: float, bis_s: float):
+def _korrelation(kanaele: np.ndarray) -> Optional[float]:
+    """Pearson-Korrelation der ersten beiden Kanäle. None bei Mono oder einem stillen Kanal
+    — dann sagt sie nichts, und ein stummer Kanal ist kein Hinweis auf Sprache."""
+    if kanaele.ndim != 2 or kanaele.shape[1] < 2 or kanaele.shape[0] < 2:
+        return None
+    links = kanaele[:, 0] - kanaele[:, 0].mean()
+    rechts = kanaele[:, 1] - kanaele[:, 1].mean()
+    nenner = float(np.sqrt(np.dot(links, links) * np.dot(rechts, rechts)))
+    if nenner < 1e-6:
+        return None
+    return float(np.dot(links, rechts) / nenner)
+
+
+def _lade(wav_path, von_s: float, bis_s: float):
+    """Mono-Signal für die Merkmale plus die L/R-Korrelation des Bereichs.
+
+    Die Korrelation wird vor dem Mitteln bestimmt, danach ist sie weg. Sie läuft hier,
+    im Analysefaden, und nie im PortAudio-Callback.
+    """
     with wave.open(str(wav_path), "rb") as wf:
         rate, kanaele, gesamt = wf.getframerate(), wf.getnchannels(), wf.getnframes()
         erster = max(0, int(von_s * rate))
         letzter = min(gesamt, int(bis_s * rate))
         if letzter <= erster:
-            return np.array([]), rate
+            return np.array([]), rate, None
         wf.setpos(erster)
         roh = wf.readframes(letzter - erster)
     daten = np.frombuffer(roh, dtype=np.int16)
     nutzbar = (len(daten) // kanaele) * kanaele
-    mono = daten[:nutzbar].reshape(-1, kanaele).astype(np.float32).mean(axis=1) / 32768.0
+    alle = daten[:nutzbar].reshape(-1, kanaele).astype(np.float32) / 32768.0
+    mono = alle.mean(axis=1)
     schritt = max(1, rate // ANALYSE_RATE)
-    return mono[::schritt], rate // schritt
+    return mono[::schritt], rate // schritt, _korrelation(alle)
 
 
-def merkmale(signal: np.ndarray, rate: int) -> Optional[dict]:
-    """Klassische Sprache/Musik-Merkmale. None, wenn zu wenig Material da ist."""
+def merkmale(signal: np.ndarray, rate: int, korrelation: Optional[float] = None) -> Optional[dict]:
+    """Klassische Sprache/Musik-Merkmale. None, wenn zu wenig Material da ist.
+
+    `korrelation` ist die L/R-Korrelation aus _lade; sie wird nur durchgereicht."""
     if signal.size < rate:
         return None
     n, h = int(FRAME_S * rate), int(HOP_S * rate)
@@ -142,17 +217,36 @@ def merkmale(signal: np.ndarray, rate: int) -> Optional[dict]:
         "flachheit": float(np.mean(flachheit)),
         "fluss_streuung": float(np.std(fluss) / (np.mean(fluss) + 1e-9)),
         "leise_anteil": float(np.mean(db < (np.mean(db) - 8))),
+        "korrelation": korrelation,
     }
 
 
+def _stereo_stimme(korrelation: Optional[float]) -> int:
+    """+1 für Sprache, −1 für Musik, 0 wenn die Korrelation nichts sagt."""
+    if korrelation is None:
+        return 0
+    if korrelation > KORRELATION_SPRACHE:
+        return 1
+    if korrelation < KORRELATION_MUSIK:
+        return -1
+    return 0
+
+
 def _stimmen_fuer_sprache(f: dict) -> int:
-    return sum([
+    """Stimmen der fünf Klangmerkmale, verschoben um die Stereo-Stimme.
+
+    Die Skala bleibt 0 bis 5, damit STIMMEN_FUER_SPRACHE (einstellbar) und die
+    Sicherheit in klassifiziere_bereich ihre Bedeutung behalten. Die Stereo-Stimme kann
+    einen Grenzfall kippen (2 → 3, 3 → 2), aber nie ein klares Urteil umdrehen.
+    """
+    klang = sum([
         f["flachheit"] > SCHWELLEN["flachheit"],
         f["schwerpunkt"] > SCHWELLEN["schwerpunkt"],
         f["zcr_streuung"] > SCHWELLEN["zcr_streuung"],
         f["leise_anteil"] > SCHWELLEN["leise_anteil"],
         f["fluss_streuung"] > SCHWELLEN["fluss_streuung"],
     ])
+    return min(5, max(0, klang + _stereo_stimme(f.get("korrelation"))))
 
 
 # Rein instrumentale Musik ist deutlich tonaler als gesungene: gemessen 0.14 und
@@ -207,8 +301,8 @@ def klassifiziere_bereich(wav_path, von_s: float, bis_s: float,
     dauer = bis_s - von_s
     mitte = (von_s + bis_s) / 2
     von = max(von_s, mitte - 15)
-    signal, rate = _lade_mono(wav_path, von, min(bis_s, von + 30))
-    f = merkmale(signal, rate)
+    signal, rate, korrelation = _lade(wav_path, von, min(bis_s, von + 30))
+    f = merkmale(signal, rate, korrelation)
     if f is None:
         return None
 
@@ -371,8 +465,8 @@ def erkenne_ankuendigung(text: str) -> Optional[dict]:
 def _klassenspur(wav_path, start: float, ende: float) -> list:
     spur, t = [], start
     while t < ende - 1:
-        signal, rate = _lade_mono(wav_path, t, min(t + KLASSEN_FENSTER_S, ende))
-        f = merkmale(signal, rate)
+        signal, rate, korrelation = _lade(wav_path, t, min(t + KLASSEN_FENSTER_S, ende))
+        f = merkmale(signal, rate, korrelation)
         spur.append("?" if f is None else
                     ("Sprache" if _stimmen_fuer_sprache(f) >= STIMMEN_FUER_SPRACHE else "Musik"))
         t += KLASSEN_FENSTER_S
@@ -412,7 +506,7 @@ def finde_beitraege(wav_path, bis_s: Optional[float] = None) -> list:
     min_stille = int(MIN_STILLE_S / block_s)
     min_beitrag = int(MIN_BEITRAG_S / block_s)
 
-    grob, start, stille = [], None, 0
+    grob, start, stille, voriges_ende = [], None, 0, 0
     for i, ist_laut in enumerate(laut):
         if ist_laut:
             if start is None:
@@ -423,10 +517,13 @@ def finde_beitraege(wav_path, bis_s: Optional[float] = None) -> list:
             if start is not None and stille >= min_stille:
                 ende = i - stille + 1
                 if ende - start >= min_beitrag:
-                    grob.append((start * block_s, ende * block_s))
+                    anfang = start_vorziehen(pegel, start, voriges_ende, block_s)
+                    grob.append((anfang * block_s, ende * block_s))
+                    voriges_ende = ende
                 start = None
     if start is not None and len(laut) - start >= min_beitrag:
-        grob.append((start * block_s, len(laut) * block_s))
+        anfang = start_vorziehen(pegel, start, voriges_ende, block_s)
+        grob.append((anfang * block_s, len(laut) * block_s))
 
     fein = []
     for s, e in grob:
