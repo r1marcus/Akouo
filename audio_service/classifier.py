@@ -40,6 +40,16 @@ SCHWELLEN = {
 }
 STIMMEN_FUER_SPRACHE = 3
 
+# Stereo-Korrelation L/R als sechste, halbe Stimme. Das Rednerpult-Mikrofon liegt mittig
+# auf beiden Kanälen, Chor und Instrumente kommen über mehrere Mikrofone verteilt.
+# Gemessen am 8. November (Session 36): Predigt, Gebet, Ansage, Vermeldungen 0,999–1,000,
+# Chorlied, Gemeindegesang, Gruppenlied 0,38–0,82. Über zehn weitere Sessions dasselbe
+# Bild — aber ein Musikstück lag bei 0,96 und ein Kinderlied, das über ein einzelnes
+# Mikrofon lief, bei 0,85. Darum nie ein Veto: über der oberen Schwelle eine Stimme mehr
+# für Sprache, unter der unteren eine weniger, dazwischen und bei Mono gar nichts.
+KORRELATION_SPRACHE = 0.95
+KORRELATION_MUSIK = 0.8
+
 MUSIK_TYPEN = ("Chorlied", "Gruppenlied", "Orchester", "Jugendchor", "Kinderchor",
                "Gemeindegesang")
 SPRACH_TYPEN = ("Predigt", "Kindergeschichte", "Prosa", "Gedicht", "Ansage",
@@ -141,24 +151,45 @@ class Einschaetzung:
     dauer_s: float = 0.0
 
 
-def _lade_mono(wav_path, von_s: float, bis_s: float):
+def _korrelation(kanaele: np.ndarray) -> Optional[float]:
+    """Pearson-Korrelation der ersten beiden Kanäle. None bei Mono oder einem stillen Kanal
+    — dann sagt sie nichts, und ein stummer Kanal ist kein Hinweis auf Sprache."""
+    if kanaele.ndim != 2 or kanaele.shape[1] < 2 or kanaele.shape[0] < 2:
+        return None
+    links = kanaele[:, 0] - kanaele[:, 0].mean()
+    rechts = kanaele[:, 1] - kanaele[:, 1].mean()
+    nenner = float(np.sqrt(np.dot(links, links) * np.dot(rechts, rechts)))
+    if nenner < 1e-6:
+        return None
+    return float(np.dot(links, rechts) / nenner)
+
+
+def _lade(wav_path, von_s: float, bis_s: float):
+    """Mono-Signal für die Merkmale plus die L/R-Korrelation des Bereichs.
+
+    Die Korrelation wird vor dem Mitteln bestimmt, danach ist sie weg. Sie läuft hier,
+    im Analysefaden, und nie im PortAudio-Callback.
+    """
     with wave.open(str(wav_path), "rb") as wf:
         rate, kanaele, gesamt = wf.getframerate(), wf.getnchannels(), wf.getnframes()
         erster = max(0, int(von_s * rate))
         letzter = min(gesamt, int(bis_s * rate))
         if letzter <= erster:
-            return np.array([]), rate
+            return np.array([]), rate, None
         wf.setpos(erster)
         roh = wf.readframes(letzter - erster)
     daten = np.frombuffer(roh, dtype=np.int16)
     nutzbar = (len(daten) // kanaele) * kanaele
-    mono = daten[:nutzbar].reshape(-1, kanaele).astype(np.float32).mean(axis=1) / 32768.0
+    alle = daten[:nutzbar].reshape(-1, kanaele).astype(np.float32) / 32768.0
+    mono = alle.mean(axis=1)
     schritt = max(1, rate // ANALYSE_RATE)
-    return mono[::schritt], rate // schritt
+    return mono[::schritt], rate // schritt, _korrelation(alle)
 
 
-def merkmale(signal: np.ndarray, rate: int) -> Optional[dict]:
-    """Klassische Sprache/Musik-Merkmale. None, wenn zu wenig Material da ist."""
+def merkmale(signal: np.ndarray, rate: int, korrelation: Optional[float] = None) -> Optional[dict]:
+    """Klassische Sprache/Musik-Merkmale. None, wenn zu wenig Material da ist.
+
+    `korrelation` ist die L/R-Korrelation aus _lade; sie wird nur durchgereicht."""
     if signal.size < rate:
         return None
     n, h = int(FRAME_S * rate), int(HOP_S * rate)
@@ -186,17 +217,36 @@ def merkmale(signal: np.ndarray, rate: int) -> Optional[dict]:
         "flachheit": float(np.mean(flachheit)),
         "fluss_streuung": float(np.std(fluss) / (np.mean(fluss) + 1e-9)),
         "leise_anteil": float(np.mean(db < (np.mean(db) - 8))),
+        "korrelation": korrelation,
     }
 
 
+def _stereo_stimme(korrelation: Optional[float]) -> int:
+    """+1 für Sprache, −1 für Musik, 0 wenn die Korrelation nichts sagt."""
+    if korrelation is None:
+        return 0
+    if korrelation > KORRELATION_SPRACHE:
+        return 1
+    if korrelation < KORRELATION_MUSIK:
+        return -1
+    return 0
+
+
 def _stimmen_fuer_sprache(f: dict) -> int:
-    return sum([
+    """Stimmen der fünf Klangmerkmale, verschoben um die Stereo-Stimme.
+
+    Die Skala bleibt 0 bis 5, damit STIMMEN_FUER_SPRACHE (einstellbar) und die
+    Sicherheit in klassifiziere_bereich ihre Bedeutung behalten. Die Stereo-Stimme kann
+    einen Grenzfall kippen (2 → 3, 3 → 2), aber nie ein klares Urteil umdrehen.
+    """
+    klang = sum([
         f["flachheit"] > SCHWELLEN["flachheit"],
         f["schwerpunkt"] > SCHWELLEN["schwerpunkt"],
         f["zcr_streuung"] > SCHWELLEN["zcr_streuung"],
         f["leise_anteil"] > SCHWELLEN["leise_anteil"],
         f["fluss_streuung"] > SCHWELLEN["fluss_streuung"],
     ])
+    return min(5, max(0, klang + _stereo_stimme(f.get("korrelation"))))
 
 
 # Rein instrumentale Musik ist deutlich tonaler als gesungene: gemessen 0.14 und
@@ -251,8 +301,8 @@ def klassifiziere_bereich(wav_path, von_s: float, bis_s: float,
     dauer = bis_s - von_s
     mitte = (von_s + bis_s) / 2
     von = max(von_s, mitte - 15)
-    signal, rate = _lade_mono(wav_path, von, min(bis_s, von + 30))
-    f = merkmale(signal, rate)
+    signal, rate, korrelation = _lade(wav_path, von, min(bis_s, von + 30))
+    f = merkmale(signal, rate, korrelation)
     if f is None:
         return None
 
@@ -415,8 +465,8 @@ def erkenne_ankuendigung(text: str) -> Optional[dict]:
 def _klassenspur(wav_path, start: float, ende: float) -> list:
     spur, t = [], start
     while t < ende - 1:
-        signal, rate = _lade_mono(wav_path, t, min(t + KLASSEN_FENSTER_S, ende))
-        f = merkmale(signal, rate)
+        signal, rate, korrelation = _lade(wav_path, t, min(t + KLASSEN_FENSTER_S, ende))
+        f = merkmale(signal, rate, korrelation)
         spur.append("?" if f is None else
                     ("Sprache" if _stimmen_fuer_sprache(f) >= STIMMEN_FUER_SPRACHE else "Musik"))
         t += KLASSEN_FENSTER_S

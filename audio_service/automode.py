@@ -253,8 +253,9 @@ class AutoModus:
         fenster = classifier.KLASSEN_FENSTER_S
         while (len(self._spur) + 1) * fenster <= jetzt:
             von = len(self._spur) * fenster
-            signal, rate = classifier._lade_mono(self._wav, von, von + fenster)
-            f = classifier.merkmale(signal, rate)
+            # Läuft im Analysefaden (asyncio.to_thread), die Korrelation kostet hier nichts
+            signal, rate, korrelation = classifier._lade(self._wav, von, von + fenster)
+            f = classifier.merkmale(signal, rate, korrelation)
             self._spur.append(
                 "?" if f is None else
                 ("Sprache" if classifier._stimmen_fuer_sprache(f) >= classifier.STIMMEN_FUER_SPRACHE
