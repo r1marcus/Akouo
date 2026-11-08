@@ -187,9 +187,13 @@
                 if (!warned) { this.warningOpen = true; return; }
                 this.play();
             },
+            nachWarnung: null,     // Reinhören (spur.js) wartet hier auf die Bestätigung
             confirmWarning() {
                 try { sessionStorage.setItem('monitor:warned', '1'); } catch (_) { }
                 this.warningOpen = false;
+                const weiter = this.nachWarnung;
+                this.nachWarnung = null;
+                if (weiter) { weiter(); return; }
                 this.play();  // still inside the click gesture — autoplay policy allows it
             },
             play() {
@@ -218,6 +222,7 @@
         });
     });
     </script>
+    <script src="{{ static_url('spur.js') }}" defer></script>
     <script src="{{ static_url('htmx.min.js') }}" defer></script>
     <script src="{{ static_url('alpine.min.js') }}" defer></script>
 </head>
@@ -313,10 +318,11 @@
             </nav>
         </div>
     </header>
-    <main class="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <main class="{% block breite %}max-w-5xl{% endblock %} mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {% block content %}{% endblock %}
     </main>
     {% include "partials/service_picker.html" %}
+    {% include "partials/spur_ansicht.html" %}
 
     {# Feedback guard: the machine sits in the room with the mics — speakers would loop back into the recording #}
     <div x-data x-show="$store.monitor.warningOpen" x-cloak x-transition.opacity

@@ -1,17 +1,7 @@
 <!-- Track & Marker (UI-07, REC-08) — full-width row below the Aufnahme/Stream controls. -->
 <!-- Runs in the sessionPanel() scope opened by dashboard.html, not its own x-data. -->
-<section class="card lg:col-span-3"
+<section class="card"
          x-show="state === 'recording' || state === 'paused' || markers.length > 0" x-cloak>
-
-  <!-- Level curve of the whole session: track regions, boundaries, playhead -->
-  <div x-show="levels.length > 0" x-cloak class="mb-5">
-    <div class="mb-2 flex items-center justify-between">
-      <span class="eyebrow">{{ t("Verlauf") }}</span>
-      <span class="font-mono text-[10px] text-zinc-600"
-            x-text="formatTime(Math.round(levels.length * levelBlock))"></span>
-    </div>
-    <canvas x-ref="band" class="block w-full h-14 rounded-lg bg-white/[0.02]"></canvas>
-  </div>
 
   <!-- Track aufnehmen: großer Start, Typ danach, dann Ende (REC-08) -->
   <div x-show="state === 'recording' || state === 'paused'" x-cloak>

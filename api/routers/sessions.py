@@ -321,13 +321,29 @@ async def stop_session(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/status")
-async def session_status():
+async def session_status(db: AsyncSession = Depends(get_db)):
     async with httpx.AsyncClient(timeout=5.0) as client:
         try:
             response = await client.get(f"{AUDIO_SERVICE_URL}/api/session/status")
-            return response.json()
+            daten = response.json()
         except httpx.ConnectError:
             raise HTTPException(status_code=503, detail=uebersetze("Audio-Dienst nicht erreichbar"))
+    # Die Großansicht eines Tracks braucht die Session-ID der laufenden Aufnahme
+    if isinstance(daten, dict) and daten.get("state") in ("recording", "paused"):
+        aktiv = await _get_active_session(db)
+        daten["session_id"] = aktiv.id if aktiv else None
+    return daten
+
+
+@router.get("/rueckspiel")
+async def rueckspiel_status() -> dict:
+    """Ist der Dante-Ausgang eingerichtet? Die Oberfläche zeigt den Schalter nur dann."""
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            r = await client.get(f"{AUDIO_SERVICE_URL}/api/session/rueckspiel")
+        return r.json() if r.status_code == 200 else {"eingerichtet": False}
+    except (httpx.HTTPError, ValueError):
+        return {"eingerichtet": False}
 
 
 @router.get("/marker-types")

@@ -1,0 +1,161 @@
+{# Großansicht eines Tracks — geöffnet von der Markerliste und der Segmentliste über das
+   Ereignis "spur:oeffnen". Logik in static/spur.js. #}
+<div x-data="spurAnsicht()" x-show="offen" x-cloak x-transition.opacity
+     @keydown.escape.window="offen && schliessen()"
+     class="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm sm:p-4">
+  <div class="w-full max-w-5xl max-h-[100dvh] sm:max-h-[94vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl border border-white/10 bg-zinc-900 p-4 sm:p-6 shadow-2xl">
+
+    <template x-if="track">
+      <div>
+        {# Kopf: Typ, Nummer, Blättern, Schließen #}
+        <div class="flex flex-wrap items-center gap-2">
+          <button @click="blaettern(-1)" :disabled="idx === 0"
+                  class="btn h-10 w-10 bg-white/[0.06] text-zinc-200 hover:bg-white/10 disabled:opacity-30"
+                  :aria-label="tr('Voriger Track')">‹</button>
+          <span class="font-mono text-sm text-zinc-500" x-text="String(track.index).padStart(2, '0')"></span>
+          <select class="field h-10 min-h-10 py-0 pr-8 text-base font-semibold"
+                  @change="typSetzen($event.target.value)">
+            <template x-for="a in daten.beitragsarten" :key="a">
+              <option :value="a" :selected="a === track.marker_type" x-text="anzBeitrag(a)"></option>
+            </template>
+          </select>
+          <span x-show="laeuft" class="rounded-full bg-sky-500/20 px-2 py-0.5 text-xs text-sky-200">{{ t("läuft") }}</span>
+          <span x-show="track.exportiert" class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-300">{{ t("exportiert") }}</span>
+          <button @click="blaettern(1)" :disabled="idx >= daten.tracks.length - 1"
+                  class="btn h-10 w-10 bg-white/[0.06] text-zinc-200 hover:bg-white/10 disabled:opacity-30"
+                  :aria-label="tr('Nächster Track')">›</button>
+          <button @click="schliessen()" class="ml-auto btn h-10 px-4 bg-white/[0.06] text-zinc-200 hover:bg-white/10">{{ t("Fertig") }}</button>
+        </div>
+
+        {# Zeiten #}
+        <div class="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 font-mono text-sm tabular-nums">
+          <span class="text-zinc-400">{{ t("Anfang") }} <span class="text-zinc-100" x-text="zeit(start, true)"></span></span>
+          <span class="text-zinc-400" x-show="!laeuft">{{ t("Ende") }} <span class="text-zinc-100" x-text="zeit(ende, true)"></span></span>
+          <span class="text-zinc-400" x-show="!laeuft">{{ t("Länge") }} <span class="text-zinc-100" x-text="zeit(ende - start)"></span></span>
+          <span class="text-zinc-400" x-show="cursor !== null">{{ t("Cursor") }} <span class="text-zinc-100" x-text="zeit(cursor, true)"></span></span>
+        </div>
+
+        {# Die große Kurve: Griffe ziehen, mit einem Finger schieben, mit zwei zoomen, tippen setzt den Cursor #}
+        <div class="mt-3 relative">
+          <canvas x-ref="gross"
+                  @pointerdown="runter($event)" @pointermove="ziehen($event)"
+                  @pointerup="hoch($event)" @pointercancel="hoch($event)"
+                  @wheel.prevent="rad($event)"
+                  class="block w-full h-56 sm:h-64 rounded-xl bg-white/[0.03] select-none"
+                  style="touch-action: none"></canvas>
+        </div>
+        <p class="mt-1 text-xs text-zinc-500">{{ t("Blaue Griffe ziehen · mit einem Finger verschieben · mit zwei Fingern zoomen · antippen setzt den Cursor") }}</p>
+
+        {# Ansicht #}
+        <div class="mt-3 flex flex-wrap gap-2 text-sm">
+          <button @click="zoom(0.5)" class="btn h-10 w-10 bg-white/[0.06] text-zinc-100 hover:bg-white/10" :aria-label="tr('Hineinzoomen')">+</button>
+          <button @click="zoom(2)" class="btn h-10 w-10 bg-white/[0.06] text-zinc-100 hover:bg-white/10" :aria-label="tr('Herauszoomen')">−</button>
+          <button @click="zeige('anfang')" class="btn h-10 px-3 bg-white/[0.06] text-zinc-200 hover:bg-white/10">{{ t("Anfang") }}</button>
+          <button @click="zeige('ende')" x-show="!laeuft" class="btn h-10 px-3 bg-white/[0.06] text-zinc-200 hover:bg-white/10">{{ t("Ende") }}</button>
+          <button @click="zeige('track')" class="btn h-10 px-3 bg-white/[0.06] text-zinc-200 hover:bg-white/10">{{ t("Ganzer Track") }}</button>
+          <button @click="zeige('alles')" class="btn h-10 px-3 bg-white/[0.06] text-zinc-200 hover:bg-white/10">{{ t("Alles") }}</button>
+        </div>
+
+        {# Feinschritte #}
+        <div class="mt-4 grid gap-3 sm:grid-cols-2">
+          <template x-for="was in (laeuft ? ['start'] : ['start', 'ende'])" :key="was">
+            <div class="rounded-2xl bg-white/[0.03] p-3">
+              <div class="eyebrow mb-2" x-text="was === 'start' ? tr('Anfang verschieben') : tr('Ende verschieben')"></div>
+              <div class="flex flex-wrap gap-1.5">
+                <template x-for="d in [-5, -1, -0.5, -0.1, 0.1, 0.5, 1, 5]" :key="d">
+                  <button @click="fein(was, d)"
+                          class="h-10 min-w-11 px-2 rounded-lg bg-white/[0.06] font-mono text-sm text-zinc-200 hover:bg-white/10 active:scale-95"
+                          x-text="(d > 0 ? '+' : '−') + String(Math.abs(d)).replace('.', ',')"></button>
+                </template>
+                <button x-show="cursor !== null" @click="was === 'start' ? (start = Math.min(cursor, laeuft ? cursor : ende - 0.5)) : (ende = Math.max(cursor, start + 0.5)); zeichnen(); kantenBald()"
+                        class="h-10 px-3 rounded-lg bg-sky-500/20 text-sm text-sky-200 hover:bg-sky-500/30">{{ t("auf Cursor") }}</button>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        {# Hören #}
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+          <span class="eyebrow mr-1">{{ t("Reinhören") }}</span>
+          <template x-if="!$store.hoeren.laeuft">
+            <div class="flex flex-wrap gap-2">
+              <button @click="hoeren('anfang')" class="btn h-10 px-3 text-sm bg-emerald-600/80 text-white hover:bg-emerald-500">▶ {{ t("Anfang") }}</button>
+              <button @click="hoeren('ende')" class="btn h-10 px-3 text-sm bg-emerald-600/80 text-white hover:bg-emerald-500">▶ {{ t("Ende") }}</button>
+              <button @click="hoeren('cursor')" x-show="cursor !== null" class="btn h-10 px-3 text-sm bg-emerald-600/80 text-white hover:bg-emerald-500">▶ {{ t("ab Cursor") }}</button>
+              <button @click="hoeren('ganz')" class="btn h-10 px-3 text-sm bg-white/[0.06] text-zinc-200 hover:bg-white/10">▶ {{ t("ganzer Track") }}</button>
+            </div>
+          </template>
+          <button x-show="$store.hoeren.laeuft" @click="$store.hoeren.stop()"
+                  class="btn h-10 px-4 text-sm bg-zinc-100 text-zinc-900 hover:bg-white">■ {{ t("Stopp") }}</button>
+          <label x-show="$store.hoeren.danteBereit" class="ml-auto flex items-center gap-2 text-sm text-zinc-300">
+            <input type="checkbox" class="h-5 w-5" :checked="$store.hoeren.ueberDante"
+                   @change="$store.hoeren.setDante($event.target.checked)">
+            {{ t("über Dante abspielen") }}
+          </label>
+        </div>
+
+        {# Titel und Sprecher — von Hand gesetzt bleiben sie, auch wenn die KI später läuft #}
+        <div class="mt-5 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+          <label class="block">
+            <span class="eyebrow">{{ t("Titel") }}</span>
+            <input x-model="titel" @change="angabenSpeichern()" :placeholder="tr('ohne Titel')"
+                   class="mt-1 w-full min-h-11 rounded-xl bg-white/[0.05] px-3 text-zinc-100">
+          </label>
+          <label class="block">
+            <span class="eyebrow">{{ t("Sprecher") }}</span>
+            <input x-model="sprecher" @change="angabenSpeichern()" :placeholder="tr('unbekannt')"
+                   class="mt-1 w-full min-h-11 rounded-xl bg-white/[0.05] px-3 text-zinc-100">
+          </label>
+          <button @click="kiAuswerten()" :disabled="kiLaeuft || laeuft"
+                  class="btn min-h-11 px-4 text-sm bg-white/[0.06] text-zinc-200 hover:bg-white/10 disabled:opacity-40">
+            <span x-text="kiLaeuft ? tr('Denkt…') : (track.ki ? tr('Neu auswerten') : tr('KI-Auswertung'))"></span>
+          </button>
+        </div>
+        <p x-show="track.zusammenfassung" class="mt-2 text-sm text-zinc-400" x-text="track.zusammenfassung"></p>
+
+        {# Teilen, Einfügen, Lücke — alles am Cursor #}
+        <div class="mt-5 rounded-2xl bg-white/[0.03] p-3">
+          <div class="eyebrow mb-2">{{ t("Am Cursor") }}</div>
+          <p x-show="cursor === null" class="text-sm text-zinc-500">{{ t("Erst in die Kurve tippen, dann hier teilen, einfügen oder eine Lücke markieren.") }}</p>
+          <div x-show="cursor !== null" class="grid gap-3 sm:grid-cols-3">
+            <div class="flex flex-col gap-2" x-show="cursor > start + 0.5 && (laeuft || cursor < ende - 0.5)">
+              <select x-model="teilTyp" class="field min-h-10 text-sm">
+                <option value="">{{ t("hinterer Teil: gleicher Typ") }}</option>
+                <template x-for="a in daten.beitragsarten" :key="a">
+                  <option :value="a" x-text="anzBeitrag(a)"></option>
+                </template>
+              </select>
+              <button @click="teilen()" :disabled="busy" class="btn min-h-10 text-sm bg-sky-500 text-zinc-950 hover:bg-sky-400">{{ t("Hier teilen") }}</button>
+            </div>
+            <div class="flex flex-col gap-2">
+              <select x-model="neuTyp" class="field min-h-10 text-sm">
+                <option value="">{{ t("— Typ des neuen Tracks —") }}</option>
+                <template x-for="a in daten.beitragsarten" :key="a">
+                  <option :value="a" x-text="anzBeitrag(a)"></option>
+                </template>
+              </select>
+              <button @click="einfuegen()" :disabled="busy || !neuTyp" class="btn min-h-10 text-sm bg-white/[0.08] text-zinc-100 hover:bg-white/15 disabled:opacity-40">{{ t("Neuen Track ab hier") }}</button>
+            </div>
+            <div class="flex flex-col gap-2" x-show="cursor >= start && (laeuft || cursor <= ende)">
+              <p class="text-xs text-zinc-500" x-text="lueckeVon === null ? tr('Ein Stück im Track auslassen: Anfang der Lücke antippen, dann hier.') : trf('Lücke ab {zeit} — jetzt das Ende antippen', {zeit: zeit(lueckeVon, true)})"></p>
+              <button @click="lueckeMarkieren()" class="btn min-h-10 text-sm bg-red-500/20 text-red-200 hover:bg-red-500/30"
+                      x-text="lueckeVon === null ? tr('Lücke beginnt hier') : tr('Lücke endet hier')"></button>
+            </div>
+          </div>
+          <template x-if="track.luecken.length">
+            <ul class="mt-3 space-y-1 text-sm">
+              <template x-for="l in track.luecken" :key="l.id">
+                <li class="flex items-center gap-3 text-zinc-300">
+                  <span class="text-red-300">{{ t("Lücke") }}</span>
+                  <span class="font-mono" x-text="zeit(l.von_s, true) + ' – ' + (l.bis_s === null ? tr('läuft') : zeit(l.bis_s, true))"></span>
+                  <button @click="lueckeWeg(l)" class="text-xs text-zinc-500 underline underline-offset-4 hover:text-zinc-300">{{ t("entfernen") }}</button>
+                </li>
+              </template>
+            </ul>
+          </template>
+        </div>
+      </div>
+    </template>
+    <p x-show="laedt && !track" class="text-sm text-zinc-500">{{ t("Lädt…") }}</p>
+  </div>
+</div>

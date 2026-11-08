@@ -1,6 +1,6 @@
 <!-- Aufnahme: state, dual timer (UI-08/09), level meter (UI-06) — the control card next to the stream card. -->
 <!-- Track & marker live in track_marker_section.html; both share the sessionPanel() scope opened in dashboard.html. -->
-<section class="card lg:col-span-2 flex flex-col">
+<section class="card flex flex-col">
 
   <div class="flex items-center justify-between gap-3">
     <div class="flex items-center gap-2.5">
@@ -128,6 +128,13 @@ function sessionPanel() {
     levelBlock: 0.25,
     levelFloor: -60,
 
+    // Verlauf: sichtbarer Ausschnitt. spanne null = alles; folgen = läuft mit dem Schreibkopf.
+    sicht: {spanne: null, folgen: true, von: 0},
+    _band: null,
+    _bandZeiger: new Map(),
+    sessionId: null,
+    spuren: {},            // marker_id -> {titel, ki, unterbrochen} aus /spuren
+
     // Automodus: wird ausdrücklich eingeschaltet, läuft nie von selbst an.
     auto: {aktiv: false, beitraege: [], fehler: null},
     autoBusy: false,
@@ -160,6 +167,7 @@ function sessionPanel() {
         this.pollLevels();
       });
       window.addEventListener('marker:placed', () => this.loadMarkers());
+      window.addEventListener('spur:geaendert', () => this.loadMarkers());
     },
 
     // ── State ────────────────────────────────────────────────────────────
@@ -171,6 +179,7 @@ function sessionPanel() {
         const next = (d.state === 'recording' || d.state === 'paused') ? d.state : 'idle';
         if (next === 'recording') this.syncElapsed(d.elapsed_seconds || 0);
         if (next !== 'idle') this.serviceType = d.service_type || null;
+        if (next !== 'idle' && d.session_id) this.sessionId = d.session_id;
         // Another device (e.g. an iPad) may have placed markers — resync the list
         if (typeof d.marker_count === 'number' && d.marker_count !== this.markers.length) this.loadMarkers();
         this.setState(next);
@@ -262,6 +271,50 @@ function sessionPanel() {
         const r = await fetch('/api/sessions/markers');
         if (r.ok) this.markers = await r.json();
       } catch (e) { /* offline-first */ }
+      this.loadSpuren();
+    },
+    // Titel, KI-Stand und offene Unterbrechung je Track — für die Liste rechts
+    async loadSpuren() {
+      if (!this.sessionId || !this.markers.length) return;
+      try {
+        const r = await fetch(`/api/sessions/${this.sessionId}/spuren`);
+        if (!r.ok) return;
+        const d = await r.json();
+        const neu = {};
+        for (const t of d.tracks) {
+          neu[t.marker_id] = {titel: t.titel, ki: t.ki,
+                              unterbrochen: t.luecken.some(l => l.bis_s === null),
+                              luecken: t.luecken.length};
+        }
+        this.spuren = neu;
+      } catch (_) { /* offline-first */ }
+    },
+    spurOeffnen(m) {
+      if (!this.sessionId) return;
+      window.dispatchEvent(new CustomEvent('spur:oeffnen', {detail: {session_id: this.sessionId, marker_id: m.id}}));
+    },
+    async unterbrechen(an) {
+      this.busyTrack = true;
+      try {
+        await this.post(an ? '/api/sessions/marker/unterbrechen' : '/api/sessions/marker/fortsetzen');
+        await this.loadSpuren();
+      } catch (e) {
+        this.notifyError(e.message);
+      } finally {
+        this.busyTrack = false;
+      }
+    },
+    async kiFuer(m) {
+      if (!this.sessionId) return;
+      this.spuren[m.id] = {...(this.spuren[m.id] || {}), denkt: true};
+      try {
+        const r = await fetch(`/api/sessions/${this.sessionId}/segments/${m.id}/insights`, {method: 'POST'});
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.detail || r.status);
+      } catch (e) {
+        this.notifyError(trf('KI-Auswertung: {fehler}', {fehler: e.message}));
+      }
+      await this.loadSpuren();
     },
     async nudge(marker, field, delta) {
       try {
@@ -490,31 +543,122 @@ function sessionPanel() {
       this.drawSparklines();
     },
 
+    // ── Verlauf: Ausschnitt, Mitlaufen, Gesten ───────────────────────────
+    gesamtDauer() { return Math.max(this.elapsed, this.levels.length * this.levelBlock, 1); },
+    sichtVon() {
+      const total = this.gesamtDauer();
+      if (this.sicht.spanne === null) return 0;
+      const spanne = Math.min(this.sicht.spanne, total);
+      if (this.sicht.folgen) return Math.max(0, total - spanne);
+      return Math.max(0, Math.min(this.sicht.von, total - spanne));
+    },
+    sichtBis() {
+      const total = this.gesamtDauer();
+      return this.sicht.spanne === null ? total : this.sichtVon() + Math.min(this.sicht.spanne, total);
+    },
+    spanneSetzen(s) {
+      const mitte = (this.sichtVon() + this.sichtBis()) / 2;
+      this.sicht.spanne = s;
+      if (s !== null && !this.sicht.folgen) this.sicht.von = Math.max(0, mitte - s / 2);
+      this.drawBand();
+    },
+    folgen() { this.sicht.folgen = true; this.drawBand(); },
+    bandZeit(px) {
+      const w = this.$refs.band.clientWidth || 1;
+      return this.sichtVon() + px / w * (this.sichtBis() - this.sichtVon());
+    },
+    bandRunter(e) {
+      this.$refs.band.setPointerCapture(e.pointerId);
+      this._bandZeiger.set(e.pointerId, e.offsetX);
+      const von = this.sichtVon(), bis = this.sichtBis();
+      if (this._bandZeiger.size === 2) {
+        const [a, b] = [...this._bandZeiger.values()];
+        this._band = {art: 'zoom', abstand: Math.abs(a - b) || 1, von, bis, mitte: this.bandZeit((a + b) / 2)};
+      } else {
+        this._band = {art: 'schieben', x0: e.offsetX, von, bis, bewegt: false};
+      }
+    },
+    bandZiehen(e) {
+      if (!this._band || !this._bandZeiger.has(e.pointerId)) return;
+      this._bandZeiger.set(e.pointerId, e.offsetX);
+      const g = this._band, w = this.$refs.band.clientWidth || 1, total = this.gesamtDauer();
+      if (g.art === 'zoom' && this._bandZeiger.size === 2) {
+        const [a, b] = [...this._bandZeiger.values()];
+        const f = g.abstand / (Math.abs(a - b) || 1);
+        const spanne = Math.max(10, Math.min(total, (g.bis - g.von) * f));
+        this.sicht = {spanne, folgen: false, von: Math.max(0, g.mitte - (g.mitte - g.von) * f)};
+        this.drawBand();
+        return;
+      }
+      if (Math.abs(e.offsetX - g.x0) > 5) g.bewegt = true;
+      if (!g.bewegt || this.sicht.spanne === null) return;
+      const dt = (e.offsetX - g.x0) / w * (g.bis - g.von);
+      this.sicht = {spanne: this.sicht.spanne, folgen: false, von: Math.max(0, g.von - dt)};
+      this.drawBand();
+    },
+    bandHoch(e) {
+      this._bandZeiger.delete(e.pointerId);
+      const g = this._band;
+      if (this._bandZeiger.size > 0) return;
+      this._band = null;
+      if (g && g.art === 'schieben' && !g.bewegt && this.sessionId) {
+        // Antippen: ab hier 30 s reinhören
+        const t = this.bandZeit(e.offsetX);
+        Alpine.store('hoeren').spielen(this.sessionId, t, t + 30);
+        const zeichne = () => { this.drawBand(); if (Alpine.store('hoeren').laeuft) requestAnimationFrame(zeichne); };
+        requestAnimationFrame(zeichne);
+      }
+    },
+    bandRad(e) {
+      const total = this.gesamtDauer();
+      const von = this.sichtVon(), bis = this.sichtBis();
+      if (e.ctrlKey || Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        const f = Math.exp(e.deltaY * 0.01), mitte = this.bandZeit(e.offsetX);
+        const spanne = Math.max(10, Math.min(total, (bis - von) * f));
+        this.sicht = {spanne, folgen: false, von: Math.max(0, mitte - (mitte - von) * f)};
+      } else if (this.sicht.spanne !== null) {
+        const dt = e.deltaX / (this.$refs.band.clientWidth || 1) * (bis - von);
+        this.sicht = {spanne: this.sicht.spanne, folgen: false, von: Math.max(0, von + dt)};
+      }
+      this.drawBand();
+    },
+
     drawBand() {
       const canvas = this.$refs.band;
       if (!canvas) return;
       const c = this.sizeCanvas(canvas);
       if (!c) return;
-      const {ctx, w, h} = c;
-      const total = Math.max(this.elapsed, this.levels.length * this.levelBlock, 1);
-      const x = t => (t / total) * w;
+      const {ctx, w, h, dpr} = c;
+      const von = this.sichtVon(), bis = this.sichtBis();
+      const x = t => (t - von) / (bis - von) * w;
 
       // Track regions first, so the curve sits on top of them.
       for (const m of this.markers) {
         const [start, end] = this.markerRange(m);
+        if (end < von || start > bis) continue;
         const open = m.ended_at_ts === null || m.ended_at_ts === undefined;
         ctx.fillStyle = open ? 'rgba(56,189,248,0.14)' : 'rgba(255,255,255,0.05)';
         ctx.fillRect(x(start), 0, Math.max(1, x(end) - x(start)), h);
         ctx.fillStyle = open ? 'rgba(56,189,248,0.7)' : 'rgba(255,255,255,0.22)';
         ctx.fillRect(x(start), 0, 1, h);
+        if (bis - von < 1200) {
+          ctx.fillStyle = 'rgba(161,161,170,0.8)';
+          ctx.font = `${10 * dpr}px ui-sans-serif, system-ui`;
+          ctx.fillText(anzBeitrag(m.marker_type), x(start) + 3 * dpr, 11 * dpr);
+        }
       }
 
-      this.drawEnvelope(ctx, w, h, 0, total, 'rgba(228,228,231,0.55)');
+      this.drawEnvelope(ctx, w, h, von, bis, 'rgba(228,228,231,0.55)');
 
       // Playhead — only meaningful while something is actually being written.
       if (this.state === 'recording' || this.state === 'paused') {
         ctx.fillStyle = this.state === 'recording' ? '#ef4444' : '#fbbf24';
         ctx.fillRect(Math.min(w - 1, x(this.elapsed)), 0, 1, h);
+      }
+      const pos = Alpine.store('hoeren').position;
+      if (pos !== null && pos >= von && pos <= bis) {
+        ctx.fillStyle = '#34d399';
+        ctx.fillRect(x(pos), 0, 2 * dpr, h);
       }
     },
 

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block breite %}max-w-7xl{% endblock %}
 {% block content %}
 <script>
 function dashboard() {
@@ -88,17 +89,21 @@ function checklistBadge() {
 
 <div x-data="dashboard()"
      @toast.window="notify($event.detail)"
-     class="grid gap-4 lg:grid-cols-3">
+     class="grid gap-4">
 
-    {# Aufnahme + Stream side by side, track & marker full width below — all three share one
-       sessionPanel() scope. display:contents keeps the cards direct grid children. #}
-    <div x-data="sessionPanel()" style="display: contents">
+    {# Links Aufnahme, Verlauf und Stream, rechts die Tracks — Rückmeldung 08.11.: beides
+       gleichzeitig sehen. Ab Tablet-Breite nebeneinander, darunter untereinander. #}
+    <div x-data="sessionPanel()" class="grid gap-4 md:grid-cols-5 md:items-start">
 
+    <div class="grid gap-4 md:col-span-3">
     {# AUFNAHME — status, timers, level meter, transport #}
     {% include "partials/session_section.html" %}
 
+    {# VERLAUF — Pegelkurve mit Zoom, Mitlaufen und Reinhören #}
+    {% include "partials/verlauf_section.html" %}
+
     <!-- STREAM -->
-    <section class="card flex flex-col lg:self-start">
+    <section class="card flex flex-col">
         <div class="flex items-center justify-between">
             <div class="eyebrow">{{ t("Stream") }}</div>
             <a href="/settings" class="text-xs text-zinc-500 hover:text-zinc-300">{{ t("Ziel ändern") }}</a>
@@ -130,9 +135,12 @@ function checklistBadge() {
             </button>
         </div>
     </section>
+    </div>
 
-    {# TRACK & MARKER — full width under the two control cards #}
+    {# TRACKS — rechts #}
+    <div class="md:col-span-2">
     {% include "partials/track_marker_section.html" %}
+    </div>
 
     </div>{# /sessionPanel scope #}
 
@@ -140,9 +148,10 @@ function checklistBadge() {
     {% include "partials/transcript_section.html" %}
 
     {# Phase 7: segment review host — populated after session stop via HTMX trigger #}
-    <div id="segment-review-host" class="lg:col-span-3 empty:hidden"
+    <div id="segment-review-host" class="empty:hidden"
+         @spur:geaendert.window="htmx.trigger($el, 'neu')"
          hx-get="/api/sessions/latest-stopped/segments"
-         hx-trigger="load delay:500ms, every 30s, session:stopped from:window delay:1s"
+         hx-trigger="load delay:500ms, every 30s, session:stopped from:window delay:1s, neu"
          hx-target="this"
          hx-swap="innerHTML"></div>
 

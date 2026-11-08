@@ -1,0 +1,32 @@
+{# Verlauf der ganzen Aufnahme: Pegel, Tracks, Schreibkopf. Läuft mit, bis man selbst
+   verschiebt oder zoomt; „Folgen“ holt das Mitlaufen zurück. Antippen spielt ab dort.
+   Läuft im sessionPanel()-Scope (session_section.html). #}
+<section class="card" x-show="levels.length > 0" x-cloak>
+  <div class="mb-2 flex flex-wrap items-center gap-2">
+    <span class="eyebrow mr-auto">{{ t("Verlauf") }}</span>
+    <template x-for="s in [30, 120, 600]" :key="s">
+      <button @click="spanneSetzen(s)"
+              class="h-9 px-2.5 rounded-lg text-xs font-mono"
+              :class="sicht.spanne === s ? 'bg-sky-500/25 text-sky-200' : 'bg-white/[0.05] text-zinc-300 hover:bg-white/10'"
+              x-text="s < 60 ? s + ' s' : (s / 60) + ' min'"></button>
+    </template>
+    <button @click="spanneSetzen(null)"
+            class="h-9 px-2.5 rounded-lg text-xs"
+            :class="sicht.spanne === null ? 'bg-sky-500/25 text-sky-200' : 'bg-white/[0.05] text-zinc-300 hover:bg-white/10'">{{ t("Alles") }}</button>
+    <button x-show="!sicht.folgen && (state === 'recording' || state === 'paused')" x-cloak @click="folgen()"
+            class="h-9 px-2.5 rounded-lg text-xs bg-red-500/20 text-red-200 hover:bg-red-500/30">{{ t("Folgen") }}</button>
+    <button x-show="$store.hoeren.laeuft" x-cloak @click="$store.hoeren.stop()"
+            class="h-9 px-2.5 rounded-lg text-xs bg-zinc-100 text-zinc-900">■ {{ t("Stopp") }}</button>
+  </div>
+  <canvas x-ref="band"
+          @pointerdown="bandRunter($event)" @pointermove="bandZiehen($event)"
+          @pointerup="bandHoch($event)" @pointercancel="bandHoch($event)"
+          @wheel.prevent="bandRad($event)"
+          class="block w-full h-32 rounded-lg bg-white/[0.02] select-none"
+          style="touch-action: pan-y"></canvas>
+  <div class="mt-1 flex justify-between font-mono text-[10px] text-zinc-600">
+    <span x-text="formatTime(sichtVon())"></span>
+    <span class="hidden sm:inline font-sans">{{ t("Antippen: ab dort reinhören · ziehen: verschieben · zwei Finger: zoomen") }}</span>
+    <span x-text="formatTime(sichtBis())"></span>
+  </div>
+</section>
