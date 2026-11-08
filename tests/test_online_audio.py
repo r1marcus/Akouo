@@ -44,13 +44,15 @@ def test_ohne_zugangsdaten_uebersprungen(tmp_path, monkeypatch):
 def test_app_client_laesst_sich_mit_with_oeffnen(monkeypatch):
     """Regression 6.11.: Der Client wurde vor dem `with` benutzt — httpx lehnt das ab."""
     import httpx
-    import online as o
 
     def antwort(request):
         return httpx.Response(200, json={"access": "t", "results": []})
     echter = httpx.Client
     monkeypatch.setattr(httpx, "Client", lambda **k: echter(transport=httpx.MockTransport(antwort), **k))
-    monkeypatch.setattr(o.config, "online_api_url", "https://app.test")
     import main as audio_main
+    # Das config, das main wirklich liest — test_segment_export lädt config neu, danach
+    # zeigt o.config auf ein anderes Objekt. Lokal fiel das nicht auf, weil die echte .env
+    # eine URL lieferte; in der CI (ohne .env) war die Basis-URL leer.
+    monkeypatch.setattr(audio_main.config, "online_api_url", "https://app.test")
     with audio_main._app_client() as client:
         assert client.get("/api/calendar/").status_code == 200
