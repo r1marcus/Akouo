@@ -11,7 +11,7 @@ import automode_sync
 import sprache
 from database import AsyncSessionLocal, engine, get_db
 from models import Base, ChecklistTemplate, ChecklistItem
-from routers import recordings, health, settings, streaming, checklists, sessions, segments, uploads, service, insights, konfiguration, dienste, vermeldungen
+from routers import recordings, health, settings, streaming, checklists, sessions, segments, uploads, service, insights, konfiguration, dienste, vermeldungen, export_check
 import typen
 
 BASE_DIR = Path(__file__).parent
@@ -100,6 +100,7 @@ app.include_router(konfiguration.router)
 app.include_router(insights.router)
 app.include_router(dienste.router)
 app.include_router(vermeldungen.router)
+app.include_router(export_check.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

@@ -1080,3 +1080,81 @@ async def test_ki_auswertung_laeuft_vor_dem_export(db_session):
         r = await export_segment(session_id=sess.id, marker_id=marker["Chorlied"].id,
                                  request=mock_request, online=False, db=db_session)
     assert r["nas_status"] == "uploaded"                                 # trotzdem exportiert
+
+
+@pytest.mark.asyncio
+async def test_export_check_zeigt_alles_und_legt_nichts_fest(db_session):
+    """Die Vorschau nennt Dateien, Ordner und App-Eintrag wie der Export — und merkt
+    sich dabei weder einen NAS-Ordner noch ein CopyCenter."""
+    from models import CopyCenterAblage
+    from routers.export_check import export_check
+
+    sess, _ = await _gottesdienst_mit_luecken(db_session)
+    sess.thema = "Erntedank"
+    await db_session.commit()
+
+    d = await export_check(sess.id, ids="", station=True, online=True, db=db_session)
+
+    assert [t["typ"] for t in d["tracks"]] == ["Orchester", "Predigt", "Chorlied"]
+    assert [u["typ"] for u in d["uebersprungen"]] == ["Gemeindegesang", "Gebet"]
+    predigt = d["tracks"][1]
+    assert predigt["datei"] == "2026-10-18_Sonntagmorgen_Erntedank_03_Predigt.mp3"
+    assert predigt["nas_datei"] == "Track-02 - Predigt.mp3"
+    assert d["nas"]["ordner"].startswith("Gottesdienste/2026-10-18")
+    assert d["online"]["ereignis"]["title"].startswith("Erntedank — Sonntag morgens")
+    assert d["station"]["beschriftung"] == "Erntedank"
+    assert d["gottesdienst"]["art"] == "Sonntagmorgen"
+
+    await db_session.refresh(sess)
+    assert sess.nas_folder is None
+    assert await db_session.get(CopyCenterAblage, sess.id) is None
+
+
+@pytest.mark.asyncio
+async def test_export_check_einzeln_mit_hinweisen(db_session):
+    """Einzeln geht auch, was sonst übersprungen wird — mit Hinweis darauf."""
+    from routers.export_check import export_check
+
+    sess, marker = await _gottesdienst_mit_luecken(db_session)
+    d = await export_check(sess.id, ids=str(marker["Gebet"].id), station=False, online=False, db=db_session)
+    assert [t["typ"] for t in d["tracks"]] == ["Gebet"]
+    assert "Dieser Typ wird sonst nicht exportiert" in d["tracks"][0]["hinweise"]
+    assert d["online"]["an"] is False and d["online"]["ereignis"] is None
+
+
+@pytest.mark.asyncio
+async def test_angaben_im_export_check_aendern(db_session):
+    """Art und Thema lassen sich vor dem Export richtigstellen; Titel und Sprecher erst,
+    wenn es eine Auswertung gibt."""
+    from fastapi import HTTPException
+    from models import SegmentInsight
+    from routers.export_check import Angaben, TrackAngaben, angaben_aendern, track_angaben_aendern
+
+    sess, marker = await _gottesdienst_mit_luecken(db_session)
+    r = await angaben_aendern(sess.id, Angaben(service_type="Gebetsstunde", thema="  Starke Ehen "), db_session)
+    assert r == {"service_type": "Gebetsstunde", "thema": "Starke Ehen"}
+    with pytest.raises(HTTPException) as e:
+        await angaben_aendern(sess.id, Angaben(service_type="Gibtsnicht"), db_session)
+    assert e.value.status_code == 422
+
+    predigt = marker["Predigt"].id
+    with pytest.raises(HTTPException) as e:
+        await track_angaben_aendern(sess.id, predigt, TrackAngaben(sprecher="P. F."), db_session)
+    assert e.value.status_code == 409
+    db_session.add(SegmentInsight(session_id=sess.id, marker_id=predigt, title="Alt"))
+    await db_session.commit()
+    r = await track_angaben_aendern(sess.id, predigt, TrackAngaben(titel="Neu", sprecher="P. F."), db_session)
+    assert (r["titel"], r["sprecher"]) == ("Neu", "P. F.")
+
+
+@pytest.mark.asyncio
+async def test_angaben_nicht_waehrend_der_aufnahme(db_session):
+    from fastapi import HTTPException
+    from routers.export_check import Angaben, angaben_aendern
+
+    sess, _ = await _gottesdienst_mit_luecken(db_session)
+    sess.status = "recording"
+    await db_session.commit()
+    with pytest.raises(HTTPException) as e:
+        await angaben_aendern(sess.id, Angaben(thema="x"), db_session)
+    assert e.value.status_code == 409

@@ -87,6 +87,12 @@
                 if (c.thema) teile.push(c.thema);
                 return teile.join(' · ');
             },
+            // Eine andere Art heißt ein anderer Gottesdienst: das Thema des vorigen
+            // darf nicht mitwandern (07.11.: "Verheiratete" hing am Sonntagmorgen).
+            waehle(art) {
+                if (art !== this.draft.service_type) this.draft.thema = '';
+                this.draft.service_type = art;
+            },
             isWedding() {
                 return this.draft.service_type === 'Hochzeit';
             },

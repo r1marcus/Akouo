@@ -621,6 +621,9 @@ Gottesdiensttyp, nicht nur für Hochzeiten, und taucht an drei Stellen wieder au
 
 Leeres Feld heißt: kein Thema, Dateinamen wie zuvor.
 
+Wechselt man im Dialog die Gottesdienstart, wird das Thema geleert. Vorher wanderte es mit:
+am 08.11. hing „Verheiratete“ vom Vorabend am Sonntagmorgen.
+
 ---
 
 ## 5c2. Archiv — frühere Aufnahmen
@@ -633,6 +636,29 @@ Fehlt die Aufnahmedatei — etwa weil der Ordner von Hand gelöscht wurde — st
 und ein Export ist nicht möglich.
 
 Der Automodus fasst Archivaufnahmen nie an; er arbeitet ausschließlich an der laufenden.
+
+---
+
+## 5c3. Export-Check
+
+„Exportieren“ und „Alle exportieren“ schneiden nicht sofort, sondern öffnen erst ein Fenster
+**Vor dem Export prüfen**. Darin steht, was gleich passiert:
+
+- **Gottesdienst:** Datum, Art und Thema — beides hier noch änderbar. Die Art bestimmt, wie der
+  Abend in der Gemeinde-App erscheint (am 07.11. ging ein Jungverheirateten-Abend sonst als
+  Gebetsstunde hoch).
+- **Wohin:** der NAS-Ordner, die Station mit Ordner und Beschriftung, und der Eintrag in der
+  Gemeinde-App (Titel, Art, Kategorie). Station und Online lassen sich hier umschalten.
+- **Je Track:** Nummer, Typ, Zeiten, Dateiname und der Titel in der App. Titel und Sprecher sind
+  änderbar, sobald es eine KI-Auswertung gibt; ohne Auswertung gibt es den Knopf dafür.
+  Ein Häkchen entscheidet, ob der Track mitgeht — so bleibt ein schon exportierter Track beim
+  Sammel-Export draußen.
+- **Hinweise** in Gelb: sehr kurze oder sehr lange Tracks, fehlender Typ, schon exportiert oder
+  schon online (wird ersetzt), keine KI-Auswertung.
+
+Erst der Knopf „N exportieren“ schneidet. Das Fenster legt nichts fest: weder NAS-Ordner noch
+Station-Buchstabe werden dabei vergeben. Art und Thema einer laufenden Aufnahme lassen sich hier
+nicht ändern.
 
 ---
 

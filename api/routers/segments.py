@@ -89,6 +89,25 @@ def _nas_track_name(index: int, marker_type: str) -> str:
     return f"Track-{index:02d} - {typ}.mp3"
 
 
+def mp3_dateiname(session: RecordingSession, seg: dict, marker_type: str) -> str:
+    """YYYY-MM-DD_Art[_Paar][_Thema][_TeilN]_NN_Typ.mp3 — der Name im Archiv auf dem Mac.
+
+    Eine Stelle für Export und Export-Check, damit die Vorschau nie etwas anderes
+    zeigt als das, was danach auf der Platte liegt."""
+    date_part = (session.started_at.strftime("%Y-%m-%d")
+                 if session.started_at else datetime.now().strftime("%Y-%m-%d"))
+    parts = [date_part, _safe_filename_part(session.service_type)]
+    if session.couple_name:
+        parts.append(_safe_filename_part(session.couple_name))
+    if session.thema:
+        parts.append(_safe_filename_part(session.thema))
+    if session.wedding_part:
+        parts.append(f"Teil{session.wedding_part}")
+    parts.append(f"{seg['index']:02d}")
+    parts.append(_safe_filename_part(marker_type))
+    return "_".join(parts) + ".mp3"
+
+
 def _album(folder: str) -> str:
     """Albumname aus dem NAS-Ordner: der Bereich und reine Jahresordner fallen weg.
 
@@ -549,19 +568,7 @@ async def export_segment(
     if seg is None:
         raise HTTPException(status_code=404, detail=uebersetze("Kein Segment zu diesem Marker"))
 
-    # Filename: YYYY-MM-DD_ServiceType_NN_MarkerType.mp3
-    date_part = (session.started_at.strftime("%Y-%m-%d")
-                 if session.started_at else datetime.now().strftime("%Y-%m-%d"))
-    parts = [date_part, _safe_filename_part(session.service_type)]
-    if session.couple_name:
-        parts.append(_safe_filename_part(session.couple_name))
-    if session.thema:
-        parts.append(_safe_filename_part(session.thema))
-    if session.wedding_part:
-        parts.append(f"Teil{session.wedding_part}")
-    parts.append(f"{seg['index']:02d}")
-    parts.append(_safe_filename_part(marker.marker_type))
-    mp3_filename = "_".join(parts) + ".mp3"
+    mp3_filename = mp3_dateiname(session, seg, marker.marker_type)
 
     # Remote path follows the archive's own layout — see _nas_folder. The local file keeps
     # its descriptive name; on the NAS it is "Track-NN - Typ.mp3" (see _nas_track_name).
