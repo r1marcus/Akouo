@@ -49,7 +49,11 @@ von Hand abgelegt.
   Das ist Sache der NAS-Verwaltung, kein Entwicklungspunkt.
 - **Typen der Erkennung.** „Neu erkennen" trifft die Grenzen fast immer, die Typen nur etwa zur
   Hälfte: Prosa gegen Predigt und Orchester gegen Chorlied mit Begleitung trennt der Klang nicht.
-  Kandidat für Punkt 3 unten.
+  Kandidat für Punkt 3 unten. **Muss besser werden** — am 8. November 2026 (Sonntagmorgen) lag die
+  Automatik live mehrfach daneben: drei Gemeindegesänge am Anfang und das Gruppenlied als Chorlied,
+  eine Ansage als Gedicht, das angesagte Kinderlied gar nicht erkannt, ein Chorlied nach der
+  ersten Predigt fehlte. Die Ansagen hätten es gesagt („Lied Nummer …“, „die Kinder singen“) —
+  also Ansagen stärker gewichten (Punkt 1) und das Programmblatt vorab einlesen (Punkt 2).
 
 ---
 
