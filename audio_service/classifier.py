@@ -85,6 +85,50 @@ STILLE_UEBER_GRUND_DB = 6.0
 KLASSEN_FENSTER_S = 6.0
 KLASSEN_HALTEN_S = 30.0
 
+# Zweite, tiefere Schwelle für den Anfang. Die Stille-Schwelle oben bestätigt einen
+# Beitrag, setzt seinen Anfang aber zu spät, sobald er leise beginnt: am 8. November
+# (Sonntagabend) begann ein Chorlied mit einem Intro bei −53 bis −34 dBFS, die
+# Schwelle stand bei −32, und der Marker landete acht Sekunden hinter dem Anfang.
+# Von der bestätigten Stelle aus wird deshalb rückwärts gesucht, solange es über dem
+# örtlichen Grundpegel bleibt — höchstens so weit, nie in den Beitrag davor.
+VORLAUF_MAX_S = 15.0
+VORLAUF_UEBER_GRUND_DB = 6.0
+VORLAUF_LUECKE_S = 0.5        # so lange darf ein leises Intro kurz absacken
+DIGITALE_STILLE_DBFS = -60.0  # Untergrenze der Hüllkurve: Kanal stumm, hier ist sicher Schluss
+
+
+def start_vorziehen(pegel, start: int, grenze: int, block_s: float) -> int:
+    """Index, ab dem ein Beitrag wirklich anfängt — nie später als `start`.
+
+    `pegel` ist die Hüllkurve in dBFS je Block, `start` der Block, an dem die
+    Stille-Schwelle den Beitrag bestätigt hat, `grenze` der erste Block, den er
+    belegen darf (Ende des vorigen Beitrags).
+
+    Der Grundpegel wird örtlich gemessen, aus der halben Minute davor: über die ganze
+    Aufnahme gemittelt steigt er mit jeder lauten Strecke, und genau daran scheitert
+    ein leises Intro. Digitale Stille ist eine harte Grenze — davor kann nichts
+    gesungen worden sein.
+    """
+    pegel = np.asarray(pegel, dtype=float)
+    max_bloecke = int(VORLAUF_MAX_S / block_s)
+    untergrenze = max(0, grenze, start - max_bloecke)
+    if untergrenze >= start or start > len(pegel):
+        return start
+    umgebung = pegel[max(0, start - 2 * max_bloecke): start]
+    leise = float(np.percentile(umgebung, 20)) + VORLAUF_UEBER_GRUND_DB
+    luecke_max = max(1, round(VORLAUF_LUECKE_S / block_s))
+    neu, luecke = start, 0
+    for i in range(start - 1, untergrenze - 1, -1):
+        if pegel[i] <= DIGITALE_STILLE_DBFS:
+            break
+        if pegel[i] > leise:
+            neu, luecke = i, 0
+        else:
+            luecke += 1
+            if luecke > luecke_max:
+                break
+    return neu
+
 
 @dataclass
 class Einschaetzung:
@@ -412,7 +456,7 @@ def finde_beitraege(wav_path, bis_s: Optional[float] = None) -> list:
     min_stille = int(MIN_STILLE_S / block_s)
     min_beitrag = int(MIN_BEITRAG_S / block_s)
 
-    grob, start, stille = [], None, 0
+    grob, start, stille, voriges_ende = [], None, 0, 0
     for i, ist_laut in enumerate(laut):
         if ist_laut:
             if start is None:
@@ -423,10 +467,13 @@ def finde_beitraege(wav_path, bis_s: Optional[float] = None) -> list:
             if start is not None and stille >= min_stille:
                 ende = i - stille + 1
                 if ende - start >= min_beitrag:
-                    grob.append((start * block_s, ende * block_s))
+                    anfang = start_vorziehen(pegel, start, voriges_ende, block_s)
+                    grob.append((anfang * block_s, ende * block_s))
+                    voriges_ende = ende
                 start = None
     if start is not None and len(laut) - start >= min_beitrag:
-        grob.append((start * block_s, len(laut) * block_s))
+        anfang = start_vorziehen(pegel, start, voriges_ende, block_s)
+        grob.append((anfang * block_s, len(laut) * block_s))
 
     fein = []
     for s, e in grob:
