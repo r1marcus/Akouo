@@ -600,8 +600,14 @@ Knopf „KI-Auswertung“ an jedem Segment. Läuft lokal über **Ollama**, ohne 
 
 - Nimmt die Transkriptzeilen im Zeitbereich des Segments und fragt das Sprachmodell nach
   **Titel, Zusammenfassung, Bibelstellen, Schlagwörtern und Sprecher**.
-- **Bibelstellen werden nachgeprüft:** Was nicht als echte Stelle im Transkript vorkommt, fliegt
-  raus. Sprachmodelle erfinden Verse sonst bereitwillig.
+- **Bibelstellen kommen aus dem Transkript, nicht vom Modell.** Erkannt wird auch die
+  gesprochene Form („Lukas Kapitel 16 ab Vers 19 bis 31“, „Psalm 51, die Verse 3 bis 5“).
+  Je Buch und Kapitel bleibt eine Stelle, die genaueste; vorn steht, was zuerst gelesen wurde —
+  meist der Predigttext. Sprachmodelle erfinden Verse sonst bereitwillig.
+- **Lieder und Musik bekommen keinen KI-Titel.** Whisper versteht Gesang schlecht und schreibt
+  über Instrumenten Füllsätze („Vielen Dank“, „Untertitelung des ZDF“); daraus wurden Titel wie
+  „Amen und Beeship“. Den Liedtitel trägt man im Export-Check ein. Diese Füllsätze werden auch
+  bei Wortbeiträgen vor der Auswertung aus dem Transkript genommen.
 - Ergebnis steht in der Tabelle `segment_insights` (Migration 010) und unter dem Segment im
   Dashboard.
 - Modellwahl über `OLLAMA_MODELS` (Standard: `qwen2.5:14b-instruct,llama3.1:8b,llama3.2`) — das

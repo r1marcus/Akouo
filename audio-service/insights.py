@@ -28,6 +28,64 @@ BOOKS = [
 ]
 _BOOK_PATTERN = "|".join(sorted((re.escape(b) for b in BOOKS), key=len, reverse=True))
 REFERENCE_RE = re.compile(rf"\b({_BOOK_PATTERN})\s+\d+[,:.]\s?\d+(\s?[-–]\s?\d+)?", re.IGNORECASE)
+_BUCH = {b.lower(): b for b in BOOKS}
+_BUCH.update({"psalmen": "Psalm", "ruth": "Rut", "esther": "Ester"})
+
+# So wird eine Stelle gesprochen, nicht geschrieben. Am 08.11. lauteten die drei Predigttexte
+# "Matthäus-Evangelium, Kapitel 7", "Lukas Kapitel 16 Ab Verse 19 bis 31" und "Psalm 51, die
+# Verse 3 bis 5" — REFERENCE_RE kennt nur "Buch 3,16" und ließ alle drei fallen. Übrig blieb ein
+# Nebenzitat ("Epheser 2, 8 und 9"), das dann als einzige Bibelstelle in der Gemeinde-App stand.
+_GESPROCHEN = re.compile(
+    rf"\b(?P<buch>{_BOOK_PATTERN})(?:-?evangelium)?[\s,.:]*(?:kapitel\s*)?(?P<kap>\d{{1,3}})\b"
+    r"(?:\s*[,:.]?\s*(?:(?:die|den|im|in)\s+)?(?:(?:ab\s+)?vers(?:e|en)?\s*)?(?:ab\s+)?"
+    r"(?P<v1>\d{1,3})\b"
+    r"(?:\s*(?:[-–]|bis|und)\s*(?:vers(?:e|en)?\s*)?(?P<v2>\d{1,3})\b)?)?",
+    re.IGNORECASE,
+)
+
+
+def stellen_im_text(text: str) -> list:
+    """Bibelstellen, wie sie gesprochen wurden — je Buch und Kapitel eine, in der Reihenfolge
+    ihrer ersten Nennung. Der Predigttext wird am Anfang gelesen und steht deshalb vorn.
+
+    Wird ein Kapitel mehrfach genannt, gewinnt die genaueste Angabe: ein Versbereich vor einem
+    einzelnen Vers vor dem bloßen Kapitel. Whisper verhört sich beim ersten Ansatz gern
+    ("Psalm 51, die Verse 9. Psalm 51, die Verse 3 bis 5")."""
+    beste: dict = {}
+    for m in _GESPROCHEN.finditer(text):
+        buch = _BUCH.get(m.group("buch").lower(), m.group("buch"))
+        kap, v1, v2 = m.group("kap"), m.group("v1"), m.group("v2")
+        if v1 and v2 and int(v2) > int(v1):
+            stelle, guete = f"{buch} {kap},{v1}-{v2}", 2
+        elif v1:
+            stelle, guete = f"{buch} {kap},{v1}", 1
+        else:
+            stelle, guete = f"{buch} {kap}", 0
+        schluessel = (buch, kap)
+        if schluessel not in beste or guete > beste[schluessel][1]:
+            beste[schluessel] = (stelle, guete, beste.get(schluessel, (None, None, m.start()))[2])
+    return [s for s, _, _ in sorted(beste.values(), key=lambda e: e[2])]
+
+
+# Bei diesen Beiträgen wird gesungen oder gespielt. Whisper versteht Gesang schlecht und
+# schreibt über Instrumenten Füllsätze — aus "Vielen Dank. Vielen Dank." und "Amen. Beeship"
+# machte die KI am 08.11. Titel wie "Amen und Beeship", die so in der Gemeinde-App landeten.
+# Für Lieder fragen wir das Modell deshalb gar nicht; den Titel trägt der Tontechniker im
+# Export-Check ein.
+LIED_TYPEN = {
+    "Chorlied", "Orchester", "Jugendchor", "Kinderchor", "Gruppenlied", "Gebetslied",
+    "Musikstück", "Gemeindegesang", "Kinderlied", "Männerchor", "Frauenchor",
+}
+
+# Whispers Füllsätze bei Musik und Stille — siehe classifier._HALLUZINATION.
+_FUELLSATZ = ("muziek", "music", "untertitelung", "untertitel", "vielen dank",
+              "das war's", "bis zum nächsten mal", "copyright", "swr", "zdf")
+_NUR_AMEN = re.compile(r"^(?:amen[.!,\s]*)+$", re.IGNORECASE)
+
+
+def _echte_zeile(text: str) -> bool:
+    klein = text.lower()
+    return not _NUR_AMEN.match(text) and not any(f in klein for f in _FUELLSATZ)
 
 SYSTEM_PROMPT = (
     "Du hilfst einem Gemeindearchiv. Du bekommst das Transkript eines Gottesdienst-Abschnitts. "
@@ -74,43 +132,21 @@ def transcript_slice(wav_path, start_seconds: float, end_seconds: float) -> str:
                 continue
             # keep every line that overlaps the segment
             if float(line.get("end", 0)) > start_seconds and float(line.get("start", 0)) < end_seconds:
-                texts.append(str(line.get("text", "")).strip())
-    return " ".join(t for t in texts if t)
+                text = str(line.get("text", "")).strip()
+                # Füllsätze raus, und dieselbe Zeile nur einmal hintereinander
+                if text and _echte_zeile(text) and (not texts or texts[-1] != text):
+                    texts.append(text)
+    return " ".join(texts)
 
 
 def verified_references(candidates, transcript: str) -> list:
-    """Drop references that are neither well-formed nor mentioned in the transcript."""
-    found = {m.group(0).strip() for m in REFERENCE_RE.finditer(transcript)}
-    verified = []
-    for candidate in candidates or []:
-        text = str(candidate).strip()
-        if not REFERENCE_RE.fullmatch(text) and not REFERENCE_RE.match(text):
-            continue
-        book_chapter = text.lower().replace(" ", "")
-        if any(book_chapter[:8] in f.lower().replace(" ", "") for f in found) or text in found:
-            verified.append(text)
-    # references clearly spoken but not returned by the model are worth keeping too
-    for f in sorted(found):
-        if f not in verified:
-            verified.append(f)
-    return _drop_contained(verified)[:5]
+    """Bibelstellen, die wirklich gesprochen wurden.
 
-
-def _drop_contained(references: list) -> list:
-    """"1. Samuel 17,49" is already covered by "1. Samuel 17,49-51" — keep the wider one."""
-    def normalise(r: str) -> str:
-        # Achtung: replace(".", ".") ersetzt einen Punkt durch einen Punkt und tut nichts.
-        # Vermutlich war replace(".", "") gemeint, damit "1. Samuel" und "1 Samuel" gleich
-        # normalisiert werden. Bewusst unveraendert gelassen: eine Korrektur aendert, welche
-        # Bibelstellen als Dublette gelten, und das will erst gegen echte Transkripte geprueft
-        # werden. Siehe offene Punkte in docs/stand.md.
-        return r.lower().replace(" ", "").replace(".", ".")
-
-    kept = []
-    for ref in sorted(references, key=len, reverse=True):
-        if not any(normalise(ref) in normalise(other) for other in kept):
-            kept.append(ref)
-    return sorted(kept, key=references.index)
+    Maßgeblich ist das Transkript, nicht das Modell: das erfindet gern einen plausiblen Vers.
+    Ein Vorschlag des Modells zählt nur, wenn Buch und Kapitel im Text vorkommen — und dann
+    steht ohnehin schon die gesprochene Stelle in der Liste. `candidates` bleibt als Parameter,
+    damit der Aufruf gleich aussieht; den Ausschlag gibt stellen_im_text()."""
+    return stellen_im_text(transcript)[:5]
 
 
 async def pick_model() -> Optional[str]:
@@ -132,6 +168,8 @@ async def analyse(transcript: str, marker_type: str) -> dict:
     """Title, summary, Bible references and keywords for one segment."""
     result = {"titel": None, "zusammenfassung": None, "bibelstellen": [], "schlagwoerter": [],
               "sprecher": None, "model": None, "error": None, "transcript": transcript}
+    if marker_type in LIED_TYPEN:
+        return result          # keine Fehlermeldung: es gibt hier schlicht nichts zu raten
     if not transcript.strip():
         result["error"] = "Kein Transkript für diesen Abschnitt"
         return result
