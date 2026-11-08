@@ -85,3 +85,25 @@ def test_deutsche_adresse_leitet_auf_die_kanonische(api_client):
     antwort = api_client.get("/einstellungen", follow_redirects=False)
     assert antwort.status_code == 307
     assert antwort.headers["location"] == "/settings"
+
+
+@pytest.mark.asyncio
+async def test_altes_lautheitsziel_gilt_fuer_beide_klassen(db_session):
+    """Wer früher „Ziellautheit“ gesetzt hatte, behält den Wert nach dem Aufteilen."""
+    import einstellungen
+    from models import Setting
+
+    werte = await einstellungen.alle_lesen(db_session)
+    assert (werte["export_lufs_sprache"], werte["export_lufs_musik"]) == (-16.0, -14.0)
+
+    db_session.add(Setting(key="export_lufs", value="-18"))
+    await db_session.commit()
+    werte = await einstellungen.alle_lesen(db_session)
+    assert (werte["export_lufs_sprache"], werte["export_lufs_musik"]) == (-18.0, -18.0)
+
+    # Ein neu gespeichertes Ziel geht dem alten vor — nur für seine Klasse
+    await einstellungen.setzen(db_session, "export_lufs_musik", "-13")
+    werte = await einstellungen.alle_lesen(db_session)
+    assert (werte["export_lufs_sprache"], werte["export_lufs_musik"]) == (-18.0, -13.0)
+    geschoben = einstellungen.zahlen_fuer_audio(werte)
+    assert geschoben["export_lufs_sprache"] == -18.0 and geschoben["export_lufs_musik"] == -13.0

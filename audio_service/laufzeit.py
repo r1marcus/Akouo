@@ -13,13 +13,34 @@ EXPORT = {
     "peak_dbfs": -3.0,      # Spitzenpegel, auf den normalisiert wird
     "fade_ms": 1000,        # Ein- und Ausblende je Segment
     "normalisierung": "Spitzenpegel",   # oder "Lautheit"
-    "lufs": -16.0,          # Ziel bei "Lautheit"
+    "lufs_sprache": -16.0,  # Ziel bei "Lautheit" für Gesprochenes
+    "lufs_musik": -14.0,    # Ziel bei "Lautheit" für Gesungenes und Gespieltes
 }
 
+# Beitragsarten ohne Klangklasse, die trotzdem Musik sind. Sie stehen in der Datenbank
+# bewusst ohne Klasse ("nur auf Ansage"), damit die Klangerkennung sie nicht vorschlägt —
+# eine Klasse dort würde die Erkennung verändern. Für die Lautheit zählt aber, dass hier
+# gesungen oder gespielt wird: Musik bei −16 LUFS klingt neben einem Chorlied zu leise.
+MUSIK_OHNE_KLANGKLASSE = frozenset({"Gebetslied", "Musikstück", "Kinderlied"})
 
-def ziel_lufs() -> "float | None":
-    """Die Ziellautheit, wenn auf Lautheit normalisiert wird — sonst None (Spitze)."""
-    return EXPORT["lufs"] if EXPORT["normalisierung"] == "Lautheit" else None
+
+def klasse_fuer(klang_klasse: "str | None", beitrag: "str | None" = None) -> str:
+    """„musik“ oder „sprache“ — was für die Lautheit zählt.
+
+    Ohne Klangklasse gilt Sprache, außer die Beitragsart ist als Musik bekannt.
+    """
+    if klang_klasse in ("musik", "sprache"):
+        return klang_klasse
+    return "musik" if beitrag in MUSIK_OHNE_KLANGKLASSE else "sprache"
+
+
+def ziel_lufs(klang_klasse: "str | None" = None, beitrag: "str | None" = None) -> "float | None":
+    """Die Ziellautheit je Klangklasse, wenn auf Lautheit normalisiert wird — sonst None
+    (Spitze). Ohne Angaben gilt das Sprachziel: ein ganzer Gottesdienst ist überwiegend
+    gesprochen."""
+    if EXPORT["normalisierung"] != "Lautheit":
+        return None
+    return EXPORT["lufs_" + klasse_fuer(klang_klasse, beitrag)]
 
 
 def export_setzen(cfg: dict) -> dict:
@@ -37,7 +58,13 @@ def export_setzen(cfg: dict) -> dict:
     if cfg.get("export_normalisierung") in ("Spitzenpegel", "Lautheit"):
         EXPORT["normalisierung"] = cfg["export_normalisierung"]
         uebernommen["normalisierung"] = EXPORT["normalisierung"]
-    if cfg.get("export_lufs") is not None:
-        EXPORT["lufs"] = float(cfg["export_lufs"])
-        uebernommen["lufs"] = EXPORT["lufs"]
+    # Früher gab es ein Ziel für alles. Schickt jemand nur das alte, gilt es für beide.
+    alt = cfg.get("export_lufs")
+    for klasse in ("sprache", "musik"):
+        wert = cfg.get(f"export_lufs_{klasse}")
+        if wert is None:
+            wert = alt
+        if wert is not None:
+            EXPORT[f"lufs_{klasse}"] = float(wert)
+            uebernommen[f"lufs_{klasse}"] = EXPORT[f"lufs_{klasse}"]
     return uebernommen

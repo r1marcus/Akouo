@@ -373,9 +373,26 @@ Normalisieren auf*:
 | | |
 |---|---|
 | **Spitzenpegel** (Standard) | die lauteste Stelle auf −3 dBFS. Eine leise Predigt bleibt leiser als ein Lied — gemessen am 18. Oktober bis zu 9 dB |
-| **Lautheit** | jedes Segment klingt gleich laut, Ziel −16 LUFS (*Ziellautheit*), Spitze höchstens −1 dBTP. Zwei Durchgänge FFmpeg-`loudnorm`, linear — es wird nur verstärkt, nicht geregelt |
+| **Lautheit** | jedes Segment auf ein festes Ziel, Spitze höchstens −1 dBTP. Zwei Durchgänge FFmpeg-`loudnorm`, linear — es wird nur verstärkt, nicht geregelt |
+
+Bei *Lautheit* gibt es zwei Ziele, je nach Klangklasse der Beitragsart (*Einstellungen →
+Beitragsarten*):
+
+| Ziel | Standard | gilt für |
+|---|---|---|
+| *Ziellautheit Sprache* | −16 LUFS | Klangklasse „Sprache“ und alles ohne Klangklasse |
+| *Ziellautheit Musik* | −14 LUFS | Klangklasse „Musik“, dazu Gebetslied, Musikstück und Kinderlied |
+
+Gebetslied, Musikstück und Kinderlied haben absichtlich keine Klangklasse — sonst würde die
+Klangerkennung sie vorschlagen. Für die Lautheit gelten sie trotzdem als Musik (festgelegt in
+`audio_service/laufzeit.py`). Der Export der ganzen Aufnahme nimmt das Sprachziel. Wer vorher
+nur die eine *Ziellautheit* eingestellt hatte, behält deren Wert für beide Ziele, bis eines
+neu gespeichert wird.
 
 Scheitert das Angleichen, wird auf die Spitze normalisiert, und im Log steht eine Warnung.
+Lässt sich das Ziel nicht linear erreichen, weil die Spitze dabei über −1 dBTP stiege, regelt
+`loudnorm` dynamisch — das Segment ist dann gleich laut, kann aber leicht pumpen. Auch das
+steht als Warnung im Log („linear nicht erreichbar“).
 
 ---
 

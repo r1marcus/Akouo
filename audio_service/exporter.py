@@ -15,6 +15,22 @@ TRUE_PEAK_DB = -1.0     # Luft für den MP3-Coder, der Spitzen um gut 0,5 dB anh
 LRA = 11.0
 
 
+def _regelart_pruefen(stderr: str, lufs: float) -> None:
+    """Melden, wenn loudnorm doch dynamisch geregelt hat.
+
+    Linear geht nur, solange die Verstärkung die Spitze nicht über −1 dBTP hebt. Sonst
+    schaltet FFmpeg still auf dynamisch um — das Segment ist dann gleich laut, kann aber
+    pumpen. Das soll im Log stehen, damit man es beim Nachhören einordnen kann.
+    """
+    try:
+        werte = json.loads(stderr[stderr.rindex("{"):stderr.rindex("}") + 1])
+    except ValueError:
+        return
+    if str(werte.get("normalization_type", "")).lower() == "dynamic":
+        log.warning("Lautheit: Ziel %s LUFS linear nicht erreichbar (Spitze %s dBTP), "
+                    "loudnorm hat dynamisch geregelt", lufs, werte.get("input_tp"))
+
+
 def _loudnorm(audio: AudioSegment, lufs: float, rate: int) -> Optional[AudioSegment]:
     """Zwei Durchgänge loudnorm (EBU R 128): erst messen, dann linear angleichen.
 
@@ -37,9 +53,11 @@ def _loudnorm(audio: AudioSegment, lufs: float, rate: int) -> Optional[AudioSegm
             filt += (f":measured_I={werte['input_i']}:measured_TP={werte['input_tp']}"
                      f":measured_LRA={werte['input_lra']}:measured_thresh={werte['input_thresh']}"
                      f":offset={werte['target_offset']}:linear=true")
-            subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", "-y", "-i", str(ein), "-af", filt,
-                            "-ar", str(rate), str(aus)],
-                           capture_output=True, check=True, timeout=600)
+            zweiter = subprocess.run(
+                ["ffmpeg", "-hide_banner", "-nostdin", "-y", "-i", str(ein), "-af",
+                 filt + ":print_format=json", "-ar", str(rate), str(aus)],
+                capture_output=True, text=True, check=True, timeout=600)
+            _regelart_pruefen(zweiter.stderr, lufs)
             return AudioSegment.from_wav(str(aus))
         except (OSError, ValueError, KeyError, subprocess.SubprocessError) as e:
             log.warning("Lautheit: Angleichen fehlgeschlagen, es bleibt bei der Spitze (%s)", e)

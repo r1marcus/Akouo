@@ -187,7 +187,9 @@ class ErkennungConfig(BaseModel):
     export_peak_dbfs: Optional[float] = None
     export_fade_ms: Optional[int] = None
     export_normalisierung: Optional[str] = None
-    export_lufs: Optional[float] = None
+    export_lufs: Optional[float] = None     # alt: ein Ziel für beide Klassen
+    export_lufs_sprache: Optional[float] = None
+    export_lufs_musik: Optional[float] = None
     # Schnittkanten
     grenzen_suchfenster_s: Optional[float] = None
     grenzen_min_ton_ms: Optional[int] = None
@@ -225,7 +227,8 @@ async def erkennung_lesen():
     stand["export_peak_dbfs"] = laufzeit.EXPORT["peak_dbfs"]
     stand["export_fade_ms"] = laufzeit.EXPORT["fade_ms"]
     stand["export_normalisierung"] = laufzeit.EXPORT["normalisierung"]
-    stand["export_lufs"] = laufzeit.EXPORT["lufs"]
+    stand["export_lufs_sprache"] = laufzeit.EXPORT["lufs_sprache"]
+    stand["export_lufs_musik"] = laufzeit.EXPORT["lufs_musik"]
     return stand
 
 
@@ -540,6 +543,10 @@ class SegmentExportRequest(BaseModel):
     # Gemeinde-App: der fertige Eintrag aus api/online.py; ohne ihn bleibt es beim Archiv.
     online: Optional[dict] = None
     online_ersetzen: bool = False
+    # Für die Ziellautheit: Klangklasse der Beitragsart ("musik"/"sprache"/None) und ihr
+    # Name — ohne Klasse entscheidet der Name, siehe laufzeit.klasse_fuer().
+    klang_klasse: Optional[str] = None
+    marker_type: Optional[str] = None
 
 
 @app.post("/api/session/export")
@@ -563,6 +570,9 @@ async def session_export(req: ExportRequest):
         bitrate=laufzeit.EXPORT["bitrate"],
         peak_dbfs=laufzeit.EXPORT["peak_dbfs"],
         fade_ms=laufzeit.EXPORT["fade_ms"],
+        # Ein ganzer Gottesdienst ist überwiegend gesprochen — also das Sprachziel.
+        # Ohne diese Zeile blieb der Gesamt-Export bei der Spitze, auch bei „Lautheit“.
+        lufs=laufzeit.ziel_lufs("sprache"),
     )
     return result
 
@@ -602,7 +612,7 @@ async def session_segment_export(req: SegmentExportRequest):
             bitrate=laufzeit.EXPORT["bitrate"],
             fade_ms=laufzeit.EXPORT["fade_ms"],
             peak_dbfs=laufzeit.EXPORT["peak_dbfs"],
-            lufs=laufzeit.ziel_lufs(),
+            lufs=laufzeit.ziel_lufs(req.klang_klasse, req.marker_type),
             tags=req.tags,
             cover=config.export_cover or None,
         )

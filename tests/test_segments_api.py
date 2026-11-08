@@ -610,6 +610,38 @@ async def test_export_nutzt_nas_nummer_fuer_track_und_id3(db_session):
     assert "_03_Predigt" in payload["mp3_filename"]
 
 
+@pytest.mark.asyncio
+async def test_export_schickt_die_klangklasse_mit(db_session):
+    """Der Audio-Dienst wählt die Ziellautheit nach der Klangklasse — die API kennt sie."""
+    from models import MarkerType
+    from routers.segments import export_segment
+
+    sess, marker = await _gottesdienst_mit_luecken(db_session)
+    db_session.add_all([MarkerType(name="Chorlied", klang_klasse="musik"),
+                        MarkerType(name="Predigt", klang_klasse="sprache")])
+    await db_session.commit()
+
+    audio_resp = {
+        "export": {"mp3_path": "/exports/x.mp3", "duration_ms": 5000, "frame_rate": 48000},
+        "nas": {"status": "skipped", "error": None, "nas_path": None, "uploaded_at": None},
+        "mp3_filename": "x.mp3",
+        "mp3_path": "/exports/x.mp3",
+    }
+    mock_request = MagicMock()
+    mock_request.headers = {}
+    gesehen = {}
+    for typ in ("Chorlied", "Predigt", "Orchester"):
+        client = _mock_audio_client(audio_resp)
+        with patch("httpx.AsyncClient", return_value=client):
+            await export_segment(session_id=sess.id, marker_id=marker[typ].id,
+                                 request=mock_request, db=db_session)
+        payload = client.post.call_args.kwargs["json"]
+        gesehen[typ] = (payload["klang_klasse"], payload["marker_type"])
+
+    assert gesehen == {"Chorlied": ("musik", "Chorlied"), "Predigt": ("sprache", "Predigt"),
+                       "Orchester": (None, "Orchester")}   # nicht in der Tabelle → None
+
+
 # ─── Tests: Neu erkennen ───────────────────────────────────────────────────
 
 async def _auto(db, marker, typ=None):

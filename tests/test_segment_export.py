@@ -399,3 +399,44 @@ def test_aufnahme_stoppen_laesst_den_stream_laufen(audio_client, monkeypatch):
 
     assert client.post("/api/session/stop").status_code == 200
     stream_stopp.assert_not_called()
+
+
+def test_endpoint_waehlt_die_ziellautheit_nach_klangklasse(audio_client, monkeypatch, tmp_path):
+    """Lieder bekommen das Musikziel, Predigten das Sprachziel, Unbekanntes das Sprachziel."""
+    client, audio_main, _ = audio_client
+    for k, v in {"normalisierung": "Lautheit", "lufs_sprache": -16.0, "lufs_musik": -14.0}.items():
+        monkeypatch.setitem(audio_main.laufzeit.EXPORT, k, v)
+    gesehen = []
+
+    def fake_export(*args, **kwargs):
+        gesehen.append(kwargs["lufs"])
+        return {"mp3_path": str(args[3]), "duration_ms": 1000, "frame_rate": 48000}
+
+    monkeypatch.setattr(audio_main, "export_segment", fake_export)
+    wav = tmp_path / "session.wav"
+    _make_silent_wav(wav, duration_ms=3000)
+    for klasse, typ in (("musik", "Chorlied"), ("sprache", "Predigt"), (None, "Gebetslied"),
+                        (None, "Unbenannt"), (None, None)):
+        r = client.post("/api/session/segment-export", json={
+            "wav_path": str(wav), "start_seconds": 0.0, "end_seconds": 2.0,
+            "mp3_filename": "x.mp3", "klang_klasse": klasse, "marker_type": typ})
+        assert r.status_code == 200, r.text
+    assert gesehen == [-14.0, -16.0, -14.0, -16.0, -16.0]
+
+
+def test_gesamt_export_nutzt_das_sprachziel(audio_client, monkeypatch, tmp_path):
+    """Früher ignorierte der Gesamt-Export die Lautheit und blieb bei der Spitze."""
+    client, audio_main, _ = audio_client
+    for k, v in {"normalisierung": "Lautheit", "lufs_sprache": -17.0, "lufs_musik": -14.0}.items():
+        monkeypatch.setitem(audio_main.laufzeit.EXPORT, k, v)
+    gesehen = {}
+
+    def fake_export(wav, mp3, **kwargs):
+        gesehen.update(kwargs)
+        return {"mp3_path": str(mp3), "duration_ms": 1000, "frame_rate": 48000}
+
+    monkeypatch.setattr(audio_main, "export_wav_to_mp3", fake_export)
+    wav = tmp_path / "session.wav"
+    _make_silent_wav(wav, duration_ms=1000)
+    assert client.post("/api/session/export", json={"wav_path": str(wav)}).status_code == 200
+    assert gesehen["lufs"] == -17.0

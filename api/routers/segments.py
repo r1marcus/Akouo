@@ -15,8 +15,8 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models import (AutoMarker, CopyCenterAblage, Marker, OnlineAblage, RecordingSession, SegmentExport,
-                    SegmentInsight)
+from models import (AutoMarker, CopyCenterAblage, Marker, MarkerType, OnlineAblage, RecordingSession,
+                    SegmentExport, SegmentInsight)
 import einstellungen
 import nas_pfad
 import online as online_modul
@@ -640,6 +640,12 @@ async def export_segment(
         "remote_subpath": remote_subpath,
         "allow_overwrite": allow_overwrite,
         "tags": tags,
+        # Für die Ziellautheit: Lieder lauter als Predigten. Ohne Klasse entscheidet der
+        # Audio-Dienst am Namen.
+        "klang_klasse": (await db.execute(
+            select(MarkerType.klang_klasse).where(MarkerType.name == marker.marker_type)
+        )).scalar_one_or_none(),
+        "marker_type": marker.marker_type,
     }
     # Gottesdienste gehen zusätzlich ins CopyCenter — Hochzeiten und Sonstiges nicht,
     # dort gibt es für sie keine Ablage.
