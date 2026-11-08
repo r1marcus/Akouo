@@ -9,7 +9,7 @@ ENV = """# Kommentar bleibt
 AUDIO_DEVICE_NAMES=Dante
 AUDIO_RECORD_CHANNELS=44,45
 NAS_PASSWORD=geheim
-STREAM_URL=icecast://source:pw@host:8000/x
+STREAM_URL=icecast://source:pw@stream.example.test:8000/x
 """
 
 
@@ -20,7 +20,7 @@ def test_schreiben_aendert_nur_die_eine_zeile(tmp_path):
     text = env.read_text()
     assert "AUDIO_RECORD_CHANNELS=50,51" in text
     assert "# Kommentar bleibt" in text and "NAS_PASSWORD=geheim" in text
-    assert "STREAM_URL=icecast://source:pw@host:8000/x" in text
+    assert "STREAM_URL=icecast://source:pw@stream.example.test:8000/x" in text
     assert text.rstrip().endswith("OLLAMA_URL=http://127.0.0.1:11434")
 
 
