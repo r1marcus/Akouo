@@ -93,9 +93,9 @@ function checklistBadge() {
 
     {# Links Aufnahme, Verlauf und Stream, rechts die Tracks — Rückmeldung 08.11.: beides
        gleichzeitig sehen. Ab Tablet-Breite nebeneinander, darunter untereinander. #}
-    <div x-data="sessionPanel()" class="grid gap-4 md:grid-cols-5 md:items-start">
+    <div x-data="sessionPanel()" class="grid gap-4 min-[700px]:grid-cols-5 min-[700px]:items-start">
 
-    <div class="grid gap-4 md:col-span-3">
+    <div class="grid gap-4 min-[700px]:col-span-3">
     {# AUFNAHME — status, timers, level meter, transport #}
     {% include "partials/session_section.html" %}
 
@@ -138,7 +138,7 @@ function checklistBadge() {
     </div>
 
     {# TRACKS — rechts #}
-    <div class="md:col-span-2">
+    <div class="min-[700px]:col-span-2">
     {% include "partials/track_marker_section.html" %}
     </div>
 
@@ -149,9 +149,8 @@ function checklistBadge() {
 
     {# Phase 7: segment review host — populated after session stop via HTMX trigger #}
     <div id="segment-review-host" class="empty:hidden"
-         @spur:geaendert.window="htmx.trigger($el, 'neu')"
          hx-get="/api/sessions/latest-stopped/segments"
-         hx-trigger="load delay:500ms, every 30s, session:stopped from:window delay:1s, neu"
+         hx-trigger="load delay:500ms, every 30s, session:stopped from:window delay:1s"
          hx-target="this"
          hx-swap="innerHTML"></div>
 

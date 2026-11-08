@@ -944,6 +944,53 @@ Audio-Dienstes, und ein falsches Routing ist im Saal sofort zu hören.
 
 ---
 
+## 5i. Tracks bearbeiten — Großansicht, Reinhören, Unterbrechen
+
+Rückmeldung nach dem 8. November: Kurve zu klein, kein Reinhören, kein Nachtragen.
+
+**Dashboard.** Ab 700 px Breite zwei Spalten: links Aufnahme, Verlauf und Stream, rechts die
+Tracks. Der **Verlauf** hat feste Ausschnitte (30 s, 2 min, 10 min, Alles). Er läuft mit dem
+Schreibkopf mit, bis man ihn selbst verschiebt oder zoomt; **„Folgen“** holt das Mitlaufen
+zurück. **Antippen spielt ab dieser Stelle 30 s ab** — auch während der Aufnahme, denn gelesen
+wird die Datei, nicht das Gerät. Wie beim Mithören nur mit Kopfhörer.
+
+**Großansicht** („Bearbeiten“ in der Markerliste oder in der Exportliste):
+- Blaue Griffe ziehen setzt Anfang und Ende; Feinschritte ±0,1 / 0,5 / 1 / 5 s; „auf Cursor“.
+  Gespeichert wird von selbst. Der Track gilt danach als von Hand gesetzt — Kantenkorrektur
+  und „Neu erkennen“ lassen ihn in Ruhe.
+- Ein Finger verschiebt, zwei zoomen, Antippen setzt den Cursor.
+- Reinhören: Anfang, Ende, ab Cursor, ganzer Track. Mit eingerichtetem Dante-Ausgang (5h)
+  wahlweise über Dante.
+- **Titel und Sprecher** lassen sich immer setzen, auch ohne KI-Auswertung. Von Hand gesetzt
+  bleiben sie, wenn die KI später läuft.
+- **Am Cursor:** „Hier teilen“ (z. B. die Worte des Musikers vor dem Stück — jeder Teil wird für
+  sich normalisiert), „Neuen Track ab hier“ (z. B. die Begrüßung nach dem Anfangsgebet), „Lücke“
+  (ein Stück im Track auslassen). Einfügen und Teilen verschieben die Tracknummern dahinter — sind
+  schon Tracks exportiert, kommt ein Hinweis: neu exportieren, sonst liegen sie doppelt auf dem NAS.
+
+**Track unterbrechen** (neben „Track beenden“): die Aufnahme läuft weiter, der laufende Track
+lässt das Stück bis „Track fortsetzen“ aus. Beim Export wird die Lücke herausgeschnitten und mit
+150 ms überblendet; Transkript und KI-Auswertung lassen sie ebenfalls aus. Anders als „Pause“
+geht dabei kein Ton verloren, wenn man zu spät fortsetzt.
+
+**Vorlauf bei „Track starten“** (Einstellungen → Erkennung, Standard 3 s): man drückt, wenn der
+Beitrag hörbar angefangen hat; der Marker sitzt so viele Sekunden davor, nie vor dem vorigen Track.
+
+**KI-Auswertung schon während des Gottesdienstes** (Einstellungen → Export, Standard an): jeder
+Track mit Ende wird gleich ausgewertet, einer nach dem anderen. In der Markerliste steht dann der
+Titel; „KI“ startet sie für einen Track von Hand. Lieder bekommen keinen KI-Titel (5c).
+
+**Gottesdienst und Thema** lassen sich nach dem Stopp direkt oben in der Exportliste ändern.
+Ist noch nichts exportiert, folgt der NAS-Ordner dem neuen Typ.
+
+**Pause** hält weiterhin die ganze Aufnahme an. Seit dem 9. November zählen die Markerzeiten
+danach richtig — vorher lag jeder Marker nach einer Pause um die Pausenlänge zu spät in der Datei.
+
+**Mindestlänge eines Beitrags** bleibt bei 10 s für die Automatik: kürzer würde jedes Husten zum
+Track. Kurze Ansagen trägt man mit „Neuen Track ab hier“ nach oder setzt sie mit Vorlauf von Hand.
+
+---
+
 ## 6. Frontend ändern
 
 Kein Node/npm. Tailwind CSS v4 als eigenständiges Programm im Repo-Wurzelverzeichnis.

@@ -173,12 +173,43 @@
                           {target: '#segment-review-{{ session_id }}', swap: 'outerHTML'});
             }
          }"
-         x-init="loadInsights()">
+         x-init="loadInsights()"
+         @spur:geaendert.window="$event.detail && $event.detail.session_id === {{ session_id }}
+             && htmx.ajax('GET', '/api/sessions/{{ session_id }}/segments',
+                          {target: '#segment-review-{{ session_id }}', swap: 'outerHTML'})">
   {% set nicht_export = segments | rejectattr('exportieren') | list | length %}
   <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-3">
     <div>
       <div class="eyebrow">{{ t("Segmente exportieren") }}</div>
-      <p class="mt-1 text-sm text-zinc-400">Session #{{ session_id }} · {{ anzeige_gottesdienstart(service_type) }}</p>
+      {# Gottesdienst und Thema nach dem Stopp richtigstellen — nicht erst im Export-Check #}
+      <div class="mt-1 flex flex-wrap items-center gap-2 text-sm"
+           x-data="{
+              art: {{ service_type | tojson | forceescape }}, thema: '', geladen: false,
+              async laden() {
+                  try {
+                      const d = await fetch('/api/sessions/{{ session_id }}/spuren').then(r => r.json());
+                      this.thema = d.thema || ''; this.geladen = true;
+                  } catch (_) { }
+              },
+              async speichern() {
+                  const r = await fetch('/api/sessions/{{ session_id }}/angaben', {
+                      method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                      body: JSON.stringify({service_type: this.art, thema: this.thema})});
+                  const d = await r.json().catch(() => ({}));
+                  if (!r.ok) { window.dispatchEvent(new CustomEvent('toast', {detail: d.detail || (tr('Fehler') + ' ' + r.status)})); return; }
+                  htmx.ajax('GET', '/api/sessions/{{ session_id }}/segments',
+                            {target: '#segment-review-{{ session_id }}', swap: 'outerHTML'});
+              },
+           }" x-init="laden()">
+        <span class="text-zinc-500">Session #{{ session_id }} ·</span>
+        <select x-model="art" @change="speichern()" class="field h-9 min-h-9 py-0 pr-8 text-sm">
+          {% for art in gottesdienstarten | default([service_type]) %}
+          <option value="{{ art }}" {% if art == service_type %}selected{% endif %}>{{ anzeige_gottesdienstart(art) }}</option>
+          {% endfor %}
+        </select>
+        <input x-model="thema" @change="speichern()" :placeholder="tr('Thema (optional)')"
+               class="h-9 min-h-9 w-44 rounded-lg bg-white/[0.05] px-2 text-sm text-zinc-100">
+      </div>
     </div>
     <div class="flex items-center gap-2">
     {% if segments %}
@@ -347,6 +378,11 @@
                 {{ "%.1f"|format(seg.start_seconds) }}s – {{ "%.1f"|format(seg.end_seconds) }}s
                 · {{ "%.1f"|format(seg.duration_seconds) }}s
               </span>
+              {% if seg.luecken %}
+              <span class="rounded-full bg-red-500/15 px-2 py-0.5 text-[11px] text-red-300">
+                {{ t("ohne") }} {{ seg.luecken | length }} {{ t("Lücke(n)") }}
+              </span>
+              {% endif %}
             </div>
             {% if seg.export %}
               <div class="mt-1 text-xs truncate
@@ -396,6 +432,8 @@
             </template>
           </div>
           <div class="flex items-center gap-2 shrink-0">
+          <button @click="window.dispatchEvent(new CustomEvent('spur:oeffnen', {detail: {session_id: {{ session_id }}, marker_id: {{ seg.marker_id }}}}))"
+                  class="btn min-h-10 px-3 text-sm bg-sky-500/20 text-sky-200 hover:bg-sky-500/30">{{ t("Bearbeiten") }}</button>
           <button @click="analyse({{ seg.marker_id }})" :disabled="busyInsight !== null"
                   class="btn min-h-10 px-3 text-sm bg-white/[0.06] text-zinc-300 hover:bg-white/10">
             <span x-text="busyInsight === {{ seg.marker_id }} ? tr('Denkt…') : (insights[{{ seg.marker_id }}] ? tr('Neu auswerten') : 'KI-Auswertung')">{{ t("KI-Auswertung") }}</span>

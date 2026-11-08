@@ -158,6 +158,10 @@ function sessionPanel() {
       this.pollLevels();
       this.pollAuto();
       window.addEventListener('resize', () => { this.drawMeter(this.lastDb); this.drawCurves(); });
+      // Der Verlauf wird erst sichtbar, wenn es Pegel gibt — dann sofort zeichnen, nicht erst beim nächsten Abruf
+      this.$nextTick(() => {
+        if (this.$refs.band) new ResizeObserver(() => this.drawBand()).observe(this.$refs.band);
+      });
 
       window.addEventListener('session:started', (ev) => {
         this.pendingTracks = Array.isArray(ev.detail.track_sequence) ? [...ev.detail.track_sequence] : [];
@@ -569,6 +573,7 @@ function sessionPanel() {
     },
     bandRunter(e) {
       this.$refs.band.setPointerCapture(e.pointerId);
+      if (e.isPrimary) this._bandZeiger.clear();
       this._bandZeiger.set(e.pointerId, e.offsetX);
       const von = this.sichtVon(), bis = this.sichtBis();
       if (this._bandZeiger.size === 2) {

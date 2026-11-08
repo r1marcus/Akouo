@@ -136,7 +136,8 @@ async def _export_vorgaben(db: AsyncSession) -> dict:
     """Vorauswahl der beiden Schalter beim Export — der Tontechniker kann sie je Export ändern."""
     werte = await einstellungen.alle_lesen(db)
     return {"station_standard": bool(werte.get("nas_copycenter")),
-            "online_standard": bool(werte.get("export_online"))}
+            "online_standard": bool(werte.get("export_online")),
+            "gottesdienstarten": list(typen.aktuell.gottesdienstarten)}
 
 
 def wav_laenge_s(wav_path) -> Optional[float]:
@@ -415,10 +416,13 @@ async def refine_session(session: RecordingSession, db: AsyncSession) -> RefineR
     await db.commit()
 
     segments = await _build_segments(session, db)
+    voriges_ende = 0.0
     async with httpx.AsyncClient(timeout=120.0) as client:
         for seg in segments:
             marker = markers.get(seg["marker_id"])
             if marker is None or marker.nudge_manual:
+                if marker is not None and marker.ended_at_ts is not None:
+                    voriges_ende = max(voriges_ende, seg["end_seconds"])
                 continue
             try:
                 r = await client.post(
@@ -434,8 +438,16 @@ async def refine_session(session: RecordingSession, db: AsyncSession) -> RefineR
             if r.status_code != 200:
                 continue
             data = r.json()
-            marker.start_nudge = float(data.get("start_delta") or 0.0)
+            start_delta = float(data.get("start_delta") or 0.0)
+            # Nie vor das Ende des vorigen Tracks: seit die Suche weiter zurückgreift (leise
+            # Anfänge, 08.11.), zog sie sonst eine Vermeldung in die vorige hinein.
+            if start_delta < 0 and seg["start_seconds"] + start_delta < voriges_ende:
+                start_delta = min(0.0, voriges_ende - seg["start_seconds"])
+            marker.start_nudge = round(start_delta, 3)
             marker.end_nudge = float(data.get("end_delta") or 0.0)
+            # Nur ein festes Ende ist eine Grenze; ohne Ende gilt der nächste Anfang selbst
+            if marker.ended_at_ts is not None:
+                voriges_ende = max(voriges_ende, seg["end_seconds"] + marker.end_nudge)
             if marker.start_nudge or marker.end_nudge:
                 shifted += 1
     await db.commit()

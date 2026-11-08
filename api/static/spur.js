@@ -206,6 +206,9 @@
       zeit,
 
       init() {
+        // Neu zeichnen, sobald die Leinwand eine Größe hat — beim ersten Öffnen ist sie
+        // noch unsichtbar, und Drehen des Tablets ändert die Breite
+        this._ro = new ResizeObserver(() => this.offen && this.zeichnen());
         window.addEventListener('spur:oeffnen', e => this.oeffnen(e.detail));
         window.addEventListener('resize', () => this.offen && this.zeichnen());
       },
@@ -256,7 +259,11 @@
           const rand = Math.max(6, (this.ende - this.start) * 0.08);
           this.fenster = {von: Math.max(0, this.start - rand), bis: this.ende + rand};
         }
-        this.$nextTick(() => { this.zeichnen(); this.kurveHolen(); });
+        this.$nextTick(() => {
+          if (this.$refs.gross) this._ro.observe(this.$refs.gross);
+          this.zeichnen();
+          this.kurveHolen();
+        });
       },
 
       // ── Kurve ─────────────────────────────────────────────────────────────
@@ -297,12 +304,15 @@
 
         // Nachbartracks grau, der eigene hell
         for (const [i, t] of this.daten.tracks.entries()) {
-          if (i === this.idx) continue;
+          if (i === this.idx || t.end_seconds < this.fenster.von || t.start_seconds > this.fenster.bis) continue;
           ctx.fillStyle = 'rgba(255,255,255,0.05)';
           ctx.fillRect(X(t.start_seconds), kopf, Math.max(1, X(t.end_seconds) - X(t.start_seconds)), h - kopf);
-          ctx.fillStyle = 'rgba(161,161,170,0.8)';
-          ctx.font = `${11 * dpr}px ui-sans-serif, system-ui`;
-          ctx.fillText(anzBeitrag(t.marker_type), Math.max(2, X(t.start_seconds) + 4 * dpr), kopf + 12 * dpr);
+          // Beschriftung nur, wo der Nachbar im Bild anfängt — sonst stapeln sich die Namen am Rand
+          if (t.start_seconds >= this.fenster.von) {
+            ctx.fillStyle = 'rgba(161,161,170,0.8)';
+            ctx.font = `${11 * dpr}px ui-sans-serif, system-ui`;
+            ctx.fillText(anzBeitrag(t.marker_type), X(t.start_seconds) + 4 * dpr, kopf + 12 * dpr);
+          }
         }
         ctx.fillStyle = 'rgba(56,189,248,0.13)';
         ctx.fillRect(X(this.start), kopf, Math.max(1, X(this.ende) - X(this.start)), h - kopf);
@@ -361,6 +371,9 @@
       runter(e) {
         const canvas = this.$refs.gross;
         canvas.setPointerCapture(e.pointerId);
+        // Der erste Finger (oder die Maus) beginnt eine neue Geste — ein verlorenes
+        // pointerup darf keinen Geisterfinger hinterlassen, der jedes Tippen zum Zoom macht
+        if (e.isPrimary) this._zeiger.clear();
         this._zeiger.set(e.pointerId, {x: e.offsetX, y: e.offsetY});
         if (this._zeiger.size === 2) {
           const [a, b] = [...this._zeiger.values()];

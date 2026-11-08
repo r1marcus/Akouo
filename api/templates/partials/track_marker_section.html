@@ -44,8 +44,8 @@
 
     <!-- 3. Track läuft und ist benannt -->
     <template x-if="openMarker() && openMarker().marker_type !== 'Unbenannt'">
-      <div class="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl bg-sky-500/10 ring-1 ring-inset ring-sky-500/20 p-4">
-        <div class="flex-1 min-w-0">
+      <div class="flex flex-col gap-3 rounded-2xl bg-sky-500/10 ring-1 ring-inset ring-sky-500/20 p-4">
+        <div class="min-w-0">
           <div class="eyebrow text-sky-300">{{ t("Track läuft") }}</div>
           <div class="mt-1 flex items-baseline gap-3">
             <span class="text-xl font-semibold truncate" x-text="anzBeitrag(openMarker().marker_type)"></span>
@@ -53,13 +53,24 @@
                   x-text="formatTime(elapsed - Math.floor(openMarker().placed_at_ts + (openMarker().start_nudge || 0)))"></span>
           </div>
         </div>
+        <div class="grid grid-cols-2 gap-2">
+        {# Unterbrechen: die Aufnahme läuft weiter, nur der Track lässt das Stück aus #}
+        <button @click="unterbrechen(!(spuren[openMarker().id] || {}).unterbrochen)" :disabled="busyTrack"
+                class="btn min-h-14 px-4 text-sm"
+                :class="(spuren[openMarker().id] || {}).unterbrochen
+                    ? 'bg-amber-400 text-zinc-950 hover:bg-amber-300'
+                    : 'bg-white/[0.08] text-zinc-100 hover:bg-white/15'"
+                x-text="(spuren[openMarker().id] || {}).unterbrochen ? tr('Track fortsetzen') : tr('Track unterbrechen')"></button>
         <button @click="endTrack()" :disabled="busyTrack"
-                class="btn min-h-14 px-6 text-base bg-sky-500 text-zinc-950 hover:bg-sky-400">
+                class="btn min-h-14 px-3 text-base bg-sky-500 text-zinc-950 hover:bg-sky-400">
           <span class="w-3 h-3 rounded-sm bg-zinc-900"></span>
           <span x-text="busyTrack ? 'Moment…' : tr('Track beenden')">{{ t("Track beenden") }}</span>
         </button>
+        </div>
       </div>
     </template>
+    <p x-show="openMarker() && (spuren[openMarker().id] || {}).unterbrochen" x-cloak
+       class="mt-2 text-sm text-amber-300">{{ t("Track unterbrochen — die Aufnahme läuft weiter, dieses Stück fehlt später im Track.") }}</p>
   </div>
 
   <!-- Was die Automatik gerade sieht: laufende Einschätzung und Übergangenes -->
@@ -131,6 +142,21 @@
                   x-text="tr('Start') + ' ' + (m.start_nudge > 0 ? '+' : '') + m.start_nudge + 's'"></span>
             <span class="font-mono text-xs text-amber-400" x-show="m.end_nudge"
                   x-text="tr('Ende') + ' ' + (m.end_nudge > 0 ? '+' : '') + m.end_nudge + 's'"></span>
+          </div>
+          <div class="order-last w-full flex items-center gap-2 text-sm min-w-0">
+            <button @click="spurOeffnen(m)" class="min-w-0 flex-1 truncate text-left text-zinc-300 hover:text-white"
+                    :title="tr('Track groß öffnen')">
+              <span x-show="(spuren[m.id] || {}).titel" x-text="(spuren[m.id] || {}).titel"></span>
+              <span x-show="!(spuren[m.id] || {}).titel" class="text-zinc-600">{{ t("ohne Titel") }}</span>
+              <span x-show="(spuren[m.id] || {}).luecken" class="ml-1 text-xs text-red-300"
+                    x-text="'· ' + trf('{n} Lücke(n)', {n: (spuren[m.id] || {}).luecken})"></span>
+            </button>
+            <button x-show="m.ended_at_ts !== null && m.ended_at_ts !== undefined && !(spuren[m.id] || {}).ki"
+                    @click="kiFuer(m)" :disabled="(spuren[m.id] || {}).denkt"
+                    class="h-8 shrink-0 px-2 rounded-lg bg-white/[0.05] text-xs text-zinc-300 hover:bg-white/10"
+                    x-text="(spuren[m.id] || {}).denkt ? tr('Denkt…') : tr('KI')"></button>
+            <button @click="spurOeffnen(m)"
+                    class="h-8 shrink-0 px-3 rounded-lg bg-sky-500/20 text-xs text-sky-200 hover:bg-sky-500/30">{{ t("Bearbeiten") }}</button>
           </div>
           <canvas x-show="levels.length > 0" x-cloak :data-marker-id="m.id"
                   x-init="$nextTick(() => drawSparklines())"

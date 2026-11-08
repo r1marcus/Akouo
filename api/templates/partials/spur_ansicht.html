@@ -1,8 +1,8 @@
 {# Großansicht eines Tracks — geöffnet von der Markerliste und der Segmentliste über das
    Ereignis "spur:oeffnen". Logik in static/spur.js. #}
-<div x-data="spurAnsicht()" x-show="offen" x-cloak x-transition.opacity
+<div x-data="spurAnsicht()" x-show="offen" x-cloak
      @keydown.escape.window="offen && schliessen()"
-     class="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm sm:p-4">
+     class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm sm:p-4">
   <div class="w-full max-w-5xl max-h-[100dvh] sm:max-h-[94vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl border border-white/10 bg-zinc-900 p-4 sm:p-6 shadow-2xl">
 
     <template x-if="track">
@@ -13,7 +13,7 @@
                   class="btn h-10 w-10 bg-white/[0.06] text-zinc-200 hover:bg-white/10 disabled:opacity-30"
                   :aria-label="tr('Voriger Track')">‹</button>
           <span class="font-mono text-sm text-zinc-500" x-text="String(track.index).padStart(2, '0')"></span>
-          <select class="field h-10 min-h-10 py-0 pr-8 text-base font-semibold"
+          <select class="field h-10 min-h-10 py-0 pr-8 text-base font-semibold" style="width: auto"
                   @change="typSetzen($event.target.value)">
             <template x-for="a in daten.beitragsarten" :key="a">
               <option :value="a" :selected="a === track.marker_type" x-text="anzBeitrag(a)"></option>
