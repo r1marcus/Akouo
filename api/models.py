@@ -364,3 +364,33 @@ class AnsageRegel(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
+
+
+class ChorProgramm(Base):
+    """Ein Programm des Dirigenten, wie es am Chorbildschirm geöffnet wurde.
+
+    `punkte` ist die gelesene Fassung (JSON: kurz, voll, typ, titel), nicht die PDF — die
+    braucht danach niemand mehr. Die Liste der gespeicherten Programme ersetzt den
+    Programme-Ordner der alten Liedanzeige: wer den Stick vergessen hat, findet das
+    Programm vom letzten Mal trotzdem."""
+    __tablename__ = "chor_programme"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    punkte: Mapped[str] = mapped_column(String, nullable=False, default="[]")
+    klammern: Mapped[str] = mapped_column(String, nullable=False, default="( )")
+    am: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+
+class AnzeigeVerlauf(Base):
+    """Was am Chorbildschirm stand, bevor es gelöscht wurde — je Modus.
+
+    Die alte Liedanzeige schrieb das in eine Textdatei pro Modus und Jahr auf den
+    Desktop. Hier landet es in der Datenbank, mit Uhrzeit: so lässt sich später sehen,
+    welche Lieder der Chor wann gesungen hat."""
+    __tablename__ = "anzeige_verlauf"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    modus: Mapped[str] = mapped_column(String, nullable=False)
+    text: Mapped[str] = mapped_column(String, nullable=False)
+    am: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False, index=True)

@@ -482,6 +482,27 @@ async def automode_stop():
     return await auto_modus.stop()
 
 
+class VorgabeRequest(BaseModel):
+    kennung: str
+    eintraege: list = []
+    zeiger: Optional[int] = None
+
+
+@app.post("/api/session/programm-vorgabe")
+async def programm_vorgabe(req: VorgabeRequest):
+    """Programm des Dirigenten vom Chorbildschirm, samt Punkt, auf dem er gerade steht.
+
+    Kommt bei jedem Schritt erneut — die API hält den Stand, dieser Dienst nur im Speicher.
+    Nach einem Neustart ist es mit dem nächsten Schritt wieder da."""
+    return auto_modus.vorgabe_setzen(req.kennung, req.eintraege, req.zeiger)
+
+
+@app.delete("/api/session/programm-vorgabe")
+async def programm_vorgabe_loeschen():
+    auto_modus.vorgabe_loeschen()
+    return {"status": "ok"}
+
+
 class NeuErkennenRequest(BaseModel):
     wav_path: str
 

@@ -19,13 +19,13 @@ API_TESTS := tests/test_archive.py tests/test_current_service.py tests/test_data
              tests/test_segments_api.py tests/test_service_types.py tests/test_session_api.py \
              tests/test_settings_api.py tests/test_uploads_api.py tests/test_ui_phase5.py \
              tests/test_typen.py tests/test_konfiguration_api.py tests/test_nas_pfad.py tests/test_automode_sync.py \
-             tests/test_sprache.py tests/test_vorlagen.py tests/test_spur.py
+             tests/test_sprache.py tests/test_vorlagen.py tests/test_spur.py tests/test_chor_anzeige.py
 
 AUDIO_TESTS := tests/test_boundaries.py tests/test_continuous_recording.py tests/test_insights.py \
                tests/test_mp3_export.py tests/test_nas_client.py tests/test_nas_push.py \
                tests/test_segment_export.py tests/test_stream_adapter.py \
                tests/test_ui_phase5.py::test_waveform tests/test_erkennung_uebernahme.py \
-               tests/test_telefon.py tests/test_typen_erkennung.py tests/test_online_audio.py tests/test_lautheit.py tests/test_dienst_umgebung.py tests/test_vermeldungen.py tests/test_nachlauf.py \
+               tests/test_telefon.py tests/test_typen_erkennung.py tests/test_online_audio.py tests/test_lautheit.py tests/test_dienst_umgebung.py tests/test_vermeldungen.py tests/test_nachlauf.py tests/test_chor_vorgabe.py \
                tests/test_rueckspiel.py tests/test_startkante.py tests/test_stereo_stimme.py
 
 .PHONY: help test test-api test-audio lint css db serve

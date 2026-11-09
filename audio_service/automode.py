@@ -31,6 +31,10 @@ ANSAGE_FENSTER_S = 90.0   # so weit vor einem Beitrag wird nach einer Ansage ges
 ANSAGE_TAKT_S = 20.0      # nicht öfter als alle 20 s das Modell fragen
 ANSAGE_MAX_S = 150.0      # und nie mehr als diese Spanne auf einmal
 PROGRAMM_GUELTIG_S = 1200.0  # nach 20 Minuten ist eine Ansage überholt
+# So lange nach dem erkannten Beginn eines Beitrags zählt ein Schritt des Dirigenten noch
+# als „das hier“. Wer erst weiterblättert, wenn der Chor schon steht, ist trotzdem gemeint;
+# wer mitten im Lied schon zum nächsten Punkt geht, nicht mehr.
+ZEIGER_NACHLAUF_S = 20.0
 
 # Ueber PROGRAMM_AUTOMATISCH=0 in der .env abschaltbar. Vorher stand hier ein
 # hartverdrahtetes True, und die Betriebsanleitung verwies zum Abschalten auf
@@ -105,6 +109,52 @@ class AutoModus:
         self.programm = programm_modul.Programm()
         self._transkript_gelesen_bis = 0.0
         self._ansage_zuletzt = -1e9
+        # Programm des Dirigenten vom Chorbildschirm: {"kennung", "eintraege"}. Bleibt über
+        # start() hinweg stehen — der Dirigent öffnet es oft, bevor die Aufnahme läuft.
+        self.vorgabe: Optional[dict] = None
+        # Wo der Dirigent im Programm stand: (Stelle in der Aufnahme in s, Index)
+        self._zeiger: list[tuple[float, int]] = []
+
+    # ── Programm des Dirigenten ─────────────────────────────────────────────
+    def vorgabe_setzen(self, kennung: str, eintraege: list, zeiger: Optional[int]) -> dict:
+        """Programm und Zeiger vom Chorbildschirm übernehmen.
+
+        Dasselbe Programm kommt bei jedem Schritt des Dirigenten erneut mit — dann ändert
+        sich nur der Zeiger, die Warteliste behält, was schon abgehakt ist. Kommt es nach
+        einem Neustart des Dienstes zum ersten Mal, wird es wieder aufgebaut."""
+        neu = self.vorgabe is None or self.vorgabe.get("kennung") != kennung
+        if neu:
+            self.vorgabe = {"kennung": kennung, "eintraege": list(eintraege or [])}
+            self._zeiger = []
+            if self.aktiv:
+                self.programm = programm_modul.Programm.aus_vorgabe(self.vorgabe["eintraege"])
+        if zeiger is not None and (not self._zeiger or self._zeiger[-1][1] != zeiger):
+            self._zeiger.append((self._aufnahme_s(), int(zeiger)))
+        return {"kennung": kennung, "neu": neu, "zeiger": zeiger}
+
+    def vorgabe_loeschen(self) -> None:
+        self.vorgabe = None
+        self._zeiger = []
+        if self.programm.hat_vorgabe():
+            self.programm = programm_modul.Programm()
+
+    def _aufnahme_s(self) -> float:
+        """Stelle in der laufenden Aufnahme; vor dem Start 0."""
+        status = self._recorder.status()
+        if status.get("state") not in ("recording", "paused"):
+            return 0.0
+        return float(status.get("elapsed_seconds") or 0.0)
+
+    def _zeiger_bei(self, stelle_s: float) -> Optional[int]:
+        """Wo stand der Dirigent, als dieser Beitrag anfing?
+
+        Nicht der Zeiger von jetzt: Die Zuordnung fällt erst eine Weile nach dem Beginn,
+        und bis dahin kann er schon zum nächsten Punkt weitergeblättert haben."""
+        stand = None
+        for zeit, index in self._zeiger:
+            if zeit <= stelle_s + ZEIGER_NACHLAUF_S:
+                stand = index
+        return stand
 
     # ── Steuerung ────────────────────────────────────────────────────────────
     async def start(self) -> dict:
@@ -115,7 +165,10 @@ class AutoModus:
             return {"status": "error", "message": "Automodus braucht eine laufende Aufnahme"}
         self._wav = pathlib.Path(status["wav_path"])
         self._pegel, self._spur, self.beitraege, self._naechste_nr = [], [], [], 1
-        self.programm = programm_modul.Programm()
+        self.programm = programm_modul.Programm.aus_vorgabe(
+            self.vorgabe["eintraege"] if self.vorgabe else [])
+        # Was vor der Aufnahme geblättert wurde, gilt ab ihrem Anfang
+        self._zeiger = [(0.0, self._zeiger[-1][1])] if self._zeiger else []
         self._transkript_gelesen_bis = 0.0
         self._ansage_zuletzt = -1e9
         self.fehler = None
@@ -137,6 +190,8 @@ class AutoModus:
             "fehler": self.fehler,
             "beitraege": [asdict(b) for b in self.beitraege],
             "programm": [asdict(e) for e in self.programm.eintraege],
+            "vorgabe": self.vorgabe["kennung"] if self.vorgabe else None,
+            "zeiger": self._zeiger[-1][1] if self._zeiger else None,
         }
 
     # ── Schleife ─────────────────────────────────────────────────────────────
@@ -152,6 +207,8 @@ class AutoModus:
                     await self.stop()
                     self.beitraege, self._pegel, self._spur = [], [], []
                     self.programm = programm_modul.Programm()
+                    # Das Programm galt für diesen Gottesdienst, nicht für den nächsten
+                    self.vorgabe, self._zeiger = None, []
                     return
                 if zustand != "recording":
                     continue          # Pause: nichts lesen, aber wach bleiben
@@ -225,6 +282,10 @@ class AutoModus:
         Unabhängig von den Beitragsgrenzen: eine Vermeldung kann das halbe
         Restprogramm ansagen, lange bevor der nächste Beitrag beginnt.
         """
+        if self.programm.hat_vorgabe():
+            # Das gedruckte Programm des Dirigenten ist vollständig, eine Ansage nennt
+            # meist nur die nächsten zwei, drei Punkte — und würde den Rest verdrängen.
+            return
         jetzt = len(self._pegel) * self._block_s
         if jetzt - self._ansage_zuletzt < ANSAGE_TAKT_S:
             return                      # Bremse: sonst liefe alle 3 s eine Modellanfrage
@@ -380,14 +441,15 @@ class AutoModus:
         # verlässlicher als jede Vermutung aus Länge und Klangfarbe.
         # Anker: Predigt und Orchester erkennt der Klang sicher. Der Typ bleibt, und
         # die Warteliste wird an dieser Stelle neu ausgerichtet.
-        if b.quelle == "klang" and PROGRAMM_AUTOMATISCH and e.typ in ANKER_TYPEN \
+        mit_programm = PROGRAMM_AUTOMATISCH or self.programm.hat_vorgabe()
+        if b.quelle == "klang" and mit_programm and e.typ in ANKER_TYPEN \
                 and e.sicherheit >= 0.8:
             self._anker_setzen(e.typ)
             b.typ = e.typ
             b.exportieren = b.typ not in classifier.NICHT_EXPORTIEREN
             return
 
-        if b.quelle == "klang" and PROGRAMM_AUTOMATISCH:
+        if b.quelle == "klang" and mit_programm:
             zuordnung = self._aus_programm(b, e.klasse)
             if zuordnung is not None:
                 b.typ, b.titel = zuordnung.typ, zuordnung.titel
@@ -440,13 +502,37 @@ class AutoModus:
         fehlender nur fehlt — deshalb höchstens drei Einträge vorausschauen und
         eine Ansage nicht ewig gelten lassen.
         """
+        gezeigt = self._vom_dirigenten(b, klasse)
+        if gezeigt is not None:
+            return gezeigt
         for abstand, eintrag in enumerate(self.programm.offen()[:3]):
             if self._klasse_von(eintrag.typ) != klasse:
                 continue
-            if b.start_s - eintrag.angekuendigt_bei_s > PROGRAMM_GUELTIG_S:
+            if not eintrag.vorgabe and b.start_s - eintrag.angekuendigt_bei_s > PROGRAMM_GUELTIG_S:
                 return None          # zu lange her, die Liste ist wohl überholt
             for ueberholt in self.programm.offen()[:abstand]:
                 ueberholt.erledigt = True     # der ist ausgefallen
+            eintrag.erledigt = True
+            return eintrag
+        return None
+
+    def _vom_dirigenten(self, b: Beitrag, klasse: str):
+        """Der Punkt, auf dem der Dirigent beim Beginn dieses Beitrags stand.
+
+        Nur ein Hinweis: Passt die Klasse nicht (er steht auf dem Chorlied, gehört wird
+        aber noch die Predigt), zählt er nicht, und die Warteliste entscheidet wie sonst.
+        Passt sie, ist alles davor gelaufen oder ausgefallen."""
+        index = self._zeiger_bei(b.start_s)
+        if index is None:
+            return None
+        offen = self.programm.offen()
+        for stelle, eintrag in enumerate(offen):
+            if eintrag.index != index:
+                continue
+            if self._klasse_von(eintrag.typ) != klasse:
+                return None
+            for vorher in offen[:stelle]:
+                vorher.erledigt = True
             eintrag.erledigt = True
             return eintrag
         return None

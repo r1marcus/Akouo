@@ -84,6 +84,7 @@ And the honest operational caveats:
 | **Checklists** | Per service type, tickable from the tablet, so the pre-service routine is not in someone's head. |
 | **Livestream** | Icecast or RTMP via FFmpeg, plus a local monitor bus without the Icecast delay. |
 | **NAS upload** | Segments pushed to an SMB share, never overwriting what is already there. |
+| **Choir screen** | Keyboard-only full-screen page for the conductor's display: song numbers, modes on F keys, clock, and the conductor's PDF programme — which also becomes the expected programme for the automatic detection. |
 
 ## What it looks like
 
