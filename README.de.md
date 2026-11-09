@@ -83,6 +83,7 @@ Und die ehrlichen Einschränkungen im Betrieb:
 | **Checklisten** | Je Gottesdienstart, vom Tablet abhakbar, damit die Vorbereitung nicht in einem Kopf steckt. |
 | **Livestream** | Icecast oder RTMP über FFmpeg, dazu ein lokaler Mithörweg ohne die Icecast-Verzögerung. |
 | **NAS-Upload** | Segmente auf eine SMB-Freigabe, ohne je zu überschreiben. |
+| **Chorbildschirm** | Vollbildseite für den Bildschirm des Dirigenten, nur per Tastatur: Liednummern, Modi auf F-Tasten, Uhr und das PDF-Programm des Dirigenten — das zugleich der Automatik sagt, was kommt. |
 
 ## Wie es aussieht
 

@@ -487,6 +487,17 @@ Anlass war der 8. November abends: ein Chorlied mit leisem Intro bekam seinen Ma
 
 Details in [betrieb.md](betrieb.md), Abschnitte 5b und 5d.
 
+## 2k. Chorbildschirm (9. November 2026)
+
+Nachbau der Windows-Liedanzeige vom Mini-Rechner beim Chor als Seite `/anzeige`: Liednummern
+tippen, Modi und Kurztexte auf F- und Alt-Tasten, Uhr analog oder digital, Programm aus der
+PDF des Dirigenten. Die Programmzeilen werden zusätzlich als Beitragsart und Titel gelesen und
+der Automatik als Warteliste gegeben; der Punkt, auf dem der Dirigent steht, gilt als Hinweis
+auf den nächsten Beitrag. Getestet mit den Beispiel-PDFs der Liedanzeige und im Browser; am
+Mini-Rechner selbst und in einem echten Gottesdienst noch nicht.
+
+Details in [betrieb.md](betrieb.md), Abschnitt 5j.
+
 ---
 
 ## 3. Ablauf im Gottesdienst

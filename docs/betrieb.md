@@ -991,6 +991,69 @@ Track. Kurze Ansagen trägt man mit „Neuen Track ab hier“ nach oder setzt si
 
 ---
 
+## 5j. Chorbildschirm — Nachbau der Liedanzeige
+
+Der Mini-Rechner beim Chor zeigt dem Chor Liednummern, die Uhr und das Programm. Bisher lief
+dort die Windows-Liedanzeige (VB.NET). Akouo bietet dieselben Funktionen unter
+**`http://<Mac>:8000/anzeige`** — ohne Navigation, nur mit der Tastatur bedient.
+
+**Mini-Rechner einrichten.** Browser im Kioskmodus mit dieser Adresse in den Autostart, z. B.
+`msedge --kiosk http://<Mac>:8000/anzeige --edge-kiosk-type=fullscreen` oder
+`chrome --kiosk http://<Mac>:8000/anzeige`. Nur im Kioskmodus kommen F11 und Esc bei der Seite an,
+statt das Vollbild zu verlassen. Herunterfahren geht wie bei jedem Rechner über den Ein-Knopf —
+die alte Liedanzeige konnte das per Esc, eine Webseite kann es nicht.
+
+**Bedienung** (wie bisher):
+
+| Taste | Wirkung |
+|---|---|
+| Buchstaben, Ziffern | erscheinen groß in der Mitte (Großbuchstaben einstellbar) |
+| Enter | neue Zeile; in der Programmauswahl: öffnen; im Programm: Kurz-/Volltext |
+| Rücktaste | letztes Zeichen löschen |
+| Entf | alles löschen — vorher wird der Text mit Modus und Uhrzeit gespeichert |
+| F1–F12, Alt+A–Z | Befehl oder Text laut Einstellung |
+| ↑ ↓ | im Programm blättern |
+| Esc | zurück zur Textanzeige |
+
+Befehle für die F- und Alt-Tasten: `ModeChor`, `ModeOrchester`, `ModeJugend`,
+`ModeKinderchor`, `ModeSonstige` (allgemein `Mode` + Name; zeigt den Modus 3 s groß an),
+`Uhrzeit` (große Uhr an/aus), `ZeigeProgramm` (Programm). Alles andere wird als Text
+angehängt; `+Space` hängt ein Leerzeichen an, `+NewLine` eine neue Zeile. Die Belegung, Farben,
+Schrift, Uhr und Klammern stehen unter **Einstellungen → Chorbildschirm**, statt wie früher in
+`Setting.xml`. Eine Änderung greift nach dem Neuladen der Seite (F5 ist belegt — Strg+R).
+
+**Programm.** Mit `ZeigeProgramm` (Standard F8) erscheint die Auswahl: oben „PDF vom Stick
+öffnen …“, darunter die bisher geöffneten Programme. Die PDF folgt denselben Regeln wie in der
+Liedanzeige: Text-PDF, jede Zeile ein Punkt, Kurztext in Klammern (rund oder eckig, einstellbar),
+leere Klammern blenden eine Zeile aus. Eine in der Klammer umgebrochene Zeile wird wieder
+zusammengesetzt. Ein geöffnetes Programm ist mit F8 jederzeit wieder da; die Seite merkt sich
+Text, Modus und Programm über einen Neustart des Mini-Rechners hinweg. Fällt das Netz aus,
+geht Tippen weiter, und im offenen Programm lässt sich weiterblättern.
+
+**Programm für die Automatik.** Aus jeder Zeile liest Akouo auch die Beitragsart
+(„Kinderchor:“, „Gruppenlied:“, „Allgemeines Lied“ = Gemeindegesang, „Chor“ = Chorlied …)
+und den Titel. Das ganze Programm wird zur Warteliste der Automatik (Abschnitt 5d):
+
+- Erkannte Beiträge bekommen Typ und Titel daraus. Die Einträge veralten nicht, anders als eine
+  Ansage nach 20 Minuten.
+- Solange ein Dirigenten-Programm geladen ist, ändern Ansagen die Warteliste nicht — eine Ansage
+  nennt meist nur die nächsten Punkte und würde den Rest verdrängen.
+- **Wo der Dirigent steht, ist ein Hinweis auf den nächsten Beitrag.** Maßgeblich ist der Stand
+  zu Beginn des Beitrags (mit 20 s Nachlauf). Blättert er schon während der Predigt zum nächsten
+  Lied, bekommt genau dieses Lied den Titel; blättert er mitten im Lied weiter, bleibt es dabei.
+  Passt der Punkt nicht zur gehörten Klasse (er steht schon auf dem Lied, gehört wird noch
+  Sprache), zählt der Hinweis nicht.
+- Mit dem Ende der Aufnahme vergisst der Audio-Dienst das Programm.
+
+Abschaltbar mit **Einstellungen → Chorbildschirm → Programm an die Automatik geben**. Ist der
+Audio-Dienst nicht erreichbar, blättert der Dirigent trotzdem weiter; das Programm kommt mit
+dem nächsten Schritt an.
+
+**Verlauf.** Was mit Entf gelöscht wird, steht in der Tabelle `anzeige_verlauf` (Modus, Text,
+Uhrzeit) — früher eine Textdatei je Modus und Jahr auf dem Desktop.
+
+---
+
 ## 6. Frontend ändern
 
 Kein Node/npm. Tailwind CSS v4 als eigenständiges Programm im Repo-Wurzelverzeichnis.

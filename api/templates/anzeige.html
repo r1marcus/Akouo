@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+{# Ohne Kontext (Template-Tests) mit den Standardwerten rendern #}
+{% set cfg = einstellungen if einstellungen is defined else {} %}
+<html lang="{{ sprache_aktuell() }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ t("Chorbildschirm") }} · Akouo</title>
+    <link rel="icon" type="image/png" href="{{ static_url('icon-180.png') }}">
+    {#
+      Chorbildschirm — Nachbau der Liedanzeige für den Mini-Rechner im Chor.
+
+      Bewusst ohne base.html: keine Navigation, kein Gottesdienst-Wähler, nichts, was der
+      Dirigent mit der Maus bedienen müsste. Alles läuft über die Tastatur, und alles,
+      was auf dem Bildschirm steht, lebt in dieser Seite. Fällt das Netz aus, kann er
+      weiter tippen und im zuletzt geöffneten Programm blättern.
+
+      Gedacht für den Browser im Kioskmodus (Chrome/Edge mit --kiosk): Nur dort kommen
+      F11 und Esc bei der Seite an, statt den Vollbildmodus zu verlassen.
+    #}
+    <style>
+        :root {
+            --hintergrund: {{ cfg.hintergrund | default('#ffffff', true) | e }};
+            --text: {{ cfg.textfarbe | default('#000000', true) | e }};
+            --markierung: {{ cfg.markierung | default('#8fbc8f', true) | e }};
+            --schrift: "{{ cfg.schrift | default('Arial', true) | e }}", Arial, sans-serif;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0; height: 100%; overflow: hidden; cursor: none;
+            background: var(--hintergrund); color: var(--text); font-family: var(--schrift);
+        }
+        [x-cloak] { display: none !important; }
+        .flaeche { position: fixed; inset: 0; display: flex; flex-direction: column;
+                   align-items: center; justify-content: center; }
+        .zeile { white-space: pre; line-height: 1.1; text-align: center; max-width: 100vw; }
+        .programm { position: fixed; inset: 0; display: flex; flex-direction: column; }
+        .pfeil { flex: 0 0 auto; text-align: center; line-height: 1; height: 7vh; font-size: 6vh;
+                 visibility: hidden; }
+        .pfeil.da { visibility: visible; }
+        .punkte { flex: 1 1 auto; display: flex; flex-direction: column; }
+        .punkt { flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+                 overflow: hidden; padding: 0 2vw; }
+        .punkt.aktiv { background: var(--markierung); }
+        .punkt span { white-space: pre; line-height: 1.1; }
+        .hinweis { position: fixed; left: 0; right: 0; bottom: 2vh; text-align: center;
+                   font-size: 3vh; opacity: .6; }
+        .kleine-uhr { position: fixed; width: 9vh; height: 9vh; display: flex;
+                      align-items: center; justify-content: center; font-size: 3.2vh; }
+        .ecke-oben-rechts { top: 1.5vh; right: 1.5vh; }
+        .ecke-oben-links { top: 1.5vh; left: 1.5vh; }
+        .ecke-unten-rechts { bottom: 1.5vh; right: 1.5vh; }
+        .ecke-unten-links { bottom: 1.5vh; left: 1.5vh; }
+        .kleine-uhr.digital { width: auto; padding: 0 1vh; }
+        svg { width: 100%; height: 100%; }
+        input[type=file] { display: none; }
+    </style>
+    <script>
+    window.AKOUO_T = {{ sprach_katalog() | tojson }};
+    function tr(s) { return (window.AKOUO_T && window.AKOUO_T[s]) || s; }
+    window.ANZEIGE = {{ cfg | tojson }};
+    </script>
+    <script defer src="{{ static_url('alpine.min.js') }}"></script>
+</head>
+<body x-data="chorbildschirm()" x-init="starten()" @keydown.window="taste($event)"
+      @resize.window="einpassen()">
+
+    {# ── Getippter Text ─────────────────────────────────────────────────── #}
+    <div class="flaeche" x-show="ansicht === 'text'" x-ref="textflaeche">
+        <template x-for="(z, i) in zeilen" :key="i">
+            <div class="zeile" :style="'font-size:' + (groessen[i] || 10) + 'px'" x-text="z || ' '"></div>
+        </template>
+    </div>
+
+    {# ── Modus, kurz eingeblendet ───────────────────────────────────────── #}
+    <div class="flaeche" x-show="ansicht === 'modus'" x-cloak>
+        <div class="zeile" :style="'font-size:' + modusGroesse + 'px'" x-text="modus"></div>
+    </div>
+
+    {# ── Große Uhr ──────────────────────────────────────────────────────── #}
+    <div class="flaeche" x-show="ansicht === 'uhr'" x-cloak>
+        <template x-if="analog">
+            <div style="width:92vmin;height:92vmin" x-html="zifferblatt(true)"></div>
+        </template>
+        <template x-if="!analog">
+            <div class="zeile" style="font-size:38vmin" x-text="uhrzeit"></div>
+        </template>
+    </div>
+
+    {# ── Programm wählen und anzeigen ───────────────────────────────────── #}
+    <div class="programm" x-show="ansicht === 'auswahl' || ansicht === 'programm'" x-cloak>
+        <div class="pfeil" :class="{ da: oben > 0 }">▲</div>
+        <div class="punkte" x-ref="punkte">
+            <template x-for="(zeile, i) in sichtbar()" :key="oben + '-' + i">
+                <div class="punkt" :class="{ aktiv: oben + i === zeigerJetzt() }"
+                     :style="'height:' + (100 / zeilenZahl) + '%'">
+                    <span :style="'font-size:' + (punktGroessen[i] || 10) + 'px'" x-text="zeile"></span>
+                </div>
+            </template>
+        </div>
+        <div class="pfeil" :class="{ da: oben + zeilenZahl < listeJetzt().length }">▼</div>
+    </div>
+
+    <div class="hinweis" x-show="meldung" x-text="meldung" x-cloak></div>
+
+    {# ── Kleine Uhr in der Ecke ─────────────────────────────────────────── #}
+    <div class="kleine-uhr" x-show="kleineUhr()" x-cloak
+         :class="['ecke-' + cfg.uhr_ecke.replace(' ', '-'), analog ? '' : 'digital']">
+        <template x-if="analog"><div style="width:100%;height:100%" x-html="zifferblatt(false)"></div></template>
+        <template x-if="!analog"><span x-text="uhrzeit"></span></template>
+    </div>
+
+    <input type="file" accept="application/pdf,.pdf" x-ref="datei" @change="hochladen($event)">
+
+<script>
+function chorbildschirm() {
+    const cfg = window.ANZEIGE;
+    const SPEICHER = 'akouo_chorbildschirm';
+
+    // Belegung der Alt-Tasten: "A=Liederheft+Space; B=ModeChor"
+    const altTasten = {};
+    String(cfg.alt || '').split(';').forEach(teil => {
+        const [taste, ...rest] = teil.split('=');
+        if (taste && taste.trim().length === 1 && rest.length) {
+            altTasten[taste.trim().toUpperCase()] = rest.join('=').trim();
+        }
+    });
+
+    // Schriftgröße so wählen, dass ein Text genau in die Breite und Höhe passt.
+    const leinwand = document.createElement('canvas').getContext('2d');
+    function passend(text, breite, hoehe) {
+        leinwand.font = `100px ${getComputedStyle(document.body).fontFamily}`;
+        const b = Math.max(leinwand.measureText(text || 'M').width, 1);
+        return Math.max(8, Math.floor(Math.min(breite * 0.95 / b * 100, hoehe / 1.15)));
+    }
+
+    return {
+        cfg,
+        ansicht: 'text',        // text | modus | uhr | auswahl | programm
+        vorher: 'text',         // wohin die Uhr zurückkehrt
+        zeilen: [''],
+        groessen: [],
+        modus: 'Chor',
+        modusGroesse: 100,
+        analog: cfg.uhr !== 'Digital',
+        uhrzeit: '',
+        jetzt: new Date(),
+        meldung: '',
+        // Programmauswahl
+        auswahl: [],             // [{id, name}] — id null heißt: PDF vom Stick öffnen
+        auswahlIndex: 0,
+        // offenes Programm
+        programm: null,          // {id, name, punkte}
+        index: 0,
+        voll: {},                // Index -> Volltext statt Kurztext
+        oben: 0,
+        zeilenZahl: Math.max(3, Number(cfg.programm_zeilen) || 5),
+        punktGroessen: [],
+        _modusTimer: null,
+        _meldungTimer: null,
+        _zeigerTimer: null,
+
+        starten() {
+            this.laden();
+            setInterval(() => this.ticken(), 500);
+            this.ticken();
+            this.$nextTick(() => this.einpassen());
+            if (cfg.uhr_beim_start) {
+                this.ansicht = 'uhr';
+            }
+        },
+
+        // ── Was nach einem Neuladen wieder da sein soll ─────────────────────
+        laden() {
+            try {
+                const s = JSON.parse(localStorage.getItem(SPEICHER) || '{}');
+                if (Array.isArray(s.zeilen) && s.zeilen.length) this.zeilen = s.zeilen;
+                if (s.modus) this.modus = s.modus;
+                if (s.programm && Array.isArray(s.programm.punkte)) {
+                    this.programm = s.programm;
+                    this.index = Math.min(s.index || 0, s.programm.punkte.length - 1);
+                }
+            } catch (e) { /* ohne Speicher geht es auch */ }
+        },
+        sichern() {
+            try {
+                localStorage.setItem(SPEICHER, JSON.stringify({
+                    zeilen: this.zeilen, modus: this.modus, programm: this.programm, index: this.index,
+                }));
+            } catch (e) { /* ohne Speicher geht es auch */ }
+        },
+
+        ticken() {
+            this.jetzt = new Date();
+            const hh = String(this.jetzt.getHours()).padStart(2, '0');
+            const mm = String(this.jetzt.getMinutes()).padStart(2, '0');
+            this.uhrzeit = `${hh}:${mm}`;
+        },
+
+        kleineUhr() {
+            return cfg.uhr_ecke && cfg.uhr_ecke !== 'aus' && this.ansicht !== 'uhr';
+        },
+
+        zifferblatt(gross) {
+            const d = this.jetzt;
+            const s = d.getSeconds(), m = d.getMinutes() + s / 60, h = (d.getHours() % 12) + m / 60;
+            const zeiger = (winkel, laenge, breite) => {
+                const w = (winkel - 90) * Math.PI / 180;
+                return `<line x1="50" y1="50" x2="${50 + laenge * Math.cos(w)}" y2="${50 + laenge * Math.sin(w)}"
+                        stroke="currentColor" stroke-width="${breite}" stroke-linecap="round"/>`;
+            };
+            let striche = '';
+            for (let i = 0; i < 12; i++) {
+                const w = i * 30 * Math.PI / 180;
+                striche += `<line x1="${50 + 40 * Math.sin(w)}" y1="${50 - 40 * Math.cos(w)}"
+                    x2="${50 + 46 * Math.sin(w)}" y2="${50 - 46 * Math.cos(w)}"
+                    stroke="currentColor" stroke-width="${gross ? 2.4 : 4}"/>`;
+            }
+            return `<svg viewBox="0 0 100 100" aria-hidden="true">
+                <circle cx="50" cy="50" r="48" fill="none" stroke="currentColor" stroke-width="${gross ? 1 : 3}"/>
+                ${striche}
+                ${zeiger(h * 30, 25, gross ? 4.5 : 7)}
+                ${zeiger(m * 6, 36, gross ? 2.6 : 5)}
+                ${gross ? zeiger(s * 6, 44, 0.6) : ''}
+                <circle cx="50" cy="50" r="${gross ? 2 : 4}" fill="currentColor"/>
+            </svg>`;
+        },
+
+        // ── Größen ──────────────────────────────────────────────────────────
+        einpassen() {
+            const b = window.innerWidth, h = window.innerHeight;
+            const proZeile = h / Math.max(this.zeilen.length, 1);
+            this.groessen = this.zeilen.map(z => passend(z, b, proZeile));
+            this.modusGroesse = passend(this.modus, b, h * 0.6);
+            const zeilenHoehe = (h * 0.86) / this.zeilenZahl;
+            this.punktGroessen = this.sichtbar().map(z => passend(z, b * 0.96, zeilenHoehe * 0.8));
+        },
+
+        // ── Tastatur ────────────────────────────────────────────────────────
+        taste(e) {
+            const k = e.key;
+            if (/^F([1-9]|1[0-2])$/.test(k)) {
+                e.preventDefault();
+                this.befehl(cfg['f' + k.slice(1)] || '');
+                return;
+            }
+            if (e.altKey && /^Key[A-Z]$/.test(e.code)) {
+                e.preventDefault();
+                this.befehl(altTasten[e.code.slice(3)] || '');
+                return;
+            }
+            if (e.ctrlKey || e.metaKey) return;      // Strg+R & Co. dem Browser lassen
+
+            if (k === 'Escape') {
+                e.preventDefault();
+                this.ansicht = 'text';
+            } else if (k === 'Enter') {
+                e.preventDefault();
+                this.enter();
+            } else if (k === 'ArrowDown' || k === 'ArrowUp') {
+                e.preventDefault();
+                this.blaettern(k === 'ArrowDown' ? 1 : -1);
+            } else if (k === 'Backspace') {
+                e.preventDefault();
+                if (this.zumText()) this.zeichenLoeschen();
+            } else if (k === 'Delete') {
+                e.preventDefault();
+                if (this.zumText()) this.allesLoeschen();
+            } else if (k.length === 1 && !e.altKey) {
+                e.preventDefault();
+                if (this.zumText()) this.anhaengen(cfg.grossbuchstaben ? k.toUpperCase() : k);
+            }
+        },
+
+        // Tippen gilt nur in der Textansicht. Aus der Uhr heraus geht es dorthin zurück,
+        // aus dem Programm nicht — dort würde ein versehentlicher Tastendruck sonst das
+        // Programm verlassen.
+        zumText() {
+            if (this.ansicht === 'uhr') this.ansicht = 'text';
+            return this.ansicht === 'text';
+        },
+
+        enter() {
+            if (this.ansicht === 'modus') {
+                this.ansicht = 'text';
+            } else if (this.ansicht === 'auswahl') {
+                this.auswahlOeffnen();
+            } else if (this.ansicht === 'programm') {
+                this.voll[this.index] = !this.voll[this.index];
+                this.einpassen();
+            } else if (this.zumText()) {
+                this.zeilen.push('');
+                this.geaendert();
+            }
+        },
+
+        // ── Befehle der F- und Alt-Tasten ───────────────────────────────────
+        befehl(roh) {
+            const text = String(roh || '').replaceAll('+NewLine', '\n').replaceAll('+Space', ' ');
+            if (!text.trim() && !text.includes('\n') && text !== ' ') return;
+            if (text.startsWith('Mode')) {
+                this.modusWechseln(text.slice(4).trim() || text);
+            } else if (text === 'Uhrzeit') {
+                if (this.ansicht === 'uhr') {
+                    this.ansicht = this.vorher;
+                } else {
+                    this.vorher = ['programm', 'auswahl'].includes(this.ansicht) ? this.ansicht : 'text';
+                    this.ansicht = 'uhr';
+                }
+            } else if (text === 'ZeigeProgramm') {
+                this.programmTaste();
+            } else {
+                this.ansicht = 'text';
+                if (cfg.loeschen_bei_taste) {
+                    this.verlaufSichern();
+                    this.zeilen = [''];
+                }
+                this.anhaengen(text);
+            }
+        },
+
+        modusWechseln(name) {
+            this.modus = name;
+            this.ansicht = 'modus';
+            this.einpassen();
+            this.sichern();
+            clearTimeout(this._modusTimer);
+            this._modusTimer = setTimeout(() => {
+                if (this.ansicht === 'modus') this.ansicht = 'text';
+            }, 3000);
+        },
+
+        // ── Text ────────────────────────────────────────────────────────────
+        anhaengen(text) {
+            const teile = text.split('\n');
+            this.zeilen[this.zeilen.length - 1] += teile[0];
+            for (const teil of teile.slice(1)) this.zeilen.push(teil);
+            this.geaendert();
+        },
+        zeichenLoeschen() {
+            const letzte = this.zeilen.length - 1;
+            if (this.zeilen[letzte].length === 0) {
+                if (letzte > 0) this.zeilen.pop();
+            } else {
+                this.zeilen[letzte] = this.zeilen[letzte].slice(0, -1);
+            }
+            this.geaendert();
+        },
+        allesLoeschen() {
+            this.verlaufSichern();
+            this.zeilen = [''];
+            this.geaendert();
+        },
+        geaendert() {
+            this.einpassen();
+            this.sichern();
+        },
+        verlaufSichern() {
+            const text = this.zeilen.filter(z => z.trim()).join(' ').trim();
+            if (!text) return;
+            fetch('/api/anzeige/verlauf', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({modus: this.modus, text}),
+            }).catch(() => { /* geht verloren, die Anzeige läuft weiter */ });
+        },
+
+        // ── Programm ────────────────────────────────────────────────────────
+        listeJetzt() {
+            if (this.ansicht === 'auswahl') return this.auswahl.map(a => a.name);
+            if (!this.programm) return [];
+            return this.programm.punkte.map((p, i) => this.voll[i] ? p.voll : p.kurz);
+        },
+        zeigerJetzt() {
+            return this.ansicht === 'auswahl' ? this.auswahlIndex : this.index;
+        },
+        sichtbar() {
+            return this.listeJetzt().slice(this.oben, this.oben + this.zeilenZahl);
+        },
+        // Den markierten Punkt im Blick halten: eine Zeile Vorschau nach oben und unten,
+        // wie in der alten Liedanzeige.
+        rollen() {
+            const n = this.listeJetzt().length, z = this.zeigerJetzt();
+            if (z - 1 < this.oben) this.oben = Math.max(0, z - 1);
+            if (z + 1 >= this.oben + this.zeilenZahl) this.oben = z + 2 - this.zeilenZahl;
+            this.oben = Math.max(0, Math.min(this.oben, n - this.zeilenZahl));
+            this.einpassen();
+        },
+
+        async programmTaste() {
+            if (this.ansicht !== 'programm' && this.programm && this.ansicht !== 'auswahl') {
+                this.ansicht = 'programm';
+                this.rollen();
+                return;
+            }
+            this.auswahl = [{id: null, name: tr('PDF vom Stick öffnen …')}];
+            this.auswahlIndex = 0;
+            this.oben = 0;
+            this.ansicht = 'auswahl';
+            this.rollen();
+            try {
+                const r = await fetch('/api/anzeige/programme');
+                if (!r.ok) throw new Error();
+                const liste = await r.json();
+                this.auswahl = this.auswahl.concat(liste);
+                this.auswahlIndex = Math.min(1, this.auswahl.length - 1);
+            } catch (e) {
+                this.melden(tr('Akouo nicht erreichbar'));
+            }
+            this.rollen();
+        },
+
+        async auswahlOeffnen() {
+            const gewaehlt = this.auswahl[this.auswahlIndex];
+            if (!gewaehlt) return;
+            if (gewaehlt.id === null) {
+                this.$refs.datei.value = '';
+                this.$refs.datei.click();
+                return;
+            }
+            try {
+                const r = await fetch(`/api/anzeige/programme/${gewaehlt.id}`);
+                if (!r.ok) throw new Error();
+                this.programmZeigen(await r.json());
+            } catch (e) {
+                this.melden(tr('Akouo nicht erreichbar'));
+            }
+        },
+
+        async hochladen(e) {
+            const datei = e.target.files && e.target.files[0];
+            if (!datei) return;
+            this.melden(tr('Programm wird gelesen …'));
+            const form = new FormData();
+            form.append('datei', datei);
+            try {
+                const r = await fetch('/api/anzeige/programme', {method: 'POST', body: form});
+                const daten = await r.json().catch(() => ({}));
+                if (!r.ok) {
+                    this.melden(daten.detail || tr('Die PDF lässt sich nicht lesen'));
+                    return;
+                }
+                this.melden('');
+                this.programmZeigen(daten);
+            } catch (fehler) {
+                this.melden(tr('Akouo nicht erreichbar'));
+            }
+        },
+
+        programmZeigen(p) {
+            this.programm = {id: p.id, name: p.name, punkte: p.punkte};
+            this.index = 0;
+            this.voll = {};
+            this.oben = 0;
+            this.ansicht = 'programm';
+            this.rollen();
+            this.sichern();
+            this.zeigerMelden();
+        },
+
+        blaettern(schritt) {
+            if (this.ansicht === 'auswahl') {
+                this.auswahlIndex = Math.max(0, Math.min(this.auswahl.length - 1, this.auswahlIndex + schritt));
+                this.rollen();
+            } else if (this.ansicht === 'programm' && this.programm) {
+                const neu = Math.max(0, Math.min(this.programm.punkte.length - 1, this.index + schritt));
+                if (neu === this.index) return;
+                this.index = neu;
+                this.rollen();
+                this.sichern();
+                this.zeigerMelden();
+            }
+        },
+
+        // Der Akouo-Automatik sagen, wo der Dirigent steht. Kurz gesammelt, damit
+        // schnelles Durchblättern nicht zehn Anfragen schickt.
+        zeigerMelden() {
+            clearTimeout(this._zeigerTimer);
+            this._zeigerTimer = setTimeout(() => {
+                if (!this.programm) return;
+                fetch('/api/anzeige/zeiger', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({programm_id: this.programm.id, index: this.index}),
+                }).catch(() => { /* Anzeige geht vor */ });
+            }, 400);
+        },
+
+        melden(text) {
+            this.meldung = text;
+            clearTimeout(this._meldungTimer);
+            if (text) this._meldungTimer = setTimeout(() => { this.meldung = ''; }, 6000);
+        },
+    };
+}
+</script>
+</body>
+</html>

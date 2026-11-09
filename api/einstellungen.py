@@ -225,6 +225,58 @@ FELDER: tuple[Feld, ...] = (
          nas_pfad.STANDARD_VORLAGEN["nas_vorlage_sonstiges"],
          hilfe="Gilt für die Gottesdienstart „Sonstiges“.",
          wirkt="sofort"),
+
+    # ─── Chorbildschirm (/anzeige) ──────────────────────────────────────────
+    # Nachbau der Liedanzeige auf dem Mini-Rechner im Chor. Die F-Tasten verstehen
+    # dieselben Befehle wie dort, damit sich eine vorhandene Belegung übertragen lässt.
+    *(
+        Feld(f"anzeige_f{n}", "Chorbildschirm", f"F{n}", "text", wert,
+             hilfe=("Befehl oder Text für diese Taste. Befehle: ModeChor, ModeOrchester, "
+                    "ModeJugend, ModeKinderchor, ModeSonstige (oder Mode + eigener Name), "
+                    "Uhrzeit, ZeigeProgramm. Alles andere wird als Text angezeigt; "
+                    "+Space hängt ein Leerzeichen an, +NewLine eine neue Zeile.")
+             if n == 1 else "")
+        for n, wert in enumerate(("ModeChor", "ModeOrchester", "ModeJugend", "ModeKinderchor",
+                                  "ModeSonstige", "", "", "ZeigeProgramm", "", "", "",
+                                  "Uhrzeit"), start=1)
+    ),
+    Feld("anzeige_alt", "Chorbildschirm", "Alt-Tasten", "text", "",
+         hilfe="Belegung von Alt + Buchstabe, getrennt durch Semikolon, zum Beispiel "
+               "„A=Liederheft+Space; B=ModeChor“. Es gelten dieselben Befehle wie bei den F-Tasten."),
+    Feld("anzeige_grossbuchstaben", "Chorbildschirm", "Nur Großbuchstaben", "bool", True,
+         hilfe="Alles Getippte erscheint in Großbuchstaben."),
+    Feld("anzeige_loeschen_bei_taste", "Chorbildschirm", "Text bei F-Taste ersetzen", "bool", False,
+         hilfe="Ein Text von einer F- oder Alt-Taste ersetzt, was gerade dasteht, statt "
+               "angehängt zu werden."),
+    Feld("anzeige_uhr", "Chorbildschirm", "Uhr", "auswahl", "Analog",
+         auswahl=("Analog", "Digital"),
+         hilfe="Wie die große Uhr (Befehl „Uhrzeit“) und die kleine Uhr aussehen."),
+    Feld("anzeige_uhr_ecke", "Chorbildschirm", "Kleine Uhr", "auswahl", "oben rechts",
+         auswahl=("aus", "oben rechts", "oben links", "unten rechts", "unten links"),
+         hilfe="Eine kleine Uhr in einer Ecke, solange die große nicht zu sehen ist."),
+    Feld("anzeige_uhr_beim_start", "Chorbildschirm", "Uhr beim Start zeigen", "bool", False,
+         hilfe="Nach dem Öffnen der Seite erst die große Uhr zeigen."),
+    Feld("anzeige_klammern", "Chorbildschirm", "Kurztext im Programm", "auswahl", "( )",
+         auswahl=("( )", "[ ]"),
+         hilfe="Zwischen welchen Klammern im PDF-Programm der Text für den Bildschirm steht. "
+               "Leere Klammern blenden eine Zeile aus, eine Zeile ohne Klammern erscheint ganz. "
+               "Gilt für Programme, die danach geöffnet werden."),
+    Feld("anzeige_programm_zeilen", "Chorbildschirm", "Programmzeilen", "int", 5,
+         von=3, bis=12,
+         hilfe="So viele Programmpunkte stehen gleichzeitig auf dem Bildschirm."),
+    Feld("anzeige_schrift", "Chorbildschirm", "Schriftart", "text", "Arial",
+         hilfe="Muss auf dem Mini-Rechner installiert sein."),
+    Feld("anzeige_hintergrund", "Chorbildschirm", "Hintergrundfarbe", "text", "#ffffff",
+         hilfe="Farbname oder Farbwert, zum Beispiel „white“ oder „#ffffff“."),
+    Feld("anzeige_textfarbe", "Chorbildschirm", "Textfarbe", "text", "#000000",
+         hilfe="Farbname oder Farbwert, zum Beispiel „black“ oder „#000000“."),
+    Feld("anzeige_markierung", "Chorbildschirm", "Markierung im Programm", "text", "#8fbc8f",
+         hilfe="Hintergrund des Programmpunkts, auf dem der Dirigent steht."),
+    Feld("anzeige_programm_automatik", "Chorbildschirm", "Programm an die Automatik geben", "bool", True,
+         hilfe="Ein am Chorbildschirm geöffnetes Programm wird zur Warteliste der Automatik: "
+               "erkannte Beiträge bekommen Typ und Titel daraus, Ansagen ändern die Liste "
+               "dann nicht mehr. Der Punkt, auf dem der Dirigent steht, gilt als Hinweis "
+               "auf den nächsten Beitrag."),
 )
 
 NACH_SCHLUESSEL: dict[str, Feld] = {f.schluessel: f for f in FELDER}

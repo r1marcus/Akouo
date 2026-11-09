@@ -111,12 +111,28 @@ class Erwartung:
     titel: Optional[str] = None
     angekuendigt_bei_s: float = 0.0
     erledigt: bool = False
+    # Aus dem Programm des Dirigenten (Chorbildschirm) statt aus einer Ansage. Solche
+    # Einträge veralten nicht — das Programm galt schon vor dem Gottesdienst.
+    vorgabe: bool = False
+    # Stelle im Programm des Dirigenten, damit sich sein Zeiger zuordnen lässt
+    index: Optional[int] = None
 
 
 @dataclass
 class Programm:
     """Was noch erwartet wird, in der angesagten Reihenfolge."""
     eintraege: list = field(default_factory=list)
+
+    @classmethod
+    def aus_vorgabe(cls, eintraege: list) -> "Programm":
+        """Das ganze Programm des Dirigenten als Warteliste, alles noch offen."""
+        return cls([
+            Erwartung(typ=e["typ"], titel=e.get("titel"), vorgabe=True, index=e.get("index"))
+            for e in eintraege or [] if e.get("typ")
+        ])
+
+    def hat_vorgabe(self) -> bool:
+        return any(e.vorgabe for e in self.eintraege)
 
     def offen(self) -> list:
         return [e for e in self.eintraege if not e.erledigt]
