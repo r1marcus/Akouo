@@ -909,6 +909,18 @@ async def test_copycenter_fehler_ist_sichtbar_aber_archiv_bleibt_hochgeladen(db_
 
 # ─── Tests: Online stellen (Gemeinde-App) ──────────────────────────────────
 
+def test_online_mehrere_bibelstellen_mit_semikolon():
+    """Die App nimmt die erste Stelle bis zum ";" als Hauptabschnitt der Bibelstunde.
+    Mit "," getrennt galt am 10.11. die ganze Liste als ein Abschnitt."""
+    import online
+
+    auswertung = MagicMock(title="Pharisäer und Zöllner", summary="", speaker="", transcript="",
+                           bible_refs='["Lukas 18,9-17", "Matthäus 22", "Johannes 3,36"]')
+    e = online.eintrag("Gottesdienste/2026-11-10 Dienstag 2. abends", "Track-01 - Predigt.mp3",
+                       "Predigt", 1, auswertung)
+    assert e["recording"]["bible_reference"] == "Lukas 18,9-17; Matthäus 22; Johannes 3,36"
+
+
 def test_online_eintrag_wie_im_importskript_der_gemeinde_app():
     """Schlüssel und Ereignis müssen exakt so aussehen wie aus Church_Tool/build_meta.py —
     sonst steht derselbe Gottesdienst doppelt im Archiv der App."""

@@ -165,7 +165,7 @@ def eintrag(nas_ordner: str, dateiname: str, beitragsart: str, nr: int,
             "recording_type": APP_ART.get(beitragsart, "sonstiges"),
             "topic": thema,
             "summary": (getattr(auswertung, "summary", None) or "").strip(),
-            "bible_reference": ", ".join(str(s) for s in stellen),
+            "bible_reference": "; ".join(str(s) for s in stellen),   # ";" trennt Stellen — "," steckt schon in "Lukas 18,9"
             "speaker": (getattr(auswertung, "speaker", None) or "").strip(),
             "transcript": (getattr(auswertung, "transcript", None) or "").strip(),
         },
