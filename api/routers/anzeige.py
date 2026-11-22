@@ -167,7 +167,7 @@ async def ereignisse(request: Request) -> StreamingResponse:
                     yield _sse(art, daten)
                 except asyncio.TimeoutError:
                     kennung = await _kennung_lesen()
-                    yield _sse("einstellungen", kennung) if kennung else ": puls\n\n"
+                    yield _sse("einstellungen", kennung) if kennung else _sse("puls", True)
         finally:
             bildschirm.abbestellen(q)
 

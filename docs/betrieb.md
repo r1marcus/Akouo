@@ -1020,7 +1020,7 @@ Befehle für die F- und Alt-Tasten: `ModeChor`, `ModeOrchester`, `ModeJugend`,
 `Uhrzeit` (große Uhr an/aus), `ZeigeProgramm` (Programm). Alles andere wird als Text
 angehängt; `+Space` hängt ein Leerzeichen an, `+NewLine` eine neue Zeile. Die Belegung, Farben,
 Schrift, Uhr und Klammern stehen unter **Einstellungen → Chorbildschirm**, statt wie früher in
-`Setting.xml`. Eine Änderung greift nach dem Neuladen der Seite (F5 ist belegt — Strg+R).
+`Setting.xml`. Eine Änderung lädt die offenen Chorbildschirme nach spätestens 15 Sekunden neu.
 
 **Programm.** Mit `ZeigeProgramm` (Standard F8) erscheint die Auswahl: oben „PDF vom Stick
 öffnen …“, darunter die bisher geöffneten Programme. Die PDF folgt denselben Regeln wie in der
@@ -1048,6 +1048,14 @@ und den Titel. Das ganze Programm wird zur Warteliste der Automatik (Abschnitt 5
 Abschaltbar mit **Einstellungen → Chorbildschirm → Programm an die Automatik geben**. Ist der
 Audio-Dienst nicht erreichbar, blättert der Dirigent trotzdem weiter; das Programm kommt mit
 dem nächsten Schritt an.
+
+**Mehrere Rechner.** Ist `/anzeige` an mehreren Rechnern offen (zwei Bildschirme, oder ein
+zweiter Rechner zum Tippen), zeigen alle dasselbe: Text, Modus, Uhr, offenes Programm und
+markierter Punkt. Jede Änderung geht an Akouo und von dort sofort an die anderen. Nur die
+Programmauswahl (F8) bleibt an dem Rechner, an dem gerade gewählt wird. Fällt das Netz aus,
+läuft jeder Bildschirm für sich weiter; was dabei getippt wurde, gilt nach dem Wiederverbinden
+für alle. Ändert sich etwas unter **Einstellungen → Chorbildschirm**, laden die offenen Seiten
+innerhalb von 15 Sekunden von selbst neu.
 
 **Verlauf.** Was mit Entf gelöscht wird, steht in der Tabelle `anzeige_verlauf` (Modus, Text,
 Uhrzeit) — früher eine Textdatei je Modus und Jahr auf dem Desktop.

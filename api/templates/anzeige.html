@@ -123,6 +123,8 @@ function chorbildschirm() {
     const SPEICHER = 'akouo_chorbildschirm';
     // Woran diese Seite ihre eigenen Änderungen erkennt, wenn sie zurückkommen.
     const QUELLE = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    // Außerhalb von Alpine: ein EventSource hinter einem Proxy lässt sich nicht schließen.
+    let verbindung = null, zuletzt = 0, wache = null;
 
     // Belegung der Alt-Tasten: "A=Liederheft+Space; B=ModeChor"
     const altTasten = {};
@@ -169,7 +171,10 @@ function chorbildschirm() {
         // Abgleich mit den anderen Bildschirmen
         _folge: 0,
         _gesendet: '',
-        _frisch: false,         // die nächste Nachricht ist der Stand nach dem Verbinden
+        _frisch: false,
+        _quelle: null,
+        _zuletzt: 0,
+        _wache: null,         // die nächste Nachricht ist der Stand nach dem Verbinden
         _offen: false,          // Änderungen, die Akouo noch nicht hat
         _bereit: false,
 
@@ -219,18 +224,35 @@ function chorbildschirm() {
             }).catch(() => { /* bleibt offen, geht beim Wiederverbinden raus */ });
         },
 
+        // Die Verbindung hält die Seite selbst: Der Browser gibt nach einem Neustart von
+        // Akouo manchmal auf, und eine eingeschlafene Verbindung merkt er gar nicht. Akouo
+        // meldet sich alle 15 s; bleibt das 40 s aus, wird neu verbunden.
         verbinden() {
+            if (verbindung) verbindung.close();
             const quelle = new EventSource('/api/anzeige/ereignisse');
-            quelle.onopen = () => { this._frisch = true; };
-            quelle.addEventListener('stand', e => this.empfangen(JSON.parse(e.data)));
+            verbindung = quelle;
+            zuletzt = Date.now();
+            const lebt = () => { zuletzt = Date.now(); };
+            quelle.onopen = () => { this._frisch = true; lebt(); };
+            quelle.addEventListener('stand', e => { lebt(); this.empfangen(JSON.parse(e.data)); });
             quelle.addEventListener('einstellungen', e => {
+                lebt();
                 const kennung = JSON.parse(e.data);
                 if (window.ANZEIGE_KENNUNG && kennung && kennung !== window.ANZEIGE_KENNUNG) {
                     location.reload();
                 }
             });
-            // EventSource verbindet sich nach einem Abbruch von selbst neu; die erste
-            // Nachricht danach ist wieder der aktuelle Stand.
+            quelle.addEventListener('puls', lebt);
+            quelle.onerror = () => {
+                if (quelle.readyState === EventSource.CLOSED && verbindung === quelle) {
+                    setTimeout(() => { if (verbindung === quelle) this.verbinden(); }, 3000);
+                }
+            };
+            if (!wache) {
+                wache = setInterval(() => {
+                    if (Date.now() - zuletzt > 40000) this.verbinden();
+                }, 5000);
+            }
         },
 
         // Akouo verteilt jeden Stand in einer festen Reihenfolge an alle, auch an den
