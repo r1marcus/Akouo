@@ -15,6 +15,10 @@
       was auf dem Bildschirm steht, lebt in dieser Seite. Fällt das Netz aus, kann er
       weiter tippen und im zuletzt geöffneten Programm blättern.
 
+      Ist die Seite an mehreren Rechnern offen, zeigen alle dasselbe: Jede Änderung geht
+      an Akouo und von dort an die anderen (/api/anzeige/ereignisse). Was ohne Netz
+      getippt wurde, geht beim Wiederverbinden an alle.
+
       Gedacht für den Browser im Kioskmodus (Chrome/Edge mit --kiosk): Nur dort kommen
       F11 und Esc bei der Seite an, statt den Vollbildmodus zu verlassen.
     #}
@@ -59,6 +63,7 @@
     window.AKOUO_T = {{ sprach_katalog() | tojson }};
     function tr(s) { return (window.AKOUO_T && window.AKOUO_T[s]) || s; }
     window.ANZEIGE = {{ cfg | tojson }};
+    window.ANZEIGE_KENNUNG = {{ (kennung if kennung is defined else '') | tojson }};
     </script>
     <script defer src="{{ static_url('alpine.min.js') }}"></script>
 </head>
@@ -116,6 +121,8 @@
 function chorbildschirm() {
     const cfg = window.ANZEIGE;
     const SPEICHER = 'akouo_chorbildschirm';
+    // Woran diese Seite ihre eigenen Änderungen erkennt, wenn sie zurückkommen.
+    const QUELLE = Math.random().toString(36).slice(2) + Date.now().toString(36);
 
     // Belegung der Alt-Tasten: "A=Liederheft+Space; B=ModeChor"
     const altTasten = {};
@@ -159,6 +166,12 @@ function chorbildschirm() {
         _modusTimer: null,
         _meldungTimer: null,
         _zeigerTimer: null,
+        // Abgleich mit den anderen Bildschirmen
+        _folge: 0,
+        _gesendet: '',
+        _frisch: false,         // die nächste Nachricht ist der Stand nach dem Verbinden
+        _offen: false,          // Änderungen, die Akouo noch nicht hat
+        _bereit: false,
 
         starten() {
             this.laden();
@@ -168,6 +181,104 @@ function chorbildschirm() {
             if (cfg.uhr_beim_start) {
                 this.ansicht = 'uhr';
             }
+            // Jede Änderung am gemeinsamen Teil geht an die anderen Bildschirme.
+            Alpine.effect(() => {
+                const text = JSON.stringify(this.schnappschuss());
+                if (text === this._gesendet) return;
+                if (this._bereit) {
+                    this.senden(text);
+                } else if (this._gesendet) {
+                    this._offen = true;          // vor der ersten Verbindung getippt
+                } else {
+                    this._gesendet = text;       // Ausgangsstand, nichts zu tun
+                }
+            });
+            this.verbinden();
+        },
+
+        // ── Gemeinsamer Stand ───────────────────────────────────────────────
+        // Die Programmauswahl bleibt an dem Rechner, an dem gerade gewählt wird.
+        schnappschuss() {
+            const ansicht = this.ansicht === 'auswahl' ? null : this.ansicht;
+            return {
+                zeilen: this.zeilen, modus: this.modus, ansicht, vorher: this.vorher,
+                programm: this.programm, index: this.index, voll: this.voll,
+                oben: this.ansicht === 'programm' ? this.oben : null,
+            };
+        },
+
+        senden(text) {
+            this._gesendet = text;
+            this._offen = true;
+            const folge = ++this._folge;
+            fetch('/api/anzeige/stand', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: `{"quelle":${JSON.stringify(QUELLE)},"folge":${folge},"stand":${text}}`,
+            }).then(() => {
+                if (folge === this._folge) this._offen = false;
+            }).catch(() => { /* bleibt offen, geht beim Wiederverbinden raus */ });
+        },
+
+        verbinden() {
+            const quelle = new EventSource('/api/anzeige/ereignisse');
+            quelle.onopen = () => { this._frisch = true; };
+            quelle.addEventListener('stand', e => this.empfangen(JSON.parse(e.data)));
+            quelle.addEventListener('einstellungen', e => {
+                const kennung = JSON.parse(e.data);
+                if (window.ANZEIGE_KENNUNG && kennung && kennung !== window.ANZEIGE_KENNUNG) {
+                    location.reload();
+                }
+            });
+            // EventSource verbindet sich nach einem Abbruch von selbst neu; die erste
+            // Nachricht danach ist wieder der aktuelle Stand.
+        },
+
+        // Akouo verteilt jeden Stand in einer festen Reihenfolge an alle, auch an den
+        // Absender. Wer jeder Nachricht folgt, landet also überall beim selben Ende.
+        empfangen(n) {
+            const frisch = this._frisch;
+            this._frisch = false;
+            this._bereit = true;
+            const eigener = JSON.stringify(this.schnappschuss());
+            if (frisch && (this._offen || !n.stand)) {
+                // Ohne Verbindung weitergetippt, oder Akouo wurde neu gestartet und kennt
+                // nichts: unser Stand gilt.
+                this.senden(eigener);
+                return;
+            }
+            if (!n.stand) return;
+            if (n.quelle === QUELLE) {
+                if (n.folge < this._folge) return;   // wir sind schon weiter
+                this._offen = false;
+            }
+            if (JSON.stringify(n.stand) !== eigener) this.uebernehmen(n.stand);
+        },
+
+        uebernehmen(s) {
+            if (Array.isArray(s.zeilen) && s.zeilen.length) this.zeilen = s.zeilen;
+            if (s.modus) this.modus = s.modus;
+            if (s.vorher) this.vorher = s.vorher;
+            this.programm = s.programm && Array.isArray(s.programm.punkte) ? s.programm : null;
+            this.index = this.programm ? Math.min(s.index || 0, this.programm.punkte.length - 1) : 0;
+            this.voll = s.voll || {};
+            // Wer gerade ein Programm auswählt, bleibt in der Auswahl.
+            if (s.ansicht && this.ansicht !== 'auswahl') this.ansicht = s.ansicht;
+            if (this.ansicht === 'programm' && !this.programm) this.ansicht = 'text';
+            if (this.ansicht === 'modus') {
+                clearTimeout(this._modusTimer);
+                this._modusTimer = setTimeout(() => {
+                    if (this.ansicht === 'modus') this.ansicht = 'text';
+                }, 3000);
+            }
+            if (this.ansicht === 'programm') {
+                if (typeof s.oben === 'number') this.oben = s.oben;
+                this.rollen();
+            } else {
+                this.einpassen();
+            }
+            // Das ist jetzt auch unser Stand — nicht zurückschicken.
+            this._gesendet = JSON.stringify(this.schnappschuss());
+            this.sichern();
         },
 
         // ── Was nach einem Neuladen wieder da sein soll ─────────────────────

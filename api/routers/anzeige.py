@@ -7,23 +7,29 @@ sollen: die Programme, der Verlauf und der Punkt, auf dem der Dirigent steht.
 
 Der Punkt geht weiter an die Automatik. Die Anzeige darf daran aber nie hängen: Ist der
 Audio-Dienst nicht erreichbar, blättert der Dirigent trotzdem weiter.
+
+Stehen mehrere Bildschirme da (oder tippt jemand an einem zweiten Rechner), zeigen alle
+dasselbe: Jede Seite schickt ihren Stand hierher, Akouo reicht ihn an die anderen weiter.
 """
+import asyncio
+import hashlib
 import json
 import logging
 import os
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import chor_programm
 import einstellungen
 import typen
-from database import get_db
+from database import AsyncSessionLocal, get_db
 from models import AnzeigeVerlauf, ChorProgramm
 from sprache import uebersetze
 from vorlagen import templates
@@ -42,11 +48,131 @@ def _einstellungen_fuer_seite(werte: dict) -> dict:
     return {k.removeprefix("anzeige_"): v for k, v in werte.items() if k.startswith("anzeige_")}
 
 
+def _kennung(cfg: dict) -> str:
+    """Fingerabdruck der Einstellungen — ändert er sich, lädt jede offene Seite neu."""
+    roh = json.dumps(cfg, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha1(roh.encode()).hexdigest()[:12]
+
+
 @router.get("/anzeige", response_class=HTMLResponse, include_in_schema=False)
 async def anzeige_seite(request: Request, db: AsyncSession = Depends(get_db)):
-    werte = await einstellungen.alle_lesen(db)
+    cfg = _einstellungen_fuer_seite(await einstellungen.alle_lesen(db))
     return templates.TemplateResponse(
-        "anzeige.html", {"request": request, "einstellungen": _einstellungen_fuer_seite(werte)})
+        "anzeige.html", {"request": request, "einstellungen": cfg, "kennung": _kennung(cfg)})
+
+
+# ─── Gemeinsamer Bildschirmstand ─────────────────────────────────────────────
+
+# Ein Stand ist Text, Modus, Ansicht und das offene Programm — ein paar Kilobyte.
+STAND_MAX_BYTES = 256 * 1024
+# So oft kommt ein Lebenszeichen, auch wenn niemand tippt; dabei wird auch geschaut, ob
+# sich die Einstellungen geändert haben.
+PULS_S = 15.0
+
+
+class Bildschirm:
+    """Was gerade auf dem Chorbildschirm steht, für alle Seiten zugleich.
+
+    Nur im Speicher: Nach einem Neustart der API schickt die erste Seite, die sich meldet,
+    ihren Stand — jede Seite merkt ihn sich ohnehin selbst. Letzter gewinnt; zwei Leute,
+    die gleichzeitig tippen, gibt es am Chorbildschirm nicht."""
+
+    def __init__(self) -> None:
+        self.stand: Optional[dict] = None
+        self.version = 0
+        self.quelle: Optional[str] = None
+        self.folge = 0
+        self._folge: dict[str, int] = {}
+        self._abos: set[asyncio.Queue] = set()
+
+    def setzen(self, stand: dict, quelle: str, folge: int) -> bool:
+        # Anfragen einer Seite können sich überholen — eine ältere darf die neuere nicht
+        # überschreiben.
+        if folge <= self._folge.get(quelle, -1):
+            return False
+        self._folge[quelle] = folge
+        self.stand, self.quelle, self.folge = stand, quelle, folge
+        self.version += 1
+        self._verteilen(("stand", self.nachricht()))
+        return True
+
+    def nachricht(self) -> dict:
+        return {"version": self.version, "quelle": self.quelle, "folge": self.folge, "stand": self.stand}
+
+    def abonnieren(self) -> asyncio.Queue:
+        q: asyncio.Queue = asyncio.Queue(maxsize=50)
+        self._abos.add(q)
+        return q
+
+    def abbestellen(self, q: asyncio.Queue) -> None:
+        self._abos.discard(q)
+
+    def _verteilen(self, ereignis: tuple) -> None:
+        for q in list(self._abos):
+            try:
+                q.put_nowait(ereignis)
+            except asyncio.QueueFull:
+                # Eine Seite, die nicht mehr abholt, ist weg — sie meldet sich neu.
+                self._abos.discard(q)
+
+
+bildschirm = Bildschirm()
+
+
+class StandMeldung(BaseModel):
+    quelle: str
+    folge: int
+    stand: dict[str, Any]
+
+
+@router.get("/api/anzeige/stand")
+async def stand_lesen() -> dict:
+    return bildschirm.nachricht()
+
+
+@router.post("/api/anzeige/stand")
+async def stand_setzen(m: StandMeldung) -> dict:
+    if len(json.dumps(m.stand, ensure_ascii=False)) > STAND_MAX_BYTES:
+        raise HTTPException(status_code=413, detail=uebersetze("Die Datei ist zu groß"))
+    angenommen = bildschirm.setzen(m.stand, m.quelle[:64], m.folge)
+    return {"version": bildschirm.version, "angenommen": angenommen}
+
+
+async def _kennung_lesen() -> Optional[str]:
+    try:
+        async with AsyncSessionLocal() as db:
+            return _kennung(_einstellungen_fuer_seite(await einstellungen.alle_lesen(db)))
+    except SQLAlchemyError:
+        return None
+
+
+def _sse(art: str, daten: Any) -> str:
+    return f"event: {art}\ndata: {json.dumps(daten, ensure_ascii=False)}\n\n"
+
+
+@router.get("/api/anzeige/ereignisse")
+async def ereignisse(request: Request) -> StreamingResponse:
+    """Server-Sent Events: jeder neue Stand, dazu alle 15 s der Fingerabdruck der Einstellungen."""
+    q = bildschirm.abonnieren()
+
+    async def strom():
+        try:
+            yield _sse("stand", bildschirm.nachricht())
+            kennung = await _kennung_lesen()
+            if kennung:
+                yield _sse("einstellungen", kennung)
+            while not await request.is_disconnected():
+                try:
+                    art, daten = await asyncio.wait_for(q.get(), timeout=PULS_S)
+                    yield _sse(art, daten)
+                except asyncio.TimeoutError:
+                    kennung = await _kennung_lesen()
+                    yield _sse("einstellungen", kennung) if kennung else ": puls\n\n"
+        finally:
+            bildschirm.abbestellen(q)
+
+    return StreamingResponse(strom(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 def _kurz(p: ChorProgramm) -> dict:
