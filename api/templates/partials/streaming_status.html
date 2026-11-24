@@ -1,6 +1,8 @@
-{# Context variables expected: status (str), elapsed_seconds (int|None), error_message (str|None), configured (bool) #}
-{# Defaults for initial server-side render (before HTMX polling starts) #}
-{# x-init syncs the dashboard's `streaming` flag with the real state on every poll #}
+{# Stream-Knopf im Kopf jeder Seite — klein, aber immer sichtbar.
+   Kontext: status (str), elapsed_seconds (int|None), error_message (str|None), configured (bool),
+   target, channels, telefon (dict). Ein Knopf für Stream und Telefon: „Stoppen", solange einer
+   der beiden Wege läuft oder laufen soll. Details (Fehlertext, Ziel, Telefon) stehen im title,
+   damit der Kopf nicht wächst. #}
 {% set status = status | default('idle') %}
 {% set configured = configured | default(true) %}
 {% set elapsed_seconds = elapsed_seconds | default(None) %}
@@ -8,40 +10,7 @@
 {% set target = target | default(None) %}
 {% set channels = channels | default(None) %}
 {% set telefon = telefon | default({'status': 'nicht_eingerichtet', 'configured': False}) %}
-{# Ein Knopf für beides: „Stoppen" zeigen, solange einer der beiden Wege läuft oder laufen soll #}
 {% set laeuft = status == 'streaming' or telefon.get('aktiv') %}
-<div x-init="streaming = {{ 'true' if laeuft else 'false' }}">
-<div class="flex items-start gap-3">
-    <span class="mt-2.5 w-2.5 h-2.5 rounded-full shrink-0
-        {% if status == 'streaming' %}bg-emerald-500 animate-pulse shadow-[0_0_12px_2px_rgba(16,185,129,0.45)]
-        {% elif status == 'error' or not configured %}bg-amber-400
-        {% else %}bg-zinc-600{% endif %}">
-    </span>
-    <div class="min-w-0">
-        <div class="text-2xl font-semibold tracking-tight
-            {% if status == 'streaming' %}text-emerald-400
-            {% elif status == 'error' or not configured %}text-amber-400
-            {% else %}text-zinc-300{% endif %}">
-            {% if not configured %}{{ t("Nicht konfiguriert") }}
-            {% elif status == 'streaming' %}{{ t("Live") }}
-            {% elif status == 'error' %}{{ t("Fehler") }}
-            {% else %}{{ t("Bereit") }}{% endif %}
-        </div>
-        <div class="mt-0.5 text-sm text-zinc-500 break-words">
-            {% if not configured %}
-                <a href="/settings" class="underline underline-offset-4 hover:text-zinc-300">{{ t("Stream-Ziel in den Einstellungen setzen") }}</a>
-            {% elif status == 'streaming' %}
-                {% if elapsed_seconds %}<span class="font-mono tabular-nums">{{ '%02d:%02d' % (elapsed_seconds // 60, elapsed_seconds % 60) }}</span> {{ t("auf Sendung") }}{% else %}{{ t("Auf Sendung") }}{% endif %}
-            {% elif status == 'error' %}
-                {{ error_message or t("Unbekannter Fehler") }}
-            {% else %}
-                {% if target %}<span class="font-mono text-xs">{{ target }}</span>{% else %}{{ t("Bereit zum Senden") }}{% endif %}
-                {% if channels %} · {{ t("Kanäle") }} {{ channels | join('+') }}{% endif %}
-            {% endif %}
-        </div>
-    </div>
-</div>
-{% if telefon.get('configured') %}
 {% set ts = telefon.get('status') %}
 {% set gruende = {
     'anmeldung': t('Anmeldung an der Telefonanlage fehlgeschlagen'),
@@ -51,35 +20,37 @@
     'baresip_start': t('Telefon-Programm startet nicht'),
     'ausgang_fehlt': t('Virtuelle Soundkarte BlackHole fehlt'),
 } %}
-<div class="mt-3 pt-3 border-t border-white/[0.06] flex items-start gap-3">
-    <span class="mt-2 w-2 h-2 rounded-full shrink-0
-        {% if ts == 'verbunden' %}bg-emerald-500 animate-pulse
-        {% elif ts == 'verbindet' %}bg-amber-400 animate-pulse
-        {% elif ts == 'fehler' %}bg-amber-400
-        {% else %}bg-zinc-600{% endif %}">
-    </span>
-    <div class="min-w-0">
-        <div class="text-base font-medium
-            {% if ts == 'verbunden' %}text-emerald-400
-            {% elif ts in ('verbindet', 'fehler') %}text-amber-400
-            {% else %}text-zinc-300{% endif %}">
-            {{ t("Telefon") }} ·
-            {% if ts == 'verbunden' %}{{ t("Verbunden") }}
-            {% elif ts == 'verbindet' %}{{ t("Wählt ein…") }}
-            {% elif ts == 'fehler' %}{{ t("Fehler") }}
-            {% else %}{{ t("Aus") }}{% endif %}
-        </div>
-        <div class="mt-0.5 text-sm text-zinc-500 break-words">
-            {% if ts == 'verbunden' and telefon.get('verbunden_seit_s') is not none %}
-                {% set s = telefon.get('verbunden_seit_s') %}
-                <span class="font-mono tabular-nums">{{ '%02d:%02d' % (s // 60, s % 60) }}</span> {{ t("in der Telefonkonferenz") }}
-            {% elif telefon.get('grund') in gruende %}
-                {{ gruende[telefon.get('grund')] }}{% if telefon.get('aktiv') %} · {{ t("neuer Versuch läuft") }}{% endif %}
-            {% elif ts == 'aus' %}
-                {{ t("Startet mit dem Stream") }}
-            {% endif %}
-        </div>
-    </div>
-</div>
+{% set tel_text %}{% if telefon.get('configured') %}{{ t("Telefon") }}: {% if ts == 'verbunden' %}{{ t("Verbunden") }}{% elif ts == 'verbindet' %}{{ t("Wählt ein…") }}{% elif ts == 'fehler' %}{{ gruende.get(telefon.get('grund'), t("Fehler")) }}{% else %}{{ t("Aus") }}{% endif %}{% endif %}{% endset %}
+{% set pill = "min-h-11 inline-flex items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors" %}
+
+{% if not configured %}
+<a href="/settings" title="{{ t('Stream-Ziel in den Einstellungen setzen') }}"
+   class="{{ pill }} border-amber-400/30 bg-amber-400/10 text-amber-300 hover:bg-amber-400/15">
+    <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+    {{ t("Stream") }}
+</a>
+{% elif laeuft %}
+<button type="button"
+        hx-post="/api/streaming/stop" hx-target="#stream-kopf" hx-swap="innerHTML"
+        hx-confirm="{{ t('Stream stoppen') }} — {{ t('Wirklich stoppen?') }}"
+        title="{{ t('Stream stoppen') }}{% if tel_text %} · {{ tel_text }}{% endif %}"
+        aria-label="{{ t('Stream stoppen') }}"
+        class="{{ pill }} border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/15">
+    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_12px_2px_rgba(16,185,129,0.45)]"></span>
+    {% if status == 'streaming' %}{{ t("Live") }}{% else %}{{ t("Stream") }}{% endif %}
+    {% if elapsed_seconds %}<span class="font-mono tabular-nums text-xs">{{ '%02d:%02d' % (elapsed_seconds // 60, elapsed_seconds % 60) }}</span>{% endif %}
+    {% if telefon.get('configured') %}
+    <span class="w-1.5 h-1.5 rounded-full {% if ts == 'verbunden' %}bg-emerald-500{% elif ts in ('verbindet', 'fehler') %}bg-amber-400{% else %}bg-zinc-600{% endif %}"></span>
+    {% endif %}
+    <span class="w-2.5 h-2.5 rounded-sm bg-zinc-300"></span>
+</button>
+{% else %}
+<button type="button"
+        hx-post="/api/streaming/start" hx-target="#stream-kopf" hx-swap="innerHTML"
+        title="{% if status == 'error' %}{{ error_message or t('Unbekannter Fehler') }}{% else %}{{ t('Stream starten') }}{% if target %} · {{ target }}{% endif %}{% if channels %} · {{ t('Kanäle') }} {{ channels | join('+') }}{% endif %}{% endif %}{% if tel_text %} · {{ tel_text }}{% endif %}"
+        aria-label="{{ t('Stream starten') }}"
+        class="{{ pill }} {% if status == 'error' %}border-amber-400/30 bg-amber-400/10 text-amber-300 hover:bg-amber-400/15{% else %}border-white/10 bg-white/[0.06] text-zinc-200 hover:bg-white/10{% endif %}">
+    <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9.5-5.5z"/></svg>
+    {% if status == 'error' %}{{ t("Fehler") }}{% else %}{{ t("Stream") }}{% endif %}
+</button>
 {% endif %}
-</div>

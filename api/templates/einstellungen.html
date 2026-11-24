@@ -17,6 +17,22 @@
               x-text="meldung.text"></span>
     </div>
 
+    {# Sprache dieses Geräts. Als Links und nicht als Alpine-Menü: der Umschalter muss auch
+       dann gehen, wenn ein Skript hängt — und wer die Oberfläche in einer Sprache vorfindet,
+       die er nicht liest, braucht etwas, das ohne Lesen erkennbar ist. Deshalb Kürzel. #}
+    <section class="card flex items-center justify-between gap-3">
+        <div class="eyebrow">{{ t("Sprache") }}</div>
+        <div class="inline-flex items-center gap-0.5 rounded-full border border-white/10 bg-white/[0.04] p-0.5 text-[11px] font-medium">
+            {% for code in sprachen %}
+            <a href="/sprache/{{ code }}?weiter=/settings"
+               hreflang="{{ code }}"
+               title="{{ sprach_namen.get(code, code) }}"
+               class="min-h-11 min-w-11 justify-center px-2 inline-flex items-center rounded-full uppercase tracking-wide transition-colors
+                      {% if sprache_aktuell() == code %}bg-white/10 text-zinc-100{% else %}text-zinc-500 hover:text-zinc-200{% endif %}">{{ code }}</a>
+            {% endfor %}
+        </div>
+    </section>
+
     <template x-if="!geladen">
         <div class="card text-zinc-400">{{ t("Wird geladen …") }}</div>
     </template>

@@ -1,11 +1,14 @@
 <!-- Live-Transkript: whisper-server verschriftet die laufende Aufnahme in ~6-Sekunden-Häppchen -->
 <section class="card lg:col-span-3" x-data="transcriptPanel()"
          x-show="lines.length > 0 || running" x-cloak>
-  <div class="flex items-center justify-between gap-3 mb-3">
-    <div class="flex items-center gap-2.5">
+  {# Einklappbar; jedes Gerät merkt sich den Zustand. Startet zugeklappt. #}
+  <div class="flex items-center justify-between gap-3" :class="offen && 'mb-3'">
+    <button type="button" class="flex items-center gap-2.5 min-h-9"
+            @click="offen = !offen; (() => { try { localStorage.setItem('akouo.transkript.offen', offen ? '1' : '0') } catch (_) {} })()">
+      <span class="inline-block text-zinc-500 transition-transform" :class="offen && 'rotate-90'">›</span>
       <span class="w-2 h-2 rounded-full" :class="running ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-600'"></span>
       <span class="eyebrow">{{ t("Live-Transkript") }}</span>
-    </div>
+    </button>
     <div class="flex items-center gap-3 text-xs text-zinc-500">
       <span x-show="error" x-cloak class="text-amber-400" x-text="error"></span>
       <span x-text="trf('{n} Abschnitte', {n: lines.length})"></span>
@@ -17,7 +20,7 @@
     </div>
   </div>
 
-  <div x-ref="box" class="max-h-72 overflow-y-auto pr-1 space-y-2 text-[15px] leading-relaxed">
+  <div x-ref="box" x-show="offen" class="max-h-72 overflow-y-auto pr-1 space-y-2 text-[15px] leading-relaxed">
     <template x-for="(l, i) in lines" :key="i">
       <p class="flex gap-3">
         <span class="font-mono text-xs text-zinc-600 tabular-nums pt-1 shrink-0" x-text="fmt(l.start)"></span>
@@ -36,6 +39,7 @@ function transcriptPanel() {
     running: false,
     error: null,
     follow: true,
+    offen: (() => { try { return localStorage.getItem('akouo.transkript.offen') === '1' } catch (_) { return false } })(),
 
     init() {
       this.tick();

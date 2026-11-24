@@ -26,6 +26,36 @@
     // aufzurufen — und zwar genau dort, wo die Track-Knoepfe entstehen.
     function tr(s) { return (window.AKOUO_T && window.AKOUO_T[s]) || s; }
 
+    // Grüner Haken an „Checkliste" im Kopf, sobald alle Punkte abgehakt sind.
+    // Fragt beim Laden, beim Zurückkommen auf den Tab und alle 15 s nach.
+    function checklisteFertig() {
+        return {
+            fertig: false,
+            async laden() {
+                try {
+                    const d = await fetch('/api/checklists/active').then(r => r.json());
+                    const items = d.items || [];
+                    this.fertig = items.length > 0 && items.every(i => i.checked);
+                } catch (_) { /* lieber kein Haken als ein Fehler */ }
+            },
+            init() {
+                this.laden();
+                setInterval(() => this.laden(), 15000);
+                window.addEventListener('focus', () => this.laden());
+            },
+        };
+    }
+
+    // Fehler des Stream-Knopfs im Kopf. Abfragen sind still — nur Start/Stopp melden sich.
+    function streamFehler(ev) {
+        const pfad = ev.detail.pathInfo.requestPath || '';
+        if (!/\/api\/streaming\/(start|stop)/.test(pfad)) return;
+        let d;
+        try { d = JSON.parse(ev.detail.xhr.response).detail; } catch (_) {}
+        alert(tr(pfad.endsWith('start') ? 'Stream konnte nicht starten:' : 'Stream konnte nicht stoppen:')
+              + ' ' + (d || tr('Fehler') + ' ' + ev.detail.xhr.status));
+    }
+
     // Fuer Saetze mit eingesetzten Werten. Aus Bruchstuecken zusammengeklebte Texte
     // ('Vorschlag: ' + x) lassen sich nicht uebersetzen, ohne die Wortstellung
     // kaputtzumachen — im Russischen steht das Verb woanders als im Deutschen.
@@ -228,10 +258,8 @@
 </head>
 <body class="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
     {% set path = request.url.path %}
-    {# Mit Abfragezeichenkette, sonst verliert ein Sprachwechsel die Filter der Seite #}
-    {% set ziel = path ~ ('?' ~ request.url.query if request.url.query else '') %}
     <header class="sticky top-0 z-40 border-b border-white/5 bg-zinc-950/80 backdrop-blur-xl pt-[env(safe-area-inset-top)]">
-        <div class="max-w-5xl mx-auto px-4 sm:px-6 py-2 lg:py-0 lg:h-14 flex flex-wrap lg:flex-nowrap items-center gap-x-3 gap-y-2">
+        <div class="px-4 sm:px-6 py-2 lg:py-0 lg:h-14 flex flex-wrap lg:flex-nowrap items-center gap-x-3 gap-y-2">
             <a href="/" class="flex items-center gap-2.5 shrink-0">
                 <span class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_12px_2px_rgba(239,68,68,0.45)]"></span>
                 <span class="hidden sm:inline text-[15px] font-semibold tracking-tight">Akouo</span>
@@ -293,18 +321,14 @@
                        class="w-20 h-11 accent-emerald-400">
             </div>
 
-            {# Sprache dieses Geraets. Als Links und nicht als Alpine-Menue: der Umschalter
-               muss auch dann gehen, wenn ein Skript haengt — und wer die Oberflaeche in einer
-               Sprache vorfindet, die er nicht liest, braucht etwas, das ohne Lesen erkennbar
-               ist. Deshalb Kuerzel statt Sprachnamen. #}
-            <div class="shrink-0 inline-flex items-center gap-0.5 rounded-full border border-white/10 bg-white/[0.04] p-0.5 text-[11px] font-medium">
-                {% for code in sprachen %}
-                <a href="/sprache/{{ code }}?weiter={{ ziel | urlencode }}"
-                   hreflang="{{ code }}"
-                   title="{{ sprach_namen.get(code, code) }}"
-                   class="min-h-11 min-w-11 justify-center px-2 inline-flex items-center rounded-full uppercase tracking-wide transition-colors
-                          {% if sprache_aktuell() == code %}bg-white/10 text-zinc-100{% else %}text-zinc-500 hover:text-zinc-200{% endif %}">{{ code }}</a>
-                {% endfor %}
+            {# Stream — auf jeder Seite sichtbar und startbar. Die Sprachwahl steht in den
+               Einstellungen. #}
+            <div id="stream-kopf" class="shrink-0"
+                 hx-get="/api/streaming/status" hx-trigger="load, every 2s" hx-swap="innerHTML"
+                 @htmx:response-error="streamFehler($event)"
+                 x-data>
+                {# Leer bis zum ersten Abruf (load) — ein include erbte hier den Kontext der Seite #}
+                <span class="block min-h-11 w-24"></span>
             </div>
 
             <nav class="w-full sm:w-auto sm:ml-auto flex items-center justify-between sm:justify-end gap-0.5 sm:gap-1 text-sm">
@@ -312,7 +336,8 @@
                 <a href="{{ href }}"
                    class="px-2.5 sm:px-3 py-1.5 rounded-lg transition-colors
                           {% if path == href %}bg-white/10 text-zinc-100{% else %}text-zinc-400 hover:text-zinc-100 hover:bg-white/5{% endif %}">
-                    {{ t(label) }}
+                    {{ t(label) }}{% if href == "/checkliste" %}<span x-data="checklisteFertig()" x-show="fertig" x-cloak
+                        class="ml-1 text-emerald-400" title="{{ t('Alles erledigt') }}" aria-label="{{ t('Alles erledigt') }}">✓</span>{% endif %}
                 </a>
                 {% endfor %}
             </nav>
