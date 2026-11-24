@@ -208,3 +208,56 @@ async def test_verlauf_wird_gespeichert(client, db_session):
     client.post("/api/anzeige/verlauf", json={"modus": "Chor", "text": "   "})
     eintraege = (await db_session.execute(select(AnzeigeVerlauf))).scalars().all()
     assert [(e.modus, e.text) for e in eintraege] == [("Chor", "SDH 245")]
+
+
+# ─── Mehrere Bildschirme ─────────────────────────────────────────────────────
+
+@pytest.fixture
+def bildschirm():
+    from routers import anzeige
+    frisch = anzeige.Bildschirm()
+    with patch.object(anzeige, "bildschirm", frisch):
+        yield frisch
+
+
+def test_stand_geht_an_alle_angemeldeten_seiten(bildschirm):
+    a, b = bildschirm.abonnieren(), bildschirm.abonnieren()
+    assert bildschirm.setzen({"zeilen": ["SDH 245"]}, "pc1", 1)
+    for q in (a, b):
+        art, n = q.get_nowait()
+        assert art == "stand"
+        assert n == {"version": 1, "quelle": "pc1", "folge": 1, "stand": {"zeilen": ["SDH 245"]}}
+
+
+def test_eine_ueberholte_anfrage_ueberschreibt_den_neueren_stand_nicht(bildschirm):
+    assert bildschirm.setzen({"zeilen": ["24"]}, "pc1", 2)
+    assert not bildschirm.setzen({"zeilen": ["2"]}, "pc1", 1)
+    assert bildschirm.stand == {"zeilen": ["24"]}
+    # Ein anderer Rechner zählt für sich
+    assert bildschirm.setzen({"zeilen": ["H 3"]}, "pc2", 1)
+    assert (bildschirm.version, bildschirm.quelle) == (2, "pc2")
+
+
+def test_eine_seite_die_nicht_abholt_fliegt_raus(bildschirm):
+    q = bildschirm.abonnieren()
+    for i in range(60):
+        bildschirm.setzen({"i": i}, "pc1", i)
+    assert q not in bildschirm._abos
+
+
+def test_stand_ueber_die_api(client, bildschirm):
+    assert client.get("/api/anzeige/stand").json()["stand"] is None
+    r = client.post("/api/anzeige/stand", json={"quelle": "pc1", "folge": 1,
+                                                "stand": {"zeilen": ["MC 12"], "modus": "Chor"}})
+    assert r.json() == {"version": 1, "angenommen": True}
+    n = client.get("/api/anzeige/stand").json()
+    assert (n["quelle"], n["stand"]["zeilen"]) == ("pc1", ["MC 12"])
+    gross = {"zeilen": ["x" * (300 * 1024)]}
+    assert client.post("/api/anzeige/stand", json={"quelle": "pc1", "folge": 2, "stand": gross}).status_code == 413
+
+
+def test_seite_kennt_den_fingerabdruck_der_einstellungen(client):
+    from routers import anzeige
+    r = client.get("/anzeige")
+    assert "window.ANZEIGE_KENNUNG = \"" in r.text
+    assert anzeige._kennung({"f1": "SDH"}) != anzeige._kennung({"f1": "H"})

@@ -496,6 +496,11 @@ der Automatik als Warteliste gegeben; der Punkt, auf dem der Dirigent steht, gil
 auf den nächsten Beitrag. Getestet mit den Beispiel-PDFs der Liedanzeige und im Browser; am
 Mini-Rechner selbst und in einem echten Gottesdienst noch nicht.
 
+Seit 22. November gleichen sich mehrere offene Chorbildschirme ab (Server-Sent Events über
+`/api/anzeige/ereignisse`). Der Stand liegt nur im Speicher der API; nach ihrem Neustart
+bringt ihn die erste Seite wieder mit. Getestet mit zwei Browserfenstern samt Serverausfall,
+noch nicht an zwei echten Rechnern.
+
 Details in [betrieb.md](betrieb.md), Abschnitt 5j.
 
 ---
