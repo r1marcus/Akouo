@@ -1,10 +1,21 @@
 <!-- Track & Marker (UI-07, REC-08) — full-width row below the Aufnahme/Stream controls. -->
 <!-- Runs in the sessionPanel() scope opened by dashboard.html, not its own x-data. -->
-<section class="card"
-         x-show="state === 'recording' || state === 'paused' || markers.length > 0" x-cloak>
-
-  <!-- Track aufnehmen: großer Start, Typ danach, dann Ende (REC-08) -->
-  <div x-show="state === 'recording' || state === 'paused'" x-cloak>
+  <!-- Track aufnehmen: großer Start, Typ danach, dann Ende (REC-08).
+       Fest am unteren Rand über die ganze Breite — muss beim Scrollen greifbar bleiben. -->
+  <div class="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-zinc-950/90 backdrop-blur-xl
+              px-4 sm:px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] max-h-[70vh] overflow-y-auto">
+  <div>
+  {# Pegel — immer sichtbar, auch ohne laufende Aufnahme (Soundcheck) #}
+  <div class="flex items-center gap-3">
+    <span class="eyebrow shrink-0">{{ t("Pegel") }}</span>
+    <canvas x-ref="meter" class="block flex-1 min-w-0 h-2.5"></canvas>
+    <span class="flex items-center gap-1.5 text-xs shrink-0" :class="inputOk ? 'text-zinc-500' : 'text-amber-400'"
+          :title="inputOk ? tr('Eingang verbunden') : tr('Kein Eingang')">
+      <span class="w-1.5 h-1.5 rounded-full" :class="inputOk ? 'bg-emerald-500' : 'bg-amber-400'"></span>
+      <span x-show="!inputOk" x-text="tr('Kein Eingang')"></span>
+    </span>
+  </div>
+  <div x-show="state === 'recording' || state === 'paused'" x-cloak class="mt-3">
 
     <!-- 1. kein Track läuft -->
     <template x-if="!openMarker()">
@@ -44,7 +55,7 @@
 
     <!-- 3. Track läuft und ist benannt -->
     <template x-if="openMarker() && openMarker().marker_type !== 'Unbenannt'">
-      <div class="flex flex-col gap-3 rounded-2xl bg-sky-500/10 ring-1 ring-inset ring-sky-500/20 p-4">
+      <div class="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl bg-sky-500/10 ring-1 ring-inset ring-sky-500/20 p-4">
         <div class="min-w-0">
           <div class="eyebrow text-sky-300">{{ t("Track läuft") }}</div>
           <div class="mt-1 flex items-baseline gap-3">
@@ -53,7 +64,7 @@
                   x-text="formatTime(elapsed - Math.floor(openMarker().placed_at_ts + (openMarker().start_nudge || 0)))"></span>
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-2">
+        <div class="grid grid-cols-[1fr_1.6fr] gap-2 sm:ml-auto sm:w-[30rem] shrink-0">
         {# Unterbrechen: die Aufnahme läuft weiter, nur der Track lässt das Stück aus #}
         <button @click="unterbrechen(!(spuren[openMarker().id] || {}).unterbrochen)" :disabled="busyTrack"
                 class="btn min-h-14 px-4 text-sm"
@@ -72,6 +83,12 @@
     <p x-show="openMarker() && (spuren[openMarker().id] || {}).unterbrochen" x-cloak
        class="mt-2 text-sm text-amber-300">{{ t("Track unterbrochen — die Aufnahme läuft weiter, dieses Stück fehlt später im Track.") }}</p>
   </div>
+  </div>
+  </div>
+
+<section class="card"
+         x-show="state === 'recording' || state === 'paused' || markers.length > 0" x-cloak>
+
 
   <!-- Was die Automatik gerade sieht: laufende Einschätzung und Übergangenes -->
   <div x-show="auto.aktiv" x-cloak class="mb-5 rounded-2xl bg-emerald-500/[0.07] ring-1 ring-inset ring-emerald-500/20 p-4">
@@ -118,56 +135,58 @@
   </div>
 
   <!-- Marker list with ±1s nudge buttons (UI-07) -->
-  <div class="mt-6 border-t border-white/5 pt-5" x-show="state === 'recording' || state === 'paused' || markers.length > 0" x-cloak>
+  <div x-show="state === 'recording' || state === 'paused' || markers.length > 0" x-cloak>
     <div class="eyebrow mb-3">{{ t("Marker") }}</div>
-    <ul class="space-y-1.5">
+    <ul class="space-y-2">
       <template x-for="m in markers" :key="m.id">
-        <li class="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/[0.03] pl-3 pr-1.5 py-1.5">
-          <div class="flex items-baseline gap-3 min-w-0">
-            <span class="font-mono text-sm tabular-nums text-zinc-500"
-                  x-text="formatTime(Math.floor(m.placed_at_ts + (m.start_nudge || 0)))"></span>
-            <select class="field h-8 min-h-8 py-0 pr-7 text-sm font-medium max-w-[10.5rem]"
+        {# Eine ruhige Zeile: Zeitspanne, Art, Titel, Bearbeiten. Feinschnitt (±1 s), KI und
+           Löschen liegen hinter „⋯" — gebraucht wird das selten, gesehen hat man es dauernd. #}
+        <li class="rounded-xl bg-white/[0.03] pl-3 pr-1.5 py-1.5" x-data="{ mehr: false }">
+          <div class="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-1.5 min-w-0">
+            <span class="font-mono text-sm tabular-nums whitespace-nowrap shrink-0"
+                  :class="markerOffen(m) ? 'text-sky-300' : 'text-zinc-400'"
+                  x-text="zeitspanne(m)"></span>
+            <select class="field h-8 min-h-8 py-0 pr-7 text-sm font-medium max-w-[10.5rem] shrink-0"
                     @change="setTypeOf(m, $event.target.value)">
               <template x-for="t in markerTypes" :key="t">
                 <option :value="t" :selected="t === m.marker_type" x-text="anzBeitrag(t)"></option>
               </template>
             </select>
-            <span class="font-mono text-xs"
-                  :class="m.ended_at_ts === null || m.ended_at_ts === undefined ? 'text-sky-300' : 'text-zinc-500'"
-                  x-text="(m.ended_at_ts === null || m.ended_at_ts === undefined)
-                      ? tr('läuft')
-                      : '→ ' + formatTime(Math.floor(m.ended_at_ts + (m.end_nudge || 0)))
-                        + ' · ' + formatTime(Math.floor((m.ended_at_ts + (m.end_nudge || 0)) - (m.placed_at_ts + (m.start_nudge || 0)))) + ' ' + tr('lang')"></span>
-            <span class="font-mono text-xs text-amber-400" x-show="m.start_nudge"
-                  x-text="tr('Start') + ' ' + (m.start_nudge > 0 ? '+' : '') + m.start_nudge + 's'"></span>
-            <span class="font-mono text-xs text-amber-400" x-show="m.end_nudge"
-                  x-text="tr('Ende') + ' ' + (m.end_nudge > 0 ? '+' : '') + m.end_nudge + 's'"></span>
-          </div>
-          <div class="order-last w-full flex items-center gap-2 text-sm min-w-0">
-            <button @click="spurOeffnen(m)" class="min-w-0 flex-1 truncate text-left text-zinc-300 hover:text-white"
+            {# Auf dem Handy rutschen Titel, ⋯ und Bearbeiten in eine zweite Zeile #}
+            <div class="flex items-center gap-3 min-w-0 basis-full sm:basis-auto sm:flex-1">
+            <button @click="spurOeffnen(m)" class="min-w-0 flex-1 truncate text-left text-sm text-zinc-300 hover:text-white"
                     :title="tr('Track groß öffnen')">
               <span x-show="(spuren[m.id] || {}).titel" x-text="(spuren[m.id] || {}).titel"></span>
               <span x-show="!(spuren[m.id] || {}).titel" class="text-zinc-600">{{ t("ohne Titel") }}</span>
               <span x-show="(spuren[m.id] || {}).luecken" class="ml-1 text-xs text-red-300"
                     x-text="'· ' + trf('{n} Lücke(n)', {n: (spuren[m.id] || {}).luecken})"></span>
             </button>
-            <button x-show="m.ended_at_ts !== null && m.ended_at_ts !== undefined && !(spuren[m.id] || {}).ki"
-                    @click="kiFuer(m)" :disabled="(spuren[m.id] || {}).denkt"
-                    class="h-8 shrink-0 px-2 rounded-lg bg-white/[0.05] text-xs text-zinc-300 hover:bg-white/10"
-                    x-text="(spuren[m.id] || {}).denkt ? tr('Denkt…') : tr('KI')"></button>
+            <canvas x-show="levels.length > 0" x-cloak :data-marker-id="m.id"
+                    x-init="$nextTick(() => drawSparklines())"
+                    class="hidden sm:block shrink-0 w-40 h-6 rounded bg-white/[0.02]"></canvas>
+            <button @click="mehr = !mehr" :aria-expanded="mehr" :title="tr('Feinschnitt')"
+                    class="h-8 w-8 shrink-0 grid place-items-center rounded-lg text-zinc-400 hover:bg-white/10"
+                    :class="mehr && 'bg-white/10 text-zinc-100'">⋯</button>
             <button @click="spurOeffnen(m)"
                     class="h-8 shrink-0 px-3 rounded-lg bg-sky-500/20 text-xs text-sky-200 hover:bg-sky-500/30">{{ t("Bearbeiten") }}</button>
+            </div>
           </div>
-          <canvas x-show="levels.length > 0" x-cloak :data-marker-id="m.id"
-                  x-init="$nextTick(() => drawSparklines())"
-                  class="order-last w-full h-6 rounded bg-white/[0.02] sm:order-none sm:w-40"></canvas>
-          <div class="flex items-center gap-1 text-xs">
+          <div x-show="mehr" x-cloak class="mt-2 flex flex-wrap items-center gap-1 text-xs">
             <span class="px-1 text-zinc-600">{{ t("Start") }}</span>
             <button @click="nudge(m, 'start', -1)" class="h-9 min-w-9 px-2 rounded-lg bg-white/[0.05] font-mono text-zinc-300 hover:bg-white/10 active:scale-95">−1</button>
             <button @click="nudge(m, 'start', 1)" class="h-9 min-w-9 px-2 rounded-lg bg-white/[0.05] font-mono text-zinc-300 hover:bg-white/10 active:scale-95">+1</button>
+            <span class="font-mono text-amber-400 px-1" x-show="m.start_nudge"
+                  x-text="(m.start_nudge > 0 ? '+' : '') + Math.round(m.start_nudge) + ' s'"></span>
             <span class="pl-2 pr-1 text-zinc-600">{{ t("Ende") }}</span>
             <button @click="nudge(m, 'end', -1)" class="h-9 min-w-9 px-2 rounded-lg bg-white/[0.05] font-mono text-zinc-300 hover:bg-white/10 active:scale-95">−1</button>
             <button @click="nudge(m, 'end', 1)" class="h-9 min-w-9 px-2 rounded-lg bg-white/[0.05] font-mono text-zinc-300 hover:bg-white/10 active:scale-95">+1</button>
+            <span class="font-mono text-amber-400 px-1" x-show="m.end_nudge"
+                  x-text="(m.end_nudge > 0 ? '+' : '') + Math.round(m.end_nudge) + ' s'"></span>
+            <span class="flex-1"></span>
+            <button x-show="!markerOffen(m) && !(spuren[m.id] || {}).ki"
+                    @click="kiFuer(m)" :disabled="(spuren[m.id] || {}).denkt"
+                    class="h-9 shrink-0 px-3 rounded-lg bg-white/[0.05] text-zinc-300 hover:bg-white/10"
+                    x-text="(spuren[m.id] || {}).denkt ? tr('Denkt…') : tr('KI')"></button>
             <button @click="deleteMarker(m)" :title="trf('Marker {typ} entfernen', {typ: anzBeitrag(m.marker_type)})"
                     class="ml-1 h-9 shrink-0 grid place-items-center rounded-lg active:scale-95"
                     :class="confirmDeleteId === m.id ? 'px-3 bg-red-600 text-white font-medium hover:bg-red-500'
