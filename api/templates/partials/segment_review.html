@@ -157,23 +157,54 @@
                 htmx.ajax('GET', '/api/sessions/{{ session_id }}/segments',
                           {target: '#segment-review-{{ session_id }}', swap: 'outerHTML'});
             },
+            {# Der Mac arbeitet die Liste ab (POST export-sammel), die Seite fragt nur nach.
+               Neu laden, Schlafen, zweites Gerät: alles egal — siehe segments.py. #}
             async exportAllJetzt(ids) {
                 ids = ids || this.ids;
-                this.running = true;
-                this.done = 0;
-                this.gesamt = ids.length;
-                for (const id of ids) {
-                    try {
-                        await fetch(this.ziel(id), {method: 'POST'});
-                    } catch (e) { /* keep going, the list shows what worked */ }
-                    this.done++;
+                try {
+                    const r = await fetch('/api/sessions/{{ session_id }}/export-sammel', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ids, station: this.station, online: this.online})});
+                    const d = await r.json().catch(() => ({}));
+                    if (!r.ok) {
+                        window.dispatchEvent(new CustomEvent('toast', {detail: d.detail || (tr('Fehler') + ' ' + r.status)}));
+                        return;
+                    }
+                    this.sammelZeigen(d);
+                } catch (e) {
+                    window.dispatchEvent(new CustomEvent('toast', {detail: tr('Fehler') + ': ' + e.message}));
                 }
-                this.running = false;
-                htmx.ajax('GET', '/api/sessions/{{ session_id }}/segments',
-                          {target: '#segment-review-{{ session_id }}', swap: 'outerHTML'});
-            }
+            },
+            sammelZeigen(d) {
+                if (!this.$el.isConnected) return;   // alte Kopie nach dem 30-s-Neuzeichnen
+                const vorher = this.running;
+                this.running = !!d.laeuft;
+                this.done = d.fertig || 0;
+                this.gesamt = d.gesamt || 0;
+                if (this.running) {
+                    clearTimeout(this._sammelTimer);
+                    this._sammelTimer = setTimeout(() => this.sammelAbfragen(), 2000);
+                } else if (vorher) {
+                    const f = (d.fehler || []).length;
+                    window.dispatchEvent(new CustomEvent('toast', {detail: f
+                        ? tr('Export mit Fehlern') + ': ' + d.fehler.map(x => x.detail).join(' · ')
+                        : tr('Export fertig')}));
+                    htmx.ajax('GET', '/api/sessions/{{ session_id }}/segments',
+                              {target: '#segment-review-{{ session_id }}', swap: 'outerHTML'});
+                }
+            },
+            async sammelAbfragen() {
+                try {
+                    const d = await fetch('/api/sessions/{{ session_id }}/export-sammel').then(r => r.json());
+                    this.sammelZeigen(d);
+                } catch (e) {
+                    clearTimeout(this._sammelTimer);
+                    this._sammelTimer = setTimeout(() => this.sammelAbfragen(), 5000);
+                }
+            },
+            _sammelTimer: null
          }"
-         x-init="loadInsights()"
+         x-init="loadInsights(); sammelAbfragen()"
          @spur:geaendert.window="$event.detail && $event.detail.session_id === {{ session_id }}
              && htmx.ajax('GET', '/api/sessions/{{ session_id }}/segments',
                           {target: '#segment-review-{{ session_id }}', swap: 'outerHTML'})">
