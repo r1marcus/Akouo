@@ -838,3 +838,79 @@ async def export_segment(
         "nas_error": row.nas_error,
         "uploaded_at": row.uploaded_at.isoformat() if row.uploaded_at else None,
     }
+
+
+# ---------------------------------------------------------------------------
+# Sammel-Export auf dem Mac
+#
+# Bis 24.11. lief die Schleife "Track für Track" im Browser des Geräts, das auf
+# „Exportieren“ drückte. Lud die Seite neu, schlief das Tablet oder drückte man zweimal,
+# fehlte am Ende ein Track (17., 20. und 24.11. jeweils der letzte). Jetzt schickt der
+# Browser die ganze Liste einmal her, die API arbeitet sie selbst ab, und jedes Gerät
+# sieht den Fortschritt. Der Zustand liegt nur im Speicher: ein API-Neustart mitten im
+# Export bricht ihn ab — die Liste zeigt dann, was fehlt.
+# ---------------------------------------------------------------------------
+import asyncio
+from pydantic import BaseModel
+
+from database import AsyncSessionLocal
+
+_sammel: dict[int, dict] = {}      # session_id -> Stand
+_sammel_tasks: dict[int, asyncio.Task] = {}
+
+
+class _OhneHtmx:
+    """Stellvertreter für den Request: export_segment fragt nur nach HX-Request."""
+    headers: dict = {}
+
+
+class SammelAuftrag(BaseModel):
+    ids: list[int]
+    station: Optional[bool] = None
+    online: Optional[bool] = None
+
+
+def _sammel_stand(session_id: int) -> dict:
+    return _sammel.get(session_id) or {"laeuft": False, "fertig": 0, "gesamt": 0,
+                                       "aktuell": None, "fehler": []}
+
+
+async def _sammel_abarbeiten(session_id: int, auftrag: SammelAuftrag) -> None:
+    stand = _sammel[session_id]
+    try:
+        for marker_id in auftrag.ids:
+            stand["aktuell"] = marker_id
+            try:
+                async with AsyncSessionLocal() as db:
+                    await export_segment(session_id, marker_id, _OhneHtmx(),
+                                         station=auftrag.station, online=auftrag.online, db=db)
+            except HTTPException as e:
+                stand["fehler"].append({"marker_id": marker_id, "detail": str(e.detail)})
+            except Exception as e:  # ein kaputter Track hält die übrigen nicht auf
+                stand["fehler"].append({"marker_id": marker_id, "detail": repr(e)})
+            stand["fertig"] += 1
+    finally:
+        stand["aktuell"] = None
+        stand["laeuft"] = False
+        stand["ende"] = datetime.now().isoformat(timespec="seconds")
+        _sammel_tasks.pop(session_id, None)
+
+
+@router.post("/{session_id}/export-sammel")
+async def sammel_starten(session_id: int, auftrag: SammelAuftrag):
+    """Startet den Sammel-Export. Läuft schon einer, bleibt es bei dem — ein zweiter
+    Klick (auch von einem anderen Gerät) startet nichts doppelt."""
+    if _sammel_stand(session_id)["laeuft"]:
+        return {**_sammel_stand(session_id), "schon_laufend": True}
+    if not auftrag.ids:
+        raise HTTPException(status_code=400, detail=uebersetze("Keine Tracks gewählt"))
+    _sammel[session_id] = {"laeuft": True, "fertig": 0, "gesamt": len(auftrag.ids),
+                           "aktuell": None, "fehler": [],
+                           "start": datetime.now().isoformat(timespec="seconds")}
+    _sammel_tasks[session_id] = asyncio.create_task(_sammel_abarbeiten(session_id, auftrag))
+    return _sammel_stand(session_id)
+
+
+@router.get("/{session_id}/export-sammel")
+async def sammel_status(session_id: int):
+    return _sammel_stand(session_id)
