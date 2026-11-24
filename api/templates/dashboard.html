@@ -5,6 +5,8 @@
 function dashboard() {
     return {
         streaming: false,
+        uebersetzung: false,
+        uebersetzungBereit: false,
         toast: null,
         toastTimer: null,
 
@@ -132,6 +134,38 @@ function checklistBadge() {
                     class="btn w-full min-h-14 text-base bg-white/[0.06] text-zinc-100 hover:bg-white/10">
                 <span class="w-3 h-3 rounded-sm bg-zinc-300"></span>
                 {{ t("Stream stoppen") }}
+            </button>
+        </div>
+    </section>
+
+    <!-- ÜBERSETZUNG — Deutsch zum Übersetzer, Russisch zurück auf Dante. Eigener Knopf:
+         läuft unabhängig vom Stream. -->
+    <section class="card flex flex-col">
+        <div class="eyebrow">{{ t("Übersetzung") }}</div>
+        <div id="uebersetzung-status" class="mt-4"
+             hx-get="/api/uebersetzung/status"
+             hx-trigger="load, every 2s"
+             hx-swap="innerHTML">
+            {% include "partials/uebersetzung_status.html" %}
+        </div>
+        <div class="mt-5" x-show="uebersetzungBereit || uebersetzung" x-cloak>
+            <button x-show="!uebersetzung"
+                    hx-post="/api/uebersetzung/start"
+                    hx-target="#uebersetzung-status"
+                    hx-swap="innerHTML"
+                    @htmx:response-error="notify(tr('Übersetzung konnte nicht starten:') + ' ' + errorDetail($event.detail.xhr))"
+                    class="btn w-full min-h-14 text-base bg-emerald-600 text-white hover:bg-emerald-500">
+                <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9.5-5.5z"/></svg>
+                {{ t("Übersetzung starten") }}
+            </button>
+            <button x-show="uebersetzung" x-cloak
+                    hx-post="/api/uebersetzung/stop"
+                    hx-target="#uebersetzung-status"
+                    hx-swap="innerHTML"
+                    @htmx:response-error="notify(tr('Übersetzung konnte nicht stoppen:') + ' ' + errorDetail($event.detail.xhr))"
+                    class="btn w-full min-h-14 text-base bg-white/[0.06] text-zinc-100 hover:bg-white/10">
+                <span class="w-3 h-3 rounded-sm bg-zinc-300"></span>
+                {{ t("Übersetzung stoppen") }}
             </button>
         </div>
     </section>

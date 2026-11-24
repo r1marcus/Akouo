@@ -30,6 +30,8 @@ from recorder import ContinuousRecorder
 from rueckspiel import Rueckspiel, RueckspielFehler
 from streamer import StreamAdapter, public_target
 from telefon import TelefonAdapter
+import uebersetzung as uebersetzung_modul
+from uebersetzung import Uebersetzung
 import online as online_modul
 import dienst
 import vermeldungen as vermeldungen_modul
@@ -52,6 +54,7 @@ async def lifespan(app: FastAPI):
     yield
     monitor.cancel()
     await telefon.stoppe()   # auflegen, statt die Konferenz mit einem toten Teilnehmer zu belassen
+    await asyncio.to_thread(uebersetzung.stoppen)   # ffmpeg und srt nicht verwaist zurücklassen
     # Die WAV-Kopfzeile schreiben, BEVOR der Eingang zugeht. Ohne das steht beim
     # Entladen des Dienstes waehrend einer Aufnahme nframes=0 im Kopf — die Daten sind
     # da, aber jeder Player sieht eine leere Datei. Der SIGTERM-Handler weiter unten
@@ -70,6 +73,7 @@ auto_modus = AutoModus(continuous_recorder)  # erkennt Beiträge, schreibt aber 
 nas_client = NASClient(config)              # Phase 7
 transcriber = LiveTranscriber()             # live transcription
 rueckspiel = Rueckspiel(continuous_recorder, config.blocksize, config.sample_rate)
+uebersetzung = Uebersetzung(continuous_recorder)  # Deutsch zum Übersetzer, Russisch auf Dante
 
 
 @app.get("/healthz")
@@ -912,6 +916,31 @@ async def streaming_status():
         "channels": config.stream_channels,
         "telefon": telefon.status(),
     }
+
+
+# ─── Übersetzer-Strecke ────────────────────────────────────────────────────
+# Eigener Knopf, unabhängig vom Livestream: Der Übersetzer braucht das Deutsch auch dann,
+# wenn gerade nicht gestreamt wird, und ein Stream-Stopp darf ihn nicht abhängen.
+
+@app.post("/api/uebersetzung/start")
+async def uebersetzung_start():
+    if not uebersetzung.eingerichtet():
+        raise HTTPException(status_code=409, detail=uebersetzung_modul.MELDUNG_NICHT_EINGERICHTET)
+    ergebnis = await asyncio.to_thread(uebersetzung.starten)
+    if ergebnis.get("status") == uebersetzung_modul.FEHLER:
+        raise HTTPException(status_code=409,
+                            detail=uebersetzung_modul.MELDUNGEN.get(ergebnis.get("grund"), "Fehler"))
+    return ergebnis
+
+
+@app.post("/api/uebersetzung/stop")
+async def uebersetzung_stop():
+    return await asyncio.to_thread(uebersetzung.stoppen)
+
+
+@app.get("/api/uebersetzung/status")
+async def uebersetzung_status():
+    return uebersetzung.status()
 
 
 # ─── Vermeldungen: lesen, hochladen, zurücknehmen ──────────────────────────

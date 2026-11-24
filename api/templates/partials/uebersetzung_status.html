@@ -1,0 +1,79 @@
+{# Übersetzer-Strecke. Kontext: ue (dict vom Audio-Dienst, siehe audio_service/uebersetzung.py). #}
+{# x-init gleicht die Knöpfe des Dashboards bei jedem Abruf mit dem echten Zustand ab. #}
+{% set ue = ue | default({'status': 'nicht_eingerichtet', 'configured': False}) %}
+{% set us = ue.get('status') %}
+{% set bereit = ue.get('configured') and us != 'nicht_eingerichtet' and ue.get('grund') != 'dienst' %}
+{% set gruende = {
+    'ffmpeg_fehlt': t('ffmpeg ist nicht installiert'),
+    'srt_fehlt': t('srt-live-transmit ist nicht installiert'),
+    'dienst': t('Audio-Dienst nicht erreichbar'),
+    'keine_verbindung': t('Server nicht erreichbar'),
+    'abgebrochen': t('Verbindung abgebrochen'),
+    'start': t('ffmpeg startet nicht'),
+} %}
+<div x-init="uebersetzung = {{ 'true' if ue.get('aktiv') else 'false' }}; uebersetzungBereit = {{ 'true' if bereit else 'false' }}">
+<div class="flex items-start gap-3">
+    <span class="mt-2.5 w-2.5 h-2.5 rounded-full shrink-0
+        {% if us == 'laeuft' %}bg-emerald-500 animate-pulse shadow-[0_0_12px_2px_rgba(16,185,129,0.45)]
+        {% elif us == 'verbindet' %}bg-amber-400 animate-pulse
+        {% elif us in ('fehler', 'nicht_eingerichtet') %}bg-amber-400
+        {% else %}bg-zinc-600{% endif %}">
+    </span>
+    <div class="min-w-0">
+        <div class="text-2xl font-semibold tracking-tight
+            {% if us == 'laeuft' %}text-emerald-400
+            {% elif us in ('verbindet', 'fehler', 'nicht_eingerichtet') %}text-amber-400
+            {% else %}text-zinc-300{% endif %}">
+            {% if us == 'nicht_eingerichtet' %}{{ t("Nicht eingerichtet") }}
+            {% elif us == 'laeuft' %}{{ t("Läuft") }}
+            {% elif us == 'verbindet' %}{{ t("Verbindet…") }}
+            {% elif us == 'fehler' %}{{ t("Fehler") }}
+            {% else %}{{ t("Aus") }}{% endif %}
+        </div>
+        <div class="mt-0.5 text-sm text-zinc-500 break-words">
+            {% if us == 'nicht_eingerichtet' %}
+                {{ t("UEBERSETZUNG_SERVER und Passphrase in der .env des Audio-Dienstes fehlen") }}
+            {% elif ue.get('grund') in gruende %}
+                {{ gruende[ue.get('grund')] }}{% if ue.get('aktiv') %} · {{ t("neuer Versuch läuft") }}{% endif %}
+            {% elif us == 'aus' %}
+                {{ t("Deutsch zum Übersetzer, Russisch zurück auf Dante") }}
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% if ue.get('aktiv') %}
+<div class="mt-3 pt-3 border-t border-white/[0.06] grid gap-2 text-sm">
+    <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full shrink-0 {% if ue.get('sendet_deutsch') %}bg-emerald-500{% else %}bg-amber-400 animate-pulse{% endif %}"></span>
+        <span class="{% if ue.get('sendet_deutsch') %}text-zinc-300{% else %}text-amber-400{% endif %}">
+            {% if ue.get('sendet_deutsch') %}{{ t("Sendet Deutsch") }}{% else %}{{ t("Deutsch: verbindet…") }}{% endif %}
+        </span>
+    </div>
+    <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full shrink-0 {% if ue.get('uebersetzer_verbunden') %}bg-emerald-500{% else %}bg-zinc-600{% endif %}"></span>
+        <span class="{% if ue.get('uebersetzer_verbunden') %}text-zinc-300{% else %}text-zinc-500{% endif %}">
+            {% if ue.get('uebersetzer_verbunden') %}{{ t("Übersetzer verbunden") }}{% else %}{{ t("Übersetzer nicht verbunden") }}{% endif %}
+        </span>
+    </div>
+    {% if ue.get('uebersetzer_verbunden') and ue.get('pegel_ru_db') is not none %}
+    {% set db = ue.get('pegel_ru_db') %}
+    {% set breite = [[(db + 60) / 60 * 100, 0] | max, 100] | min %}
+    <div class="flex items-center gap-2">
+        <span class="text-xs text-zinc-500 shrink-0">{{ t("Pegel Russisch") }}</span>
+        <div class="h-2 w-full rounded-full bg-white/[0.06] overflow-hidden">
+            <div class="h-2 bg-emerald-500" style="width: {{ '%.0f' % breite }}%"></div>
+        </div>
+        <span class="text-xs text-zinc-500 font-mono tabular-nums shrink-0">{{ '%.0f' % db }} dB</span>
+    </div>
+    {% endif %}
+    {% if not ue.get('dante_ausgabe') %}
+    <div class="text-amber-400">
+        {{ t("Russisch wird nicht auf Dante ausgegeben") }} ·
+        {% if ue.get('dante_grund') == 'keine_kanaele' %}{{ t("UEBERSETZUNG_KANAELE ist nicht gesetzt") }}{% else %}{{ t("Ausgang nicht geöffnet") }}{% endif %}
+    </div>
+    {% elif ue.get('kanaele') %}
+    <div class="text-zinc-500">{{ t("Russisch auf Dante") }} {{ ue.get('kanaele') | join('+') }}</div>
+    {% endif %}
+</div>
+{% endif %}
+</div>
