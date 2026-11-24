@@ -1070,6 +1070,80 @@ Uhrzeit) — früher eine Textdatei je Modus und Jahr auf dem Desktop.
 
 ---
 
+## 5k. Übersetzung (Russisch, optional)
+
+Ein Übersetzer arbeitet von außerhalb. Er hört den **Stream-Mix** (dieselben Kanäle wie
+Livestream und Telefon, `AUDIO_STREAM_CHANNELS`) mit weniger als einer Sekunde Verzögerung im
+Browser und spricht seine Übersetzung in die Seite `/uebersetzen` der Gemeinde-App. Seine
+Stimme kommt im Saal auf **eigenen Dante-Ausgängen** an, beide mit demselben Mono-Signal.
+
+```
+Stream-Paar → Audio-Dienst → ffmpeg (Opus) → srt-live-transmit ──SRT──▶ Medienserver „de“ ──▶ Übersetzer hört
+Dante 63+64 ◀ Audio-Dienst ◀ ffmpeg ◀ srt-live-transmit ◀──SRT── Medienserver „ru“ ◀── Übersetzer spricht
+```
+
+Der Mac baut beide Verbindungen selbst nach außen auf, am Router wird nichts freigegeben. Der
+Ton für Dante geht über den **einen** Duplex-Strom des Audio-Dienstes hinaus, wie beim
+Rückspiel (5h) — kein zweiter Strom auf die Dante-Karte.
+
+**Einrichten, einmalig:**
+
+1. `brew install ffmpeg srt` — das ffmpeg aus Homebrew kann selbst kein SRT mehr, deshalb
+   übernimmt `srt-live-transmit` die Verbindung.
+2. In `audio_service/.env` stehen `UEBERSETZUNG_SERVER`, `UEBERSETZUNG_SRT_PASSPHRASE`,
+   `UEBERSETZUNG_MAC_USER` und `UEBERSETZUNG_MAC_PASS` (Vorlage in `.env.example`). Fehlen
+   Server oder Passphrase, zeigt die Karte „Nicht eingerichtet“.
+3. Die Ausgänge für das Russisch eintragen, 1-basiert:
+   ```
+   UEBERSETZUNG_KANAELE=63,64
+   ```
+   Leer heißt: Deutsch wird trotzdem gesendet, das Russisch aber nirgends ausgegeben — die
+   Karte sagt das in Orange.
+4. Im Dante Controller die DVS-Ausgänge 63 und 64 benennen („RU Übersetzung“) und auf den
+   Pult-Eingang routen, an dem das Russisch ankommen soll.
+5. Den Audio-Dienst neu starten — **nur, wenn keine Aufnahme läuft**
+   (`curl -s localhost:8001/api/session/status` muss `"state":"idle"` zeigen). Erst dabei wird
+   der Dante-Strom als Duplex geöffnet; mitten in einer Aufnahme wechselt er nie die Art.
+   Danach steht im Log `[input] input open: … Übersetzung [63, 64]`.
+
+**Bedienen:** Im Dashboard unter dem Stream liegt die Karte **Übersetzung** mit eigenem Knopf.
+Sie läuft unabhängig vom Livestream — Stream starten oder stoppen fasst sie nicht an.
+
+| Anzeige | Bedeutung |
+|---|---|
+| *Läuft* · Sendet Deutsch | Der Übersetzer kann hören. |
+| *Verbindet…* · Deutsch: verbindet… | Server noch nicht erreicht; es wird von selbst weiter versucht. |
+| Übersetzer verbunden, Pegelbalken | Sein Russisch kommt an und liegt auf Dante. |
+| Übersetzer nicht verbunden | Er sendet (noch) nicht. Normal vor dem Gottesdienst — der Dienst fragt alle paar Sekunden still nach. |
+| Russisch wird nicht auf Dante ausgegeben | `UEBERSETZUNG_KANAELE` fehlt, oder die Karte hat nicht genug Ausgänge. Deutsch läuft trotzdem. |
+
+- Bricht eine Richtung ab, verbindet der Dienst von selbst neu (nach 2, 5, dann alle
+  10 Sekunden). Kommt vom Übersetzer 15 Sekunden lang gar nichts mehr, wird die Leitung neu
+  aufgebaut.
+- Das Russisch wird nicht aufgenommen und nirgends gespeichert.
+- Verzögerung im Saal: SRT puffert 120 ms, dazu höchstens etwa 170 ms Puffer am Ausgang. Staut
+  sich mehr an, fällt das Älteste weg — der Übersetzer wird im Saal nicht immer später.
+
+> **Achtung, Rückkopplung.** Die Übersetzungs-Ausgänge nie auf das Stream-Paar oder in eine
+> Summe routen, die ins Stream-Paar geht. Sonst hört der Übersetzer sich selbst mit
+> Verzögerung.
+
+**Fehlersuche:**
+
+- *ffmpeg / srt-live-transmit ist nicht installiert* — Schritt 1. Der Audio-Dienst findet
+  Programme über den `PATH` aus seinem launchd-Plist; `/opt/homebrew/bin` muss darin stehen.
+- *Server nicht erreichbar* — Internet des Macs, Adresse in `UEBERSETZUNG_SERVER`, oder UDP 8890
+  ist gesperrt. Falsche Passphrase oder falsches Mac-Konto sehen genauso aus.
+- Strecke ohne Dienst-Neustart prüfen (Knopf vorher auf **aus**, sonst senden zwei auf „de“;
+  der Übersetzer hört dabei einen 440-Hz-Ton):
+  ```bash
+  ~/akouo-audio-venv/bin/python audio_service/scripts/pruefe_uebersetzung.py --sekunden 20
+  ```
+  Die Zeilen zeigen, ob Deutsch gesendet wird und ob vom Übersetzer etwas ankommt.
+  Zugangsdaten erscheinen nirgends im Klartext, auch nicht im Log.
+
+---
+
 ## 6. Frontend ändern
 
 Kein Node/npm. Tailwind CSS v4 als eigenständiges Programm im Repo-Wurzelverzeichnis.
@@ -1275,6 +1349,7 @@ doch: Schalter aus und wieder an.
 | Dashboard sieht kaputt aus (schwarze Schrift, riesige Symbole) | CSS neu bauen (Abschnitt 6); Seite neu laden. |
 | Klick auf einen Knopf bewirkt nichts | Seite neu laden (⌘R) — nach Updates kann eine alte Version im Tab laufen. `~/Library/Logs/Akouo/api.log` zeigt, ob die Anfrage ankommt. |
 | Browser öffnet sich nach dem Neustart nicht | Automatische Anmeldung aktiv? `~/Library/Logs/Akouo/dashboard.log` prüfen. |
+| Übersetzung: „Russisch wird nicht auf Dante ausgegeben“ | `UEBERSETZUNG_KANAELE` fehlt in `audio_service/.env`, oder der Audio-Dienst wurde danach nicht neu gestartet (Abschnitt 5k). |
 
 ---
 

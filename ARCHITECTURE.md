@@ -60,6 +60,9 @@ one `sounddevice.InputStream` for the entire service and fans the audio out from
 - the same pair feeds a second FFmpeg for the local monitor bus, which has none of Icecast's delay
 - RMS values drive the dashboard level meter
 - ten-second chunks go to whisper.cpp for the live transcript
+- the stream pair also feeds the interpreter link (`uebersetzung.py`): Opus over SRT to a media
+  server, and the interpreter's voice comes back on dedicated output channels of the **same**
+  stream, which is then opened as duplex — together with playback (`AUDIO_OUTPUT_CHANNELS`)
 
 A second process opening the same device desynchronises the streams and causes dropouts. This was
 found the hard way: an earlier design had a separate streaming service with its own capture, and

@@ -505,6 +505,29 @@ noch nicht an zwei echten Rechnern.
 
 Details in [betrieb.md](betrieb.md), Abschnitt 5j.
 
+## 2l. Übersetzer-Strecke — gebaut, nicht in Betrieb (24. November 2026)
+
+Der russische Übersetzer soll nicht mehr den Livestream (10 bis 30 s Verzögerung) hören und
+über LiveVoice zurücksenden. Server und App-Seite laufen seit dem 9. November
+(siehe [plan-uebersetzung.md](plan-uebersetzung.md)); jetzt ist auch die Mac-Seite gebaut
+(`audio_service/uebersetzung.py`, Bedienung in [betrieb.md, Abschnitt 5k](betrieb.md)):
+
+- Eigener Knopf **Übersetzung** im Dashboard, unabhängig vom Stream.
+- Hinweg: Stream-Mix → ffmpeg (Opus mono, 48 kbit/s) → `srt-live-transmit` → Pfad `de`.
+- Rückweg: Pfad `ru` → ffmpeg → kleiner Puffer → **ein** Duplex-Strom mit Rückspiel zusammen
+  auf `UEBERSETZUNG_KANAELE` (vorgesehen 63+64). Überschneiden sich Rückspiel- und
+  Übersetzungskanäle, wird addiert und begrenzt.
+- Neuverbinden in beiden Richtungen, ohne das Log zu füllen, solange niemand übersetzt.
+
+Getestet: Ausgangsmischung, Abgriff, Lebenslauf mit nachgespieltem ffmpeg/srt, API-Routen und Texte (40 Tests), dazu
+am 24.11. über das Internet: der Sendebefehl lief 30 s stabil verbunden auf `de`, das Lesen von
+`ru` ohne Sender wurde abgelehnt und alle 5 s still neu versucht. Noch nicht getestet: der
+Duplex-Strom mit `UEBERSETZUNG_KANAELE` an der echten DVS und ein echter Übersetzer im
+Gottesdienst.
+
+**Aktivieren** (außerhalb jeder Aufnahme): Zweig einspielen, `UEBERSETZUNG_KANAELE=63,64` in
+`audio_service/.env`, Audio-Dienst und API neu starten, CSS ist unverändert. Keine Migration.
+
 ---
 
 ## 3. Ablauf im Gottesdienst
