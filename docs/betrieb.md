@@ -1101,10 +1101,30 @@ Rückspiel (5h) — kein zweiter Strom auf die Dante-Karte.
    Karte sagt das in Orange.
 4. Im Dante Controller die DVS-Ausgänge 63 und 64 benennen („RU Übersetzung“) und auf den
    Pult-Eingang routen, an dem das Russisch ankommen soll.
-5. Den Audio-Dienst neu starten — **nur, wenn keine Aufnahme läuft**
-   (`curl -s localhost:8001/api/session/status` muss `"state":"idle"` zeigen). Erst dabei wird
-   der Dante-Strom als Duplex geöffnet; mitten in einer Aufnahme wechselt er nie die Art.
-   Danach steht im Log `[input] input open: … Übersetzung [63, 64]`.
+5. Beim ersten Einspielen dieser Version **beide** Dienste neu starten — die API kennt die
+   Routen `/api/uebersetzung/*` erst danach (sie ist ein LaunchDaemon, also mit `sudo`).
+   Nur, wenn keine Aufnahme läuft und Stream, Telefon und Übersetzung aus sind
+   (`curl -s localhost:8001/api/session/status` muss `"state":"idle"` zeigen):
+   ```bash
+   launchctl bootout gui/$(id -u)/de.akouo.audio
+   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/de.akouo.audio.plist
+   sudo launchctl bootout system/de.akouo.api
+   sudo launchctl bootstrap system /Library/LaunchDaemons/de.akouo.api.plist
+   ```
+   Für spätere Änderungen an `UEBERSETZUNG_KANAELE` reicht der Audio-Dienst. Erst beim Start
+   wird der Dante-Strom als Duplex geöffnet; mitten in einer Aufnahme wechselt er nie die Art.
+6. **Prüfen** (`~/Library/Logs/Akouo/audio.log`): Dort muss
+   `[input] input open: … Übersetzung [63, 64]` stehen, und der Pegel im Dashboard muss
+   laufen. Steht stattdessen `AUSGANG NICHT VERFÜGBAR`, hat der Dienst den Duplex nicht
+   bekommen und nimmt **nur den Eingang** — die Aufnahme geht, das Russisch nicht; die Karte
+   zeigt „Dante-Ausgang nicht verfügbar“. Ein neuer Versuch passiert erst beim nächsten
+   Neustart.
+
+**Rückbau**, wenn nach dem Neustart die Zeile oben fehlt, der Aufnahme-Eingang fehlt
+(„Kein Eingang“) oder es knackt: in `audio_service/.env` die Zeile auf
+`UEBERSETZUNG_KANAELE=` leeren (oder über *Einstellungen → Audio-Dienst → Kanäle
+Übersetzung*) und nur den Audio-Dienst neu starten. Dann läuft der Strom wie vorher als
+reiner Eingang; Deutsch zum Übersetzer geht weiterhin.
 
 **Bedienen:** Im Dashboard unter dem Stream liegt die Karte **Übersetzung** mit eigenem Knopf.
 Sie läuft unabhängig vom Livestream — Stream starten oder stoppen fasst sie nicht an.
@@ -1115,7 +1135,7 @@ Sie läuft unabhängig vom Livestream — Stream starten oder stoppen fasst sie 
 | *Verbindet…* · Deutsch: verbindet… | Server noch nicht erreicht; es wird von selbst weiter versucht. |
 | Übersetzer verbunden, Pegelbalken | Sein Russisch kommt an und liegt auf Dante. |
 | Übersetzer nicht verbunden | Er sendet (noch) nicht. Normal vor dem Gottesdienst — der Dienst fragt alle paar Sekunden still nach. |
-| Russisch wird nicht auf Dante ausgegeben | `UEBERSETZUNG_KANAELE` fehlt, oder die Karte hat nicht genug Ausgänge. Deutsch läuft trotzdem. |
+| Russisch wird nicht auf Dante ausgegeben | `UEBERSETZUNG_KANAELE` fehlt, oder der Duplex ließ sich nicht öffnen („Dante-Ausgang nicht verfügbar“, siehe Schritt 6). Deutsch läuft trotzdem. |
 
 - Bricht eine Richtung ab, verbindet der Dienst von selbst neu (nach 2, 5, dann alle
   10 Sekunden). Kommt vom Übersetzer 15 Sekunden lang gar nichts mehr, wird die Leitung neu
@@ -1135,12 +1155,21 @@ Sie läuft unabhängig vom Livestream — Stream starten oder stoppen fasst sie 
 - *Server nicht erreichbar* — Internet des Macs, Adresse in `UEBERSETZUNG_SERVER`, oder UDP 8890
   ist gesperrt. Falsche Passphrase oder falsches Mac-Konto sehen genauso aus.
 - Strecke ohne Dienst-Neustart prüfen (Knopf vorher auf **aus**, sonst senden zwei auf „de“;
-  der Übersetzer hört dabei einen 440-Hz-Ton):
+  der Übersetzer hört dabei einen 440-Hz-Ton). Auf diesem Rechner heißt das venv
+  `~/tontechnik-audio-venv`, auf neu eingerichteten `~/akouo-audio-venv`:
   ```bash
-  ~/akouo-audio-venv/bin/python audio_service/scripts/pruefe_uebersetzung.py --sekunden 20
+  export PATH=/opt/homebrew/bin:$PATH
+  ~/tontechnik-audio-venv/bin/python audio_service/scripts/pruefe_uebersetzung.py --sekunden 20
   ```
+  Die `.env` kommt aus `--env PFAD`, sonst aus `AKOUO_AUDIO_ENV`, sonst aus
+  `audio_service/.env` neben dem Skript. Aus einem zweiten Checkout (Worktree) ohne eigene
+  `.env` also `--env ~/Code/Tontechnik/audio_service/.env` angeben.
   Die Zeilen zeigen, ob Deutsch gesendet wird und ob vom Übersetzer etwas ankommt.
-  Zugangsdaten erscheinen nirgends im Klartext, auch nicht im Log.
+  Zugangsdaten erscheinen in den Meldungen nicht im Klartext.
+- **Passphrase in den Prozessargumenten.** `srt-live-transmit` nimmt Passphrase und Konto nur
+  in der SRT-Adresse auf der Kommandozeile. Wer auf dem Mac angemeldet ist, sieht sie also
+  mit `ps`. Auf dem Gemeinde-Mac mit einem Benutzer ist das hinnehmbar; Meldungen und Log
+  bekommen sie nur geschwärzt.
 
 ---
 
@@ -1349,7 +1378,7 @@ doch: Schalter aus und wieder an.
 | Dashboard sieht kaputt aus (schwarze Schrift, riesige Symbole) | CSS neu bauen (Abschnitt 6); Seite neu laden. |
 | Klick auf einen Knopf bewirkt nichts | Seite neu laden (⌘R) — nach Updates kann eine alte Version im Tab laufen. `~/Library/Logs/Akouo/api.log` zeigt, ob die Anfrage ankommt. |
 | Browser öffnet sich nach dem Neustart nicht | Automatische Anmeldung aktiv? `~/Library/Logs/Akouo/dashboard.log` prüfen. |
-| Übersetzung: „Russisch wird nicht auf Dante ausgegeben“ | `UEBERSETZUNG_KANAELE` fehlt in `audio_service/.env`, oder der Audio-Dienst wurde danach nicht neu gestartet (Abschnitt 5k). |
+| Übersetzung: „Russisch wird nicht auf Dante ausgegeben“ | `UEBERSETZUNG_KANAELE` fehlt in `audio_service/.env`, oder der Audio-Dienst wurde danach nicht neu gestartet, oder „Dante-Ausgang nicht verfügbar“: Duplex gescheitert, Log zeigt `AUSGANG NICHT VERFÜGBAR` (Abschnitt 5k, Rückbau). |
 
 ---
 

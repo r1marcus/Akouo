@@ -519,14 +519,18 @@ Der russische Übersetzer soll nicht mehr den Livestream (10 bis 30 s Verzögeru
   Übersetzungskanäle, wird addiert und begrenzt.
 - Neuverbinden in beiden Richtungen, ohne das Log zu füllen, solange niemand übersetzt.
 
-Getestet: Ausgangsmischung, Abgriff, Lebenslauf mit nachgespieltem ffmpeg/srt, API-Routen und Texte (40 Tests), dazu
+Getestet: Ausgangsmischung, Abgriff, Lebenslauf mit nachgespieltem ffmpeg/srt, API-Routen und Texte (über 50 Tests), dazu
 am 24.11. über das Internet: der Sendebefehl lief 30 s stabil verbunden auf `de`, das Lesen von
 `ru` ohne Sender wurde abgelehnt und alle 5 s still neu versucht. Noch nicht getestet: der
 Duplex-Strom mit `UEBERSETZUNG_KANAELE` an der echten DVS und ein echter Übersetzer im
 Gottesdienst.
 
+Scheitert das Öffnen des Duplex, fällt der Dienst sofort auf den reinen Eingang zurück
+(Aufnahme hat Vorrang) und probiert es bis zum nächsten Neustart nicht wieder.
+
 **Aktivieren** (außerhalb jeder Aufnahme): Zweig einspielen, `UEBERSETZUNG_KANAELE=63,64` in
-`audio_service/.env`, Audio-Dienst und API neu starten, CSS ist unverändert. Keine Migration.
+`audio_service/.env`, Audio-Dienst **und** API (`sudo`, LaunchDaemon) neu starten, CSS ist
+unverändert. Keine Migration. Schritte und Rückbau in betrieb.md, Abschnitt 5k.
 
 ---
 

@@ -137,3 +137,17 @@ def test_meldungen_des_audio_dienstes_stehen_im_katalog():
         katalog = json.loads((wurzel / "api" / "sprachen" / f"{code}.json").read_text())
         fehlend = [s for s in saetze if not katalog.get(s)]
         assert not fehlend, f"{code}: {fehlend}"
+
+
+def test_karte_meldet_fehlenden_dante_ausgang(app_client):
+    daten = {**LAEUFT, "dante_ausgabe": False, "dante_grund": "ausgang_fehlt",
+             "ausgang_fehler": "duplex_fehlgeschlagen"}
+    p, _ = _httpx(get=_antwort(200, daten))
+    with p:
+        r = app_client.get("/api/uebersetzung/status", headers={"HX-Request": "true"})
+    assert "Dante-Ausgang nicht verfügbar" in r.text
+
+
+def test_neustart_sperre_kennt_die_uebersetzung():
+    from routers import dienste
+    assert dienste.LAEUFT["uebersetzung"] == "Übersetzung"

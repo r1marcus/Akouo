@@ -47,6 +47,9 @@ UMGEBUNG: tuple[Wert, ...] = (
     Wert("AUDIO_OUTPUT_CHANNELS", "Kanäle Rückspiel", "Gerätekanäle für das Abspielen über "
          "Dante, 1-basiert, durch Komma. Leer = nur Eingang. Im Dante Controller nie auf "
          "die aufgenommenen Kanäle zurückführen — Rückkopplung. Wirkt nach Neustart.", "", r"(\d{1,3}(,\d{1,3})*)?"),
+    Wert("UEBERSETZUNG_KANAELE", "Kanäle Übersetzung", "Dante-Ausgänge für das Russisch des "
+         "Übersetzers, 1-basiert, durch Komma, z. B. 63,64. Leer = nicht auf Dante ausgeben. "
+         "Nie auf das Stream-Paar zurückführen. Wirkt nach Neustart.", "", r"(\d{1,3}(,\d{1,3})*)?"),
     Wert("AUDIO_SAMPLE_RATE", "Abtastrate", "Muss zur Soundkarte passen; Dante läuft meist auf 48000.",
          "48000", r"(44100|48000|96000)"),
     Wert("TRANSCRIBE_ENABLED", "Live-Transkript", "1 = an, 0 = aus.", "1", r"[01]"),

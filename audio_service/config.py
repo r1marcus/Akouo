@@ -1,4 +1,6 @@
+import logging
 import os
+import re
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional, Union
@@ -7,6 +9,34 @@ from typing import Optional, Union
 def _channel_list(env_var: str, default: str) -> list:
     """1-based device channel numbers from a comma list, e.g. AUDIO_RECORD_CHANNELS=44,45"""
     return [int(c) for c in os.environ.get(env_var, default).replace(" ", "").split(",") if c]
+
+
+_log = logging.getLogger(__name__)
+
+
+def _kanaele_tolerant(env_var: str) -> list:
+    """Kanalliste, die beim Import nie wirft: Komma, Semikolon oder Leerzeichen trennen,
+    doppelte fallen weg. Ein Tippfehler darf den Audio-Dienst nicht am Start hindern —
+    die Aufnahme ist wichtiger. Dann gilt: leer, und eine Warnung steht im Log."""
+    roh = os.environ.get(env_var, "").strip()
+    if not roh:
+        return []
+    teile = [t for t in re.split(r"[,;\s]+", roh) if t]
+    if not all(t.isdigit() and 0 < int(t) <= 512 for t in teile):
+        _log.warning("%s=%r ist keine Kanalliste (z. B. 63,64) — ignoriert", env_var, roh)
+        return []
+    return list(dict.fromkeys(int(t) for t in teile))
+
+
+def _zahl_tolerant(env_var: str, standard: int) -> int:
+    roh = os.environ.get(env_var, "").strip()
+    if not roh:
+        return standard
+    try:
+        return int(roh)
+    except ValueError:
+        _log.warning("%s=%r ist keine Zahl — nehme %d", env_var, roh, standard)
+        return standard
 
 
 def _recordings_dir() -> Path:
@@ -89,7 +119,7 @@ class Config:
     # des Übersetzers zurück (Pfad „ru“) auf eigene Dante-Ausgänge. Ohne Server und
     # Passphrase bleibt der Knopf „nicht eingerichtet“.
     uebersetzung_server: str = field(default_factory=lambda: os.environ.get("UEBERSETZUNG_SERVER", ""))
-    uebersetzung_srt_port: int = field(default_factory=lambda: int(os.environ.get("UEBERSETZUNG_SRT_PORT", "8890")))
+    uebersetzung_srt_port: int = field(default_factory=lambda: _zahl_tolerant("UEBERSETZUNG_SRT_PORT", 8890))
     uebersetzung_srt_passphrase: str = field(default_factory=lambda: os.environ.get("UEBERSETZUNG_SRT_PASSPHRASE", ""))
     # Anmeldung des Macs am Medienserver (in der SRT-streamid). Leer heißt: ohne Nutzer.
     uebersetzung_mac_user: str = field(default_factory=lambda: os.environ.get("UEBERSETZUNG_MAC_USER", ""))
@@ -97,8 +127,7 @@ class Config:
     # Dante-Ausgänge für das Russisch, 1-basiert. Leer heißt: Deutsch wird trotzdem
     # gesendet, das Russisch aber nirgends ausgegeben. Wie AUDIO_OUTPUT_CHANNELS wirkt
     # es nur beim Dienst-Neustart, weil es über die Art des Streams entscheidet.
-    uebersetzung_kanaele: list = field(default_factory=lambda: list(dict.fromkeys(
-        _channel_list("UEBERSETZUNG_KANAELE", ""))))
+    uebersetzung_kanaele: list = field(default_factory=lambda: _kanaele_tolerant("UEBERSETZUNG_KANAELE"))
     uebersetzung_bitrate: str = field(default_factory=lambda: os.environ.get("UEBERSETZUNG_BITRATE", "48k"))
     srt_bin: str = field(default_factory=lambda: os.environ.get("SRT_LIVE_TRANSMIT_BIN", "srt-live-transmit"))
 

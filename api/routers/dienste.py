@@ -32,7 +32,7 @@ GRUENDE = {
     "abgeschaltet": "abgeschaltet",
     "nicht_eingerichtet": "nicht eingerichtet",
 }
-LAEUFT = {"aufnahme": "Aufnahme", "stream": "Stream", "telefon": "Telefon"}
+LAEUFT = {"aufnahme": "Aufnahme", "stream": "Stream", "telefon": "Telefon", "uebersetzung": "Übersetzung"}
 
 
 def _uebersetzt(pruefungen: list[dict]) -> list[dict]:

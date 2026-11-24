@@ -54,7 +54,6 @@ async def lifespan(app: FastAPI):
     yield
     monitor.cancel()
     await telefon.stoppe()   # auflegen, statt die Konferenz mit einem toten Teilnehmer zu belassen
-    await asyncio.to_thread(uebersetzung.stoppen)   # ffmpeg und srt nicht verwaist zurücklassen
     # Die WAV-Kopfzeile schreiben, BEVOR der Eingang zugeht. Ohne das steht beim
     # Entladen des Dienstes waehrend einer Aufnahme nframes=0 im Kopf — die Daten sind
     # da, aber jeder Player sieht eine leere Datei. Der SIGTERM-Handler weiter unten
@@ -62,6 +61,12 @@ async def lifespan(app: FastAPI):
     # und ueberschreibt ihn, er laeuft also nie.
     continuous_recorder.emergency_close()
     continuous_recorder.close_input()
+    # Erst nach dem WAV-Kopf: ffmpeg und srt nicht verwaist zurücklassen, aber höchstens
+    # einige Sekunden — launchd wartet nicht ewig, und die Aufnahme ist schon gesichert.
+    try:
+        await asyncio.wait_for(asyncio.to_thread(uebersetzung.stoppen, 4.0), timeout=6.0)
+    except asyncio.TimeoutError:
+        log.warning("Übersetzung: Stoppen beim Beenden dauerte zu lange")
 
 
 app = FastAPI(title="Akouo Audio-Dienst", version="2.0.0", lifespan=lifespan)
@@ -631,7 +636,8 @@ async def session_rueckspiel_stop():
 
 @app.get("/api/session/rueckspiel")
 async def session_rueckspiel_status():
-    return {"eingerichtet": bool(config.output_channels), **rueckspiel.status()}
+    return {"eingerichtet": bool(config.output_channels), **rueckspiel.status(),
+            "ausgang_fehler": continuous_recorder.ausgang_fehler()}
 
 
 class ExportRequest(BaseModel):
@@ -1055,6 +1061,8 @@ def _was_laeuft() -> list[str]:
         laeuft.append("stream")
     if telefon.aktiv():
         laeuft.append("telefon")
+    if uebersetzung.aktiv():
+        laeuft.append("uebersetzung")
     return laeuft
 
 

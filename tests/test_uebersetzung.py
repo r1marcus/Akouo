@@ -287,7 +287,9 @@ def test_maskiere_entfernt_zugangsdaten_roh_und_kodiert(ue):
 # ─── Lebenslauf mit falschem ffmpeg und srt-live-transmit ──────────────────
 
 FALSCHES_FFMPEG = """#!{py}
-import os, sys
+import os, signal, sys
+if os.environ.get("FALSCH_STUR"):
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)     # beendet sich nicht freiwillig
 while True:
     daten = os.read(0, 65536)
     if not daten:
@@ -417,7 +419,7 @@ def test_sendet_deutsch_und_stoppt_sauber(falsch, ue):
         st = u.stoppen()
     assert st["status"] == "aus" and not st["aktiv"]
     assert not recorder.uebersetzung_enabled.is_set()
-    assert u._hin is None and u._rueck is None and u._threads == []
+    assert u._lauf is None
 
 
 def test_ohne_uebersetzer_wird_still_neu_verbunden(falsch, ue, caplog):
@@ -472,8 +474,8 @@ def test_zugangsdaten_erscheinen_nicht_in_meldungen(falsch, ue):
     u = ue.Uebersetzung(_Recorder())
     u.starten()
     try:
-        assert _warte(lambda: u._hin is not None and u._hin.meldungen)
-        meldungen = " ".join(u._hin.meldungen)
+        assert _warte(lambda: u._lauf.hin is not None and u._lauf.hin.meldungen)
+        meldungen = " ".join(u._lauf.hin.meldungen)
     finally:
         u.stoppen()
     assert "Media path" in meldungen
@@ -491,6 +493,197 @@ def test_ohne_dante_ausgang_wird_trotzdem_gesendet(falsch, ue, monkeypatch):
         assert st["dante_ausgabe"] is False and st["dante_grund"] == "keine_kanaele"
     finally:
         u.stoppen()
+
+
+def _faden_der_strecke() -> list:
+    import threading
+    return [t for t in threading.enumerate() if t.is_alive()
+            and t.name in ("uebersetzung-de", "uebersetzung-ru", "uebersetzung-aufpasser")]
+
+
+def _prozesse(ordner: Path) -> str:
+    import subprocess
+    return subprocess.run(["pgrep", "-f", str(ordner)], capture_output=True, text=True).stdout.strip()
+
+
+def test_paralleler_doppelstart_ergibt_genau_einen_lauf(falsch, ue):
+    import threading
+    u = ue.Uebersetzung(_Recorder())
+    sperre = threading.Barrier(8)
+
+    def drueck():
+        sperre.wait()
+        u.starten()
+    faeden = [threading.Thread(target=drueck) for _ in range(8)]
+    for f in faeden:
+        f.start()
+    for f in faeden:
+        f.join()
+    try:
+        assert len(_faden_der_strecke()) == 3
+        assert _warte(lambda: _starts(falsch, "de") >= 1)
+        time.sleep(0.3)
+        assert _starts(falsch, "de") == 1          # nicht acht Sender auf „de“
+    finally:
+        u.stoppen()
+    assert _faden_der_strecke() == []
+    assert _warte(lambda: _prozesse(falsch) == "")
+
+
+def test_start_und_stopp_durcheinander_hinterlassen_nichts(falsch, ue):
+    import random
+    import threading
+    u = ue.Uebersetzung(_Recorder())
+    zufall = random.Random(7)
+
+    def wild():
+        for _ in range(5):
+            (u.starten if zufall.random() < 0.5 else u.stoppen)()
+    faeden = [threading.Thread(target=wild) for _ in range(6)]
+    for f in faeden:
+        f.start()
+    for f in faeden:
+        f.join()
+    if u.aktiv():
+        assert len(_faden_der_strecke()) == 3
+    u.stoppen()
+    assert not u.aktiv()
+    assert _warte(lambda: _faden_der_strecke() == [])
+    assert _warte(lambda: _prozesse(falsch) == "")
+
+
+def test_stoppen_hat_eine_frist(falsch, ue, monkeypatch):
+    monkeypatch.setenv("FALSCH_STUR", "1")
+    u = ue.Uebersetzung(_Recorder())
+    u.starten()
+    assert _warte(lambda: u.status()["sendet_deutsch"])
+    t0 = time.monotonic()
+    u.stoppen(frist=1.0)
+    assert time.monotonic() - t0 < 4.0
+    assert _warte(lambda: _prozesse(falsch) == "")
+
+
+class _GeschlosseneKette:
+    class _Ausgang:
+        def read(self, n):
+            raise ValueError("read of closed file")
+    ausgang = _Ausgang()
+
+
+def test_lesen_nach_fremdem_schliessen_endet_ruhig(ue):
+    u = ue.Uebersetzung(_Recorder())
+    u._lesen(ue._Lauf(), _GeschlosseneKette())      # wirft nicht
+
+
+def test_schleife_ueberlebt_unerwarteten_fehler(ue, monkeypatch, caplog):
+    monkeypatch.setattr(ue, "NEUVERBINDEN_PAUSEN", (0.01,))
+    aufrufe = []
+
+    def schleife(lauf):
+        aufrufe.append(1)
+        if len(aufrufe) < 4:
+            raise RuntimeError("kaputt")
+    with caplog.at_level(logging.WARNING, logger=ue.__name__):
+        ue._robust("test", schleife)(ue._Lauf())
+    assert len(aufrufe) == 4
+    assert len([r for r in caplog.records if "kaputt" in r.getMessage()]) == 1   # keine Flut
+
+
+def test_verbunden_nicht_bei_disconnected(ue):
+    assert ue.VERBUNDEN_MUSTER.search("SRT target connected")
+    assert ue.VERBUNDEN_MUSTER.search("SRT source connected")
+    assert not ue.VERBUNDEN_MUSTER.search("SRT target disconnected")
+    assert not ue.VERBUNDEN_MUSTER.search("not connected")
+
+
+def test_kurzer_nutzername_zerhackt_keine_meldung(ue):
+    assert ue.maskiere("macht nichts, connected") == "macht nichts, connected"
+
+
+# ─── Duplex scheitert: Aufnahme hat Vorrang ────────────────────────────────
+
+def test_duplex_scheitert_faellt_auf_eingang_zurueck(cfg):
+    import sounddevice as sd
+    cfg.uebersetzung_kanaele = [63, 64]
+    from recorder import ContinuousRecorder
+    with patch("sounddevice.query_devices") as q, \
+         patch("sounddevice.InputStream") as ein, \
+         patch("sounddevice.Stream", side_effect=sd.PortAudioError("kaputt")) as duplex:
+        q.side_effect = lambda device=None: GERAETE if device is None else GERAETE[device]
+        rec = ContinuousRecorder()
+        assert rec.ensure_input()
+        ein.assert_called_once()
+        assert not rec.uebersetzung_ausgang_bereit()
+        assert rec.ausgang_fehler() == "duplex_fehlgeschlagen"
+        # Eingang verloren und wieder geöffnet: kein neuer Duplex-Versuch
+        rec.close_input()
+        assert rec.ensure_input()
+        assert duplex.call_count == 1
+        assert ein.call_count == 2
+
+
+def test_duplex_start_scheitert_schliesst_und_faellt_zurueck(cfg):
+    from unittest.mock import MagicMock
+    cfg.output_channels = [61, 62]
+    from recorder import ContinuousRecorder
+    kaputt = MagicMock()
+    kaputt.start.side_effect = OSError("start")
+    with patch("sounddevice.query_devices") as q, \
+         patch("sounddevice.InputStream") as ein, \
+         patch("sounddevice.Stream", return_value=kaputt):
+        q.side_effect = lambda device=None: GERAETE if device is None else GERAETE[device]
+        rec = ContinuousRecorder()
+        assert rec.ensure_input()
+    kaputt.close.assert_called_once()
+    ein.assert_called_once()
+    assert not rec.rueckspiel_bereit()
+
+
+def test_leeren_verwirft_auch_den_angefangenen_block(cfg):
+    cfg.uebersetzung_kanaele = [1]
+    rec, _, _ = _oeffnen()
+    rec.uebersetzung_einreihen(_mono(0.5))
+    rec.uebersetzung_einreihen(_mono(0.5))
+    assert np.allclose(_ausgang(rec, 1, frames=512), 0.5)    # halber Block bleibt liegen
+    rec.uebersetzung_ausgang_leeren()
+    assert np.allclose(_ausgang(rec, 1, frames=512), 0.0)
+    assert rec._uebs_rest is None
+
+
+# ─── Einstellungen ─────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("roh, erwartet", [
+    ("63,64", [63, 64]), ("63;64", [63, 64]), ("63 64", [63, 64]), (" 63 , 64 ", [63, 64]),
+    ("", []), ("63,x", []), ("0", []), ("63,,64", [63, 64]),
+])
+def test_kanaele_tolerant(roh, erwartet, caplog):
+    import config as config_modul
+    with patch.dict(os.environ, {"UEBERSETZUNG_KANAELE": roh}):
+        assert config_modul.Config().uebersetzung_kanaele == erwartet
+
+
+def test_port_tolerant():
+    import config as config_modul
+    with patch.dict(os.environ, {"UEBERSETZUNG_SRT_PORT": "acht"}):
+        assert config_modul.Config().uebersetzung_srt_port == 8890
+    with patch.dict(os.environ, {"UEBERSETZUNG_SRT_PORT": "9000"}):
+        assert config_modul.Config().uebersetzung_srt_port == 9000
+
+
+def test_kanaele_auf_der_einstellungsseite():
+    import dienst
+    assert dienst.pruefe({"UEBERSETZUNG_KANAELE": "63,64"}) == []
+    assert dienst.pruefe({"UEBERSETZUNG_KANAELE": ""}) == []
+    assert dienst.pruefe({"UEBERSETZUNG_KANAELE": "63,x"})
+
+
+def test_beenden_sichert_erst_die_aufnahme():
+    """Beim Entladen zuerst den WAV-Kopf schreiben, dann die Übersetzung stoppen."""
+    quelle = (Path(__file__).resolve().parent.parent / "audio_service" / "main.py").read_text()
+    lebenslauf = quelle[quelle.index("async def lifespan"):quelle.index("app = FastAPI(")]
+    assert lebenslauf.index("emergency_close()") < lebenslauf.index("uebersetzung.stoppen")
+    assert lebenslauf.index("close_input()") < lebenslauf.index("uebersetzung.stoppen")
+    assert "wait_for" in lebenslauf
 
 
 # ─── Endpunkte des Audio-Dienstes ──────────────────────────────────────────

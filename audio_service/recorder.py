@@ -106,7 +106,12 @@ class ContinuousRecorder:
         self._uebs_aus_q: queue.Queue = queue.Queue(maxsize=UEBERSETZUNG_AUSGANG_MAX_BLOECKE)
         self._uebs_rest: Optional[np.ndarray] = None
         self._uebs_wartet: bool = True
+        self._uebs_verwerfen = threading.Event()
         self._duplex: bool = False
+        # Ist der Duplex einmal gescheitert, bleibt es bis zum Dienst-Neustart beim reinen
+        # Eingang. Sonst versuchte monitor_input() alle 3 s erneut den Duplex, und jeder
+        # Versuch kostet die Aufnahme ihren Eingang. Der Grund steht im Status.
+        self._ausgang_fehler: Optional[str] = None
         self._refresh_channel_map()
 
     def _refresh_channel_map(self):
@@ -169,13 +174,16 @@ class ContinuousRecorder:
         # ändert sich damit nie während einer Aufnahme, nur beim Dienst-Neustart.
         # Eingerichtet ist der Ausgang durch das Rückspiel ODER die Übersetzung — beide
         # gehen über denselben einen Stream, ein zweiter würde driften.
-        duplex = bool(config.output_channels or config.uebersetzung_kanaele)
+        duplex = bool(config.output_channels or config.uebersetzung_kanaele) and not self._ausgang_fehler
         if duplex and not self._output_reicht(device):
             print(f"[input] Ausgang: Gerät hat keine {config.continuous_output_channels} "
                   f"Ausgangskanäle — nur Eingang", flush=True)
+            self._ausgang_fehler = "zu_wenig_kanaele"
             duplex = False
-        try:
-            if duplex:
+        stream = None
+        if duplex:
+            # Die Aufnahme hat Vorrang: Scheitert der Duplex, sofort der reine Eingang.
+            try:
                 stream = sd.Stream(
                     samplerate=config.sample_rate,
                     channels=(config.continuous_channels, config.continuous_output_channels),
@@ -184,7 +192,21 @@ class ContinuousRecorder:
                     blocksize=config.blocksize,
                     callback=self._duplex_callback,
                 )
-            else:
+                stream.start()
+            except Exception as exc:  # PortAudioError & Co. — jeder Fehler heißt: ohne Ausgang
+                print(f"[input] AUSGANG NICHT VERFÜGBAR — Duplex scheitert ({exc}); nehme nur "
+                      f"den Eingang. Rückspiel und Übersetzung auf Dante sind aus bis zum "
+                      f"nächsten Neustart des Dienstes.", flush=True)
+                if stream is not None:
+                    try:
+                        stream.close()
+                    except Exception:
+                        pass
+                stream = None
+                self._ausgang_fehler = "duplex_fehlgeschlagen"
+                duplex = False
+        if stream is None:
+            try:
                 stream = sd.InputStream(
                     samplerate=config.sample_rate,
                     channels=config.continuous_channels,
@@ -193,10 +215,10 @@ class ContinuousRecorder:
                     blocksize=config.blocksize,
                     callback=self._audio_callback,
                 )
-            stream.start()
-        except Exception as exc:  # e.g. PortAudioError when microphone access is denied
-            print(f"[input] could not open input device: {exc}", flush=True)
-            return False
+                stream.start()
+            except Exception as exc:  # e.g. PortAudioError when microphone access is denied
+                print(f"[input] could not open input device: {exc}", flush=True)
+                return False
         self._stream = stream
         self._device = device
         self._duplex = duplex
@@ -322,6 +344,13 @@ class ContinuousRecorder:
 
         Nach einem Leerlauf erst wieder spielen, wenn ein kleiner Vorlauf da ist: Das Netz
         liefert in Schüben, und ohne Vorlauf wird aus jedem Ruckler eine Kette von Lücken."""
+        if self._uebs_verwerfen.is_set():
+            # Stopp: den angefangenen Block verwirft der Callback selbst — _uebs_rest gehört
+            # ihm, ein anderer Thread schreibt dort nie hinein.
+            self._uebs_rest = None
+            self._uebs_wartet = True
+            self._uebs_verwerfen.clear()
+            return
         if self._uebs_wartet:
             if self._uebs_aus_q.qsize() < UEBERSETZUNG_VORLAUF_BLOECKE:
                 return
@@ -411,12 +440,18 @@ class ContinuousRecorder:
                     pass
 
     def uebersetzung_ausgang_leeren(self) -> None:
-        """Puffer der Übersetzung leeren — beim Stopp und wenn der Eingang zugeht."""
+        """Puffer der Übersetzung leeren und den angefangenen Block verwerfen lassen — beim
+        Stopp und wenn der Eingang zugeht. Ab dem nächsten Callback ist der Ausgang still."""
         while True:
             try:
                 self._uebs_aus_q.get_nowait()
             except queue.Empty:
                 break
+        self._uebs_verwerfen.set()
+
+    def ausgang_fehler(self) -> Optional[str]:
+        """Warum der Dante-Ausgang fehlt, obwohl er eingerichtet ist — sonst None."""
+        return self._ausgang_fehler
 
     def uebersetzung_puffer_s(self) -> float:
         return self._uebs_aus_q.qsize() * config.blocksize / config.sample_rate

@@ -3,7 +3,11 @@
 Läuft mit genau dem Code des Dienstes (uebersetzung.py), aber ohne Dante: Statt des
 Stream-Mixes geht ein 440-Hz-Ton hinaus, und was auf „ru“ ankommt, wird nur gemessen.
 
-    ~/akouo-audio-venv/bin/python audio_service/scripts/pruefe_uebersetzung.py --sekunden 20
+    ~/tontechnik-audio-venv/bin/python audio_service/scripts/pruefe_uebersetzung.py --sekunden 20
+
+Die .env kommt aus --env, sonst aus AKOUO_AUDIO_ENV, sonst aus audio_service/.env neben dem
+Skript. Aus einem Worktree ohne eigene .env also --env auf die des Haupt-Checkouts zeigen
+lassen. (Auf frisch eingerichteten Rechnern heißt das venv ~/akouo-audio-venv.)
 
 NUR wenn die Übersetzung im Dashboard aus ist — sonst senden zwei auf „de“. Der Übersetzer
 hört während des Laufs den Testton. Zugangsdaten kommen aus der .env und werden nie
@@ -11,6 +15,7 @@ ausgegeben.
 """
 import argparse
 import logging
+import os
 import queue
 import sys
 import threading
@@ -24,11 +29,12 @@ HIER = Path(__file__).resolve().parent.parent
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--env", default=str(HIER / ".env"), help="Pfad der .env (Standard: audio_service/.env)")
+    parser.add_argument("--env", default=os.environ.get("AKOUO_AUDIO_ENV") or str(HIER / ".env"),
+                        help="Pfad der .env (Standard: $AKOUO_AUDIO_ENV, sonst audio_service/.env)")
     parser.add_argument("--sekunden", type=float, default=20.0)
     args = parser.parse_args()
     if not load_dotenv(args.env):
-        print(f".env nicht gefunden: {args.env}")
+        print(f".env nicht gefunden: {args.env} — mit --env oder AKOUO_AUDIO_ENV angeben")
         return 2
     sys.path.insert(0, str(HIER))
     logging.basicConfig(level=logging.INFO, format="  %(message)s")
