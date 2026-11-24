@@ -49,7 +49,9 @@ UMGEBUNG: tuple[Wert, ...] = (
          "die aufgenommenen Kanäle zurückführen — Rückkopplung. Wirkt nach Neustart.", "", r"(\d{1,3}(,\d{1,3})*)?"),
     Wert("UEBERSETZUNG_KANAELE", "Kanäle Übersetzung", "Dante-Ausgänge für das Russisch des "
          "Übersetzers, 1-basiert, durch Komma, z. B. 63,64. Leer = nicht auf Dante ausgeben. "
-         "Nie auf das Stream-Paar zurückführen. Wirkt nach Neustart.", "", r"(\d{1,3}(,\d{1,3})*)?"),
+         "Nie auf das Stream-Paar zurückführen. Wirkt nach Neustart.", "",
+         # 1 bis 512 wie der Parser in config.py — 0 oder 999 lehnt schon die Seite ab
+         r"(([1-9]\d?|[1-4]\d\d|50\d|51[0-2])(,([1-9]\d?|[1-4]\d\d|50\d|51[0-2]))*)?"),
     Wert("AUDIO_SAMPLE_RATE", "Abtastrate", "Muss zur Soundkarte passen; Dante läuft meist auf 48000.",
          "48000", r"(44100|48000|96000)"),
     Wert("TRANSCRIBE_ENABLED", "Live-Transkript", "1 = an, 0 = aus.", "1", r"[01]"),

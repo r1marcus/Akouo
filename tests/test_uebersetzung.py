@@ -749,3 +749,62 @@ def test_endpunkte_start_status_stop(audio_main, monkeypatch):
     assert c.get("/api/uebersetzung/status").json()["sendet_deutsch"] is True
     assert c.post("/api/uebersetzung/stop").json()["status"] == "aus"
     assert strecke.gestoppt
+
+
+# ─── Duplex ohne Callbacks (Prüfrunde 2) ───────────────────────────────────
+
+def _monitor_einmal(rec):
+    """Einen Durchgang von monitor_input() ausführen, danach abbrechen."""
+    import asyncio
+    import recorder
+
+    async def lauf():
+        aufgabe = asyncio.create_task(rec.monitor_input())
+        await asyncio.sleep(0.05)
+        aufgabe.cancel()
+    with patch.object(recorder.sd, "_terminate"), patch.object(recorder.sd, "_initialize"):
+        asyncio.run(lauf())
+
+
+def _verloren(rec):
+    import recorder
+    rec._last_callback_at = time.monotonic() - recorder.INPUT_LOST_SECONDS - 1
+
+
+def test_duplex_ohne_jeden_callback_wird_gesperrt(cfg):
+    cfg.uebersetzung_kanaele = [63, 64]
+    rec, _, _ = _oeffnen()
+    assert rec._duplex
+    _verloren(rec)
+    with patch("sounddevice.query_devices") as q, \
+         patch("sounddevice.InputStream") as ein, \
+         patch("sounddevice.Stream") as duplex:
+        q.side_effect = lambda device=None: GERAETE if device is None else GERAETE[device]
+        _monitor_einmal(rec)
+        assert rec.ausgang_fehler() == "keine_callbacks"
+        duplex.assert_not_called()          # neuer Versuch: reiner Eingang
+        ein.assert_called_once()
+    assert not rec._duplex and rec._stream is not None
+
+
+def test_abgezogenes_geraet_sperrt_den_ausgang_nicht(cfg):
+    cfg.uebersetzung_kanaele = [63, 64]
+    rec, _, _ = _oeffnen()
+    _ausgang(rec, 64)                       # er hat geliefert
+    _verloren(rec)
+    with patch("sounddevice.query_devices") as q, \
+         patch("sounddevice.InputStream"), \
+         patch("sounddevice.Stream") as duplex:
+        q.side_effect = lambda device=None: GERAETE if device is None else GERAETE[device]
+        _monitor_einmal(rec)
+        assert rec.ausgang_fehler() is None
+        duplex.assert_called_once()         # Duplex wird wieder geöffnet
+    assert rec._duplex
+
+
+def test_einstellungsseite_kanaele_1_bis_512():
+    import dienst
+    for gut in ("1", "63,64", "512", "99,100,499,500,509,510"):
+        assert dienst.pruefe({"UEBERSETZUNG_KANAELE": gut}) == [], gut
+    for schlecht in ("0", "513", "999", "63,0"):
+        assert dienst.pruefe({"UEBERSETZUNG_KANAELE": schlecht}), schlecht

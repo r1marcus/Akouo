@@ -1118,7 +1118,9 @@ Rückspiel (5h) — kein zweiter Strom auf die Dante-Karte.
    laufen. Steht stattdessen `AUSGANG NICHT VERFÜGBAR`, hat der Dienst den Duplex nicht
    bekommen und nimmt **nur den Eingang** — die Aufnahme geht, das Russisch nicht; die Karte
    zeigt „Dante-Ausgang nicht verfügbar“. Ein neuer Versuch passiert erst beim nächsten
-   Neustart.
+   Neustart. Dasselbe gilt, wenn der Duplex zwar aufgeht, aber nie Ton liefert
+   („Duplex lieferte keine Callbacks“). Ein Gerät, das im Betrieb abgezogen wird, sperrt den
+   Ausgang dagegen nicht — nach dem Wiederanstecken kommt der Duplex zurück.
 
 **Rückbau**, wenn nach dem Neustart die Zeile oben fehlt, der Aufnahme-Eingang fehlt
 („Kein Eingang“) oder es knackt: in `audio_service/.env` die Zeile auf

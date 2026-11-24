@@ -112,6 +112,9 @@ class ContinuousRecorder:
         # Eingang. Sonst versuchte monitor_input() alle 3 s erneut den Duplex, und jeder
         # Versuch kostet die Aufnahme ihren Eingang. Der Grund steht im Status.
         self._ausgang_fehler: Optional[str] = None
+        # Hat der offene Stream seit dem Öffnen schon einmal geliefert? Unterscheidet einen
+        # Duplex, der nie läuft, von einem Gerät, das im Betrieb abgezogen wird.
+        self._geliefert: bool = False
         self._refresh_channel_map()
 
     def _refresh_channel_map(self):
@@ -223,6 +226,7 @@ class ContinuousRecorder:
         self._device = device
         self._duplex = duplex
         self._last_callback_at = monotonic()
+        self._geliefert = False
         return True
 
     def close_input(self):
@@ -239,6 +243,16 @@ class ContinuousRecorder:
         self.uebersetzung_ausgang_leeren()
         self._last_rms = 0.0
 
+    def _duplex_ohne_callbacks_sperren(self) -> None:
+        """Ein Duplex, der sich fehlerfrei öffnen ließ, aber NIE einen Callback geliefert
+        hat, darf nicht wieder geöffnet werden — sonst schließt monitor_input() ihn alle
+        paar Sekunden, öffnet ihn neu, und die Aufnahme hat dauerhaft keinen Eingang.
+        Hat er schon geliefert, war es ein abgezogenes Gerät: dann den Ausgang nicht sperren."""
+        if self._stream is not None and self._duplex and not self._geliefert:
+            print("[input] AUSGANG NICHT VERFÜGBAR — Duplex lieferte keine Callbacks; nehme nur "
+                  "den Eingang bis zum nächsten Neustart des Dienstes.", flush=True)
+            self._ausgang_fehler = "keine_callbacks"
+
     def input_available(self) -> bool:
         """True while the input is open and PortAudio is delivering callbacks."""
         return self._stream is not None and monotonic() - self._last_callback_at < 2 * METER_STALE_SECONDS
@@ -249,6 +263,7 @@ class ContinuousRecorder:
             try:
                 if self._stream is not None and monotonic() - self._last_callback_at > INPUT_LOST_SECONDS:
                     print("[input] no audio callbacks — closing stream and rescanning", flush=True)
+                    self._duplex_ohne_callbacks_sperren()
                     self.close_input()
                 if self._stream is None:
                     # PortAudio caches the device list at init; re-init to see hot-plugged interfaces.
@@ -282,6 +297,7 @@ class ContinuousRecorder:
         rec = clipped[:, self._rec_idx]
         self._last_rms = min(1.0, float(np.sqrt(np.mean(np.square(rec)))))
         self._last_callback_at = monotonic()
+        self._geliefert = True
         if self._is_recording and not self._paused:
             _rec_q.put_nowait((rec * 32767).astype(np.int16).tobytes())
         if (stream_enabled.is_set() or monitor_enabled.is_set() or telefon_enabled.is_set()
