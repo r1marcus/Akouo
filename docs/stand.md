@@ -409,6 +409,8 @@ ist nicht von einem Muttersprachler gegengelesen.
   `data/cover.jpg` und ist vom Repository ausgenommen.
 - **CopyCenter:** Jeder Gottesdienst geht zusätzlich nach
   `CopyCenter/2026_mp3/Gottesd_261018_So_mp3_a/`, mit leerer Textdatei als Beschriftung.
+  Seit 22.11. kommt sie erst mit dem letzten fehlenden Track — sie ist das Zeichen „fertig“
+  für die Station.
   Im Code standardmäßig aus, hier per Einstellung an.
 
 ### Automodus

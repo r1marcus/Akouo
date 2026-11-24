@@ -596,6 +596,24 @@ async def _copycenter_ordner(session: RecordingSession, started: datetime,
     return ordner
 
 
+def _copycenter_komplett_mit(segments: list[dict], marker_id: int) -> bool:
+    """Ist der Ordner im CopyCenter vollständig, sobald dieser Track drin liegt?
+
+    Die leere Beschriftung (`Gottesdienst.txt`) ist das Zeichen „fertig“. Am 17. und
+    20.11. lag sie schon mit Track-01 im Ordner, der letzte Track kam bis zu sechs
+    Minuten später — wer in der Zeit an der Station zog, bekam ihn nicht. Deshalb geht
+    sie erst mit dem letzten noch fehlenden Track mit. Gezählt wird, was beim
+    Sammel-Export mitgeht; ein Track mit CopyCenter-Fehler zählt als fehlend.
+    """
+    for s in segments:
+        if not s["exportieren"] or s["marker_id"] == marker_id:
+            continue
+        e = s["export"]
+        if e is None or e["nas_status"] != "uploaded" or e["nas_error"]:
+            return False
+    return True
+
+
 @router.post("/{session_id}/segments/{marker_id}/export")
 async def export_segment(
     session_id: int,
@@ -711,8 +729,9 @@ async def export_segment(
         cc_ordner = await _copycenter_ordner(session, started, db)
         if cc_ordner:
             payload["copycenter_folder"] = cc_ordner
-            payload["copycenter_label"] = nas_pfad.copycenter_beschriftung(
-                session.service_type, session.thema)
+            if _copycenter_komplett_mit(segments, marker_id):
+                payload["copycenter_label"] = nas_pfad.copycenter_beschriftung(
+                    session.service_type, session.thema)
 
     online = werte_db.get("export_online") if online is None else online
     online_vorher = await db.get(OnlineAblage, marker_id)

@@ -842,7 +842,7 @@ async def test_copycenter_ordner_wird_einmal_entschieden(db_session):
                              request=mock_request, db=db_session)
     erster = _export_aufrufe(client)[0]
     assert erster["copycenter_folder"] == "CopyCenter/2026_mp3/Gottesd_261018_So_mp3_a"
-    assert erster["copycenter_label"] == "Gottesdienst"
+    assert "copycenter_label" not in erster, "Beschriftung erst, wenn der Ordner komplett ist"
     assert (await db_session.get(CopyCenterAblage, sess.id)).ordner == erster["copycenter_folder"]
 
     client = _cc_client(_CC_EXPORT, freier_ordner="CopyCenter/2026_mp3/FALSCH")
@@ -851,6 +851,40 @@ async def test_copycenter_ordner_wird_einmal_entschieden(db_session):
                              request=mock_request, db=db_session)
     assert _export_aufrufe(client)[0]["copycenter_folder"] == erster["copycenter_folder"]
     assert not any(c.args[0].endswith("/nas-erster-freier") for c in client.post.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_copycenter_beschriftung_erst_mit_dem_letzten_track(db_session):
+    """Die Beschriftung heißt „fertig“ — sie geht erst mit dem letzten fehlenden Track mit.
+    Am 17. und 20.11. lag sie schon bei Track-01, und die Station zog einen halben Ordner."""
+    from models import Setting
+    from routers.segments import export_segment
+
+    sess, marker = await _gottesdienst_mit_luecken(db_session)
+    sess.nas_folder = "Gottesdienste/2026-10-18 Sonntag 1. morgens"
+    db_session.add(Setting(key="nas_copycenter", value="1"))
+    await db_session.commit()
+    mock_request = MagicMock()
+    mock_request.headers = {}
+
+    async def exportiere(typ, antwort=_CC_EXPORT):
+        client = _cc_client(antwort)
+        with patch("httpx.AsyncClient", return_value=client):
+            await export_segment(session_id=sess.id, marker_id=marker[typ].id,
+                                 request=mock_request, db=db_session)
+        return _export_aufrufe(client)[0]
+
+    # Gesammelt werden Orchester, Predigt, Chorlied — Gemeindegesang und Gebet nicht.
+    kaputt = dict(_CC_EXPORT, copycenter={"status": "failed", "error": "kein Platz",
+                                          "nas_path": None, "uploaded_at": None})
+    assert "copycenter_label" not in await exportiere("Orchester", kaputt)
+    assert "copycenter_label" not in await exportiere("Predigt")
+    # Chorlied wäre der letzte — aber das Orchester fehlt im CopyCenter noch
+    assert "copycenter_label" not in await exportiere("Chorlied")
+    # Orchester noch einmal, diesmal klappt es: jetzt ist der Ordner komplett
+    assert (await exportiere("Orchester"))["copycenter_label"] == "Gottesdienst"
+    # Ein nicht gesammelter Beitrag einzeln exportiert: der Ordner bleibt komplett
+    assert (await exportiere("Gebet"))["copycenter_label"] == "Gottesdienst"
 
 
 @pytest.mark.asyncio

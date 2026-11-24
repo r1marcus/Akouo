@@ -297,6 +297,14 @@ CopyCenter/2026_mp3/Gottesd_261018_So_mp3_b/
 | Wer mitgeht | alles, was unter `Gottesdienste/` liegt — Hochzeiten und Sonstiges nicht |
 
 - Der Ordner wird beim ersten Track entschieden und bleibt für alle weiteren derselbe.
+- **Die Beschriftung heißt „fertig“.** Sie kommt erst mit dem letzten Track in den Ordner,
+  der noch gefehlt hat — gezählt wird, was beim Sammel-Export mitgeht. Nach dem Stopp
+  braucht der Export etwa eine halbe Minute je Track, bei einem Sonntag mit zehn Tracks
+  rund sechs Minuten. **Erst an der Station ziehen, wenn die `.txt` im Ordner liegt.**
+  Bis 22.11. lag sie schon bei Track-01; am 17. und 20.11. fehlte deshalb der letzte Track
+  auf dem Stick und wurde von Hand nachkopiert.
+- Scheitert ein Track im CopyCenter, bleibt die Beschriftung aus, bis er erneut exportiert
+  ist. Wer einen gesammelten Track beim Export abwählt, bekommt ebenfalls keine.
 - Ins CopyCenter kommt ein Track nur, wenn der Haupt-Upload geklappt hat.
 - Scheitert nur das CopyCenter, bleibt der Track als *hochgeladen* stehen, der Fehler steht
   gelb dahinter. Ein erneuter Export ersetzt dann beide eigenen Dateien.
