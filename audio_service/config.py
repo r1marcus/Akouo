@@ -85,6 +85,22 @@ class Config:
     online_api_url: str = field(default_factory=lambda: os.environ.get("ONLINE_API_URL", ""))
     online_api_email: str = field(default_factory=lambda: os.environ.get("ONLINE_API_EMAIL", ""))
     online_api_passwort: str = field(default_factory=lambda: os.environ.get("ONLINE_API_PASSWORT", ""))
+    # Übersetzer-Strecke: Stream-Mix per SRT zum Medienserver (Pfad „de“), das Russisch
+    # des Übersetzers zurück (Pfad „ru“) auf eigene Dante-Ausgänge. Ohne Server und
+    # Passphrase bleibt der Knopf „nicht eingerichtet“.
+    uebersetzung_server: str = field(default_factory=lambda: os.environ.get("UEBERSETZUNG_SERVER", ""))
+    uebersetzung_srt_port: int = field(default_factory=lambda: int(os.environ.get("UEBERSETZUNG_SRT_PORT", "8890")))
+    uebersetzung_srt_passphrase: str = field(default_factory=lambda: os.environ.get("UEBERSETZUNG_SRT_PASSPHRASE", ""))
+    # Anmeldung des Macs am Medienserver (in der SRT-streamid). Leer heißt: ohne Nutzer.
+    uebersetzung_mac_user: str = field(default_factory=lambda: os.environ.get("UEBERSETZUNG_MAC_USER", ""))
+    uebersetzung_mac_pass: str = field(default_factory=lambda: os.environ.get("UEBERSETZUNG_MAC_PASS", ""))
+    # Dante-Ausgänge für das Russisch, 1-basiert. Leer heißt: Deutsch wird trotzdem
+    # gesendet, das Russisch aber nirgends ausgegeben. Wie AUDIO_OUTPUT_CHANNELS wirkt
+    # es nur beim Dienst-Neustart, weil es über die Art des Streams entscheidet.
+    uebersetzung_kanaele: list = field(default_factory=lambda: list(dict.fromkeys(
+        _channel_list("UEBERSETZUNG_KANAELE", ""))))
+    uebersetzung_bitrate: str = field(default_factory=lambda: os.environ.get("UEBERSETZUNG_BITRATE", "48k"))
+    srt_bin: str = field(default_factory=lambda: os.environ.get("SRT_LIVE_TRANSMIT_BIN", "srt-live-transmit"))
 
 
     @property
@@ -95,8 +111,11 @@ class Config:
 
     @property
     def continuous_output_channels(self) -> int:
-        """Ausgangskanäle, die der Duplex-Stream öffnen muss — 0 heißt: kein Ausgang."""
-        return max(self.output_channels) if self.output_channels else 0
+        """Ausgangskanäle, die der Duplex-Stream öffnen muss — 0 heißt: kein Ausgang.
+        Rückspiel und Übersetzung teilen sich den einen Ausgang, also das Maximum über
+        beide Listen."""
+        alle = list(self.output_channels) + list(self.uebersetzung_kanaele)
+        return max(alle) if alle else 0
 
 
 config = Config()

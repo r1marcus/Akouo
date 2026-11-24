@@ -50,6 +50,21 @@ monitor_enabled = threading.Event()
 _tel_q: queue.Queue = queue.Queue()
 telefon_enabled = threading.Event()
 
+# Die Übersetzer-Strecke hört ebenfalls den Stream-Bus mit (das Deutsch für den Übersetzer)
+# und bekommt deshalb wieder eine eigene Queue. Begrenzt: hängt der Sender, verwirft der
+# Callback lieber Blöcke, als dass die Queue über einen Gottesdienst wächst. Gesetzt von
+# uebersetzung.py.
+UEBERSETZUNG_EINGANG_MAX_BLOECKE = 64      # ~1,4 s bei 1024 Frames
+_uebs_q: queue.Queue = queue.Queue(maxsize=UEBERSETZUNG_EINGANG_MAX_BLOECKE)
+uebersetzung_enabled = threading.Event()
+
+# Rückweg der Übersetzung: Mono-Blöcke float32, die der Callback auf die Übersetzungs-
+# Ausgänge legt. Klein, weil jeder Block hier Verzögerung im Saal ist: 8 × 1024 Frames
+# sind ~170 ms. Läuft der Puffer leer, wartet der Callback auf einen kleinen Vorlauf,
+# bevor er wieder spielt — sonst knackt jeder Netz-Ruckler einzeln.
+UEBERSETZUNG_AUSGANG_MAX_BLOECKE = 8
+UEBERSETZUNG_VORLAUF_BLOECKE = 2
+
 # Rückspiel: Blöcke float32 (Frames × Ausgangskanäle), die der Callback in den Ausgang
 # legt. Begrenzt, damit ein Zuführer nie mehr als einige Sekunden vorausliest; der
 # Zuführer wartet mit put(timeout=…) — im Callback wird nur get_nowait() aufgerufen.
@@ -85,6 +100,12 @@ class ContinuousRecorder:
         self._out_q: queue.Queue = queue.Queue(maxsize=RUECKSPIEL_MAX_BLOECKE)
         self._out_rest: Optional[np.ndarray] = None
         self._out_verwerfen = threading.Event()
+        # Übersetzung. Wie beim Rückspiel gehören _uebs_rest und _uebs_wartet allein dem
+        # Callback-Thread.
+        self._uebs_idx: list = []
+        self._uebs_aus_q: queue.Queue = queue.Queue(maxsize=UEBERSETZUNG_AUSGANG_MAX_BLOECKE)
+        self._uebs_rest: Optional[np.ndarray] = None
+        self._uebs_wartet: bool = True
         self._duplex: bool = False
         self._refresh_channel_map()
 
@@ -92,6 +113,7 @@ class ContinuousRecorder:
         self._rec_idx = [c - 1 for c in config.record_channels]
         self._str_idx = [c - 1 for c in config.stream_channels]
         self._out_idx = [c - 1 for c in config.output_channels]
+        self._uebs_idx = [c - 1 for c in config.uebersetzung_kanaele]
 
     def _find_input_device(self) -> Optional[int]:
         """Index of the first device from config.device_names with enough input channels."""
@@ -103,7 +125,7 @@ class ContinuousRecorder:
         return None
 
     def _output_reicht(self, device: int) -> bool:
-        """Hat das Eingangsgerät genug Ausgangskanäle für das Rückspiel?"""
+        """Hat das Eingangsgerät genug Ausgangskanäle für Rückspiel und Übersetzung?"""
         try:
             return sd.query_devices(device).get("max_output_channels", 0) >= config.continuous_output_channels
         except (sd.PortAudioError, ValueError, AttributeError):
@@ -145,9 +167,11 @@ class ContinuousRecorder:
         # Duplex nur, wenn eingerichtet UND das Gerät die Ausgänge hat. Sonst lieber ohne
         # Rückspiel aufnehmen als gar nicht. Die Art des Streams folgt allein der .env und
         # ändert sich damit nie während einer Aufnahme, nur beim Dienst-Neustart.
-        duplex = bool(config.output_channels)
+        # Eingerichtet ist der Ausgang durch das Rückspiel ODER die Übersetzung — beide
+        # gehen über denselben einen Stream, ein zweiter würde driften.
+        duplex = bool(config.output_channels or config.uebersetzung_kanaele)
         if duplex and not self._output_reicht(device):
-            print(f"[input] Rückspiel: Gerät hat keine {config.continuous_output_channels} "
+            print(f"[input] Ausgang: Gerät hat keine {config.continuous_output_channels} "
                   f"Ausgangskanäle — nur Eingang", flush=True)
             duplex = False
         try:
@@ -190,6 +214,7 @@ class ContinuousRecorder:
         self._stream = None
         self._duplex = False
         self.rueckspiel_stoppen()
+        self.uebersetzung_ausgang_leeren()
         self._last_rms = 0.0
 
     def input_available(self) -> bool:
@@ -212,7 +237,10 @@ class ContinuousRecorder:
                             f"[input] input open: {sd.query_devices(self._device)['name']} "
                             f"({config.continuous_channels} Kanäle, Aufnahme {config.record_channels}, "
                             f"Stream {config.stream_channels}"
-                            + (f", Rückspiel {config.output_channels}" if self._duplex else "")
+                            + (f", Rückspiel {config.output_channels}"
+                               if self._duplex and config.output_channels else "")
+                            + (f", Übersetzung {config.uebersetzung_kanaele}"
+                               if self._duplex and config.uebersetzung_kanaele else "")
                             + ")",
                             flush=True,
                         )
@@ -234,7 +262,8 @@ class ContinuousRecorder:
         self._last_callback_at = monotonic()
         if self._is_recording and not self._paused:
             _rec_q.put_nowait((rec * 32767).astype(np.int16).tobytes())
-        if stream_enabled.is_set() or monitor_enabled.is_set() or telefon_enabled.is_set():
+        if (stream_enabled.is_set() or monitor_enabled.is_set() or telefon_enabled.is_set()
+                or uebersetzung_enabled.is_set()):
             stream_pcm = (clipped[:, self._str_idx] * 32767).astype(np.int16).tobytes()
             if stream_enabled.is_set():
                 _str_q.put_nowait(stream_pcm)
@@ -242,6 +271,11 @@ class ContinuousRecorder:
                 _mon_q.put_nowait(stream_pcm)
             if telefon_enabled.is_set():
                 _tel_q.put_nowait(stream_pcm)
+            if uebersetzung_enabled.is_set():
+                try:
+                    _uebs_q.put_nowait(stream_pcm)
+                except queue.Full:
+                    pass   # Sender hängt — Block verwerfen, nie im Callback warten
 
     def _duplex_callback(self, indata: np.ndarray, outdata: np.ndarray, frames: int, time, status):
         """PortAudio-Echtzeit-Thread im Duplex-Betrieb: Eingang wie immer, dazu den Ausgang
@@ -250,8 +284,18 @@ class ContinuousRecorder:
         self._ausgang_fuellen(outdata, frames)
 
     def _ausgang_fuellen(self, outdata: np.ndarray, frames: int) -> None:
-        """Rückspiel-Blöcke in die konfigurierten Ausgangskanäle legen, Rest Stille."""
+        """Rückspiel und Übersetzung in ihre Ausgangskanäle legen, Rest Stille.
+
+        Beide Quellen haben eigene Kanäle. Überschneiden sie sich doch, wird addiert und
+        am Ende einmal begrenzt — lieber laut als ein Signal, das das andere verschluckt."""
         outdata.fill(0)
+        if self._out_idx:
+            self._rueckspiel_legen(outdata, frames)
+        if self._uebs_idx:
+            self._uebersetzung_legen(outdata, frames)
+            np.clip(outdata, -1.0, 1.0, out=outdata)
+
+    def _rueckspiel_legen(self, outdata: np.ndarray, frames: int) -> None:
         if self._out_verwerfen.is_set():
             # Stopp: angefangenen Block wegwerfen, diesen Durchgang still bleiben. Die
             # Queue leert rueckspiel_stoppen() selbst, nicht der Callback.
@@ -273,11 +317,37 @@ class ContinuousRecorder:
             pos += n
         self._out_rest = rest
 
+    def _uebersetzung_legen(self, outdata: np.ndarray, frames: int) -> None:
+        """Das Mono-Russisch auf alle Übersetzungs-Kanäle, addiert zu dem, was dort liegt.
+
+        Nach einem Leerlauf erst wieder spielen, wenn ein kleiner Vorlauf da ist: Das Netz
+        liefert in Schüben, und ohne Vorlauf wird aus jedem Ruckler eine Kette von Lücken."""
+        if self._uebs_wartet:
+            if self._uebs_aus_q.qsize() < UEBERSETZUNG_VORLAUF_BLOECKE:
+                return
+            self._uebs_wartet = False
+        pos = 0
+        rest = self._uebs_rest
+        while pos < frames:
+            if rest is None or len(rest) == 0:
+                try:
+                    rest = self._uebs_aus_q.get_nowait()
+                except queue.Empty:
+                    rest = None
+                    self._uebs_wartet = True
+                    break
+            n = min(frames - pos, len(rest))
+            outdata[pos:pos + n, self._uebs_idx] += rest[:n, None]
+            rest = rest[n:]
+            pos += n
+        self._uebs_rest = rest
+
     # ─── Rückspiel ──────────────────────────────────────────────────────────
 
     def rueckspiel_bereit(self) -> bool:
-        """True, wenn ein Duplex-Stream offen ist und Blöcke angenommen werden."""
-        return self._stream is not None and self._duplex
+        """True, wenn ein Duplex-Stream offen ist und Blöcke angenommen werden. Der Duplex
+        kann auch allein für die Übersetzung offen sein — dann ohne Rückspiel-Kanäle."""
+        return self._stream is not None and self._duplex and bool(self._out_idx)
 
     @property
     def rueckspiel_kanaele(self) -> int:
@@ -314,6 +384,42 @@ class ContinuousRecorder:
     def rueckspiel_puffer_s(self) -> float:
         """Grob, wie viel noch im Puffer liegt — für die Statusanzeige."""
         return self._out_q.qsize() * config.blocksize / config.sample_rate
+
+    # ─── Übersetzung: Russisch auf die Dante-Ausgänge ──────────────────────
+
+    def uebersetzung_ausgang_bereit(self) -> bool:
+        """True, wenn der Duplex-Stream offen ist und Übersetzungs-Kanäle hat."""
+        return self._stream is not None and self._duplex and bool(self._uebs_idx)
+
+    def uebersetzung_einreihen(self, mono: np.ndarray) -> bool:
+        """Einen Mono-Block (float32, Abtastrate des Streams) zum Ausgeben einreihen.
+
+        Blockiert nie: Ist der Puffer voll, fällt der älteste Block weg. Der Übersetzer
+        soll im Saal nicht immer später werden, nur weil das Netz einmal einen Schub
+        Pakete auf einmal geliefert hat. False heißt: kein Ausgang da."""
+        if not self.uebersetzung_ausgang_bereit():
+            return False
+        block = np.clip(np.asarray(mono, dtype=np.float32).reshape(-1), -1.0, 1.0)
+        while True:
+            try:
+                self._uebs_aus_q.put_nowait(block)
+                return True
+            except queue.Full:
+                try:
+                    self._uebs_aus_q.get_nowait()
+                except queue.Empty:
+                    pass
+
+    def uebersetzung_ausgang_leeren(self) -> None:
+        """Puffer der Übersetzung leeren — beim Stopp und wenn der Eingang zugeht."""
+        while True:
+            try:
+                self._uebs_aus_q.get_nowait()
+            except queue.Empty:
+                break
+
+    def uebersetzung_puffer_s(self) -> float:
+        return self._uebs_aus_q.qsize() * config.blocksize / config.sample_rate
 
     async def _drain_rec_queue(self):
         """Async consumer — safe to call wave.writeframes here."""
