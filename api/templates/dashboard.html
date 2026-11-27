@@ -155,11 +155,37 @@ function checklistBadge() {
     {# Export der letzten Aufnahme — zugeklappt zu einer Zeile, damit das Dashboard ruhig bleibt.
        Aufgeklappt bleibt es auf diesem Gerät. Eigene Export-Seite folgt (braucht eine Route). #}
     <details class="card has-[#segment-review-host:empty]:hidden group/export"
-             x-data x-init="(() => { try { if (localStorage.getItem('akouo.export.offen') === '1') $el.open = true } catch (_) {} })()"
-             @toggle="(() => { try { localStorage.setItem('akouo.export.offen', $el.open ? '1' : '0') } catch (_) {} })()">
-      <summary class="cursor-pointer list-none flex items-center gap-2.5 min-h-9 select-none">
+             x-data="{ offen: 0, exportiert: 0, stand: null }"
+             @export:stand.window="stand = $event.detail"
+             x-init="(() => { try { if (localStorage.getItem('akouo.export.offen') === '1') $el.open = true } catch (_) {} })()"
+             @toggle="(() => { try { localStorage.setItem('akouo.export.offen', $el.open ? '1' : '0') } catch (_) {} })()"
+             {# Am 27.11. nach der Gebetsstunde nicht gefunden: Sind Tracks noch nicht
+                exportiert, steht das gelb in der Zeile und der Bereich geht von selbst auf. #}
+             @htmx:after-swap="(() => {
+                 const s = $el.querySelector('[data-offen]');
+                 const n = s ? parseInt(s.dataset.offen) || 0 : 0;
+                 if (n > 0 && offen === 0) $el.open = true;
+                 offen = n;
+                 exportiert = s ? parseInt(s.dataset.exportiert) || 0 : 0;
+             })()">
+      <summary class="cursor-pointer list-none flex items-center gap-2.5 min-h-11 select-none">
         <span class="inline-block text-zinc-500 transition-transform group-open/export:rotate-90">›</span>
         <span class="eyebrow">{{ t("Export") }}</span>
+        {# Export-Status — auch zugeklappt sichtbar #}
+        <template x-if="stand && stand.laeuft">
+          <span class="flex items-center gap-2 text-xs font-medium text-sky-300">
+            <span class="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
+            <span x-text="trf('Export läuft {n}/{gesamt}', {n: Math.min(stand.fertig + 1, stand.gesamt), gesamt: stand.gesamt})"></span>
+            <span class="hidden sm:block w-32 h-1.5 rounded-full bg-white/10 overflow-hidden">
+              <span class="block h-full bg-sky-400 transition-all" :style="`width: ${100 * stand.fertig / stand.gesamt}%`"></span>
+            </span>
+          </span>
+        </template>
+        <span x-show="!(stand && stand.laeuft) && offen === 0 && exportiert > 0" x-cloak
+              class="text-xs font-medium text-emerald-400" x-text="'✓ ' + tr('alles exportiert')"></span>
+        <span x-show="!(stand && stand.laeuft) && offen > 0" x-cloak
+              class="rounded-full bg-amber-400/15 px-2.5 py-0.5 text-xs font-medium text-amber-300"
+              x-text="trf('{n} Tracks offen', {n: offen})"></span>
       </summary>
       {# Phase 7: segment review host — populated after session stop via HTMX trigger #}
       <div id="segment-review-host" class="mt-3"

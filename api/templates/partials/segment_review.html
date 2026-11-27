@@ -1,6 +1,8 @@
 {# Phase 7: Per-session segment review + export buttons (EXP-01, EXP-02). #}
 {# Rendered by GET /api/sessions/{id}/segments and re-rendered by POST .../export when HX-Request. #}
 <section id="segment-review-{{ session_id }}" class="card"
+         data-offen="{{ segments | selectattr('exportieren') | selectattr('export', 'none') | list | length }}"
+         data-exportiert="{{ segments | rejectattr('export', 'none') | list | length }}"
          x-data="{
             running: false,
             done: 0,
@@ -181,6 +183,7 @@
                 this.running = !!d.laeuft;
                 this.done = d.fertig || 0;
                 this.gesamt = d.gesamt || 0;
+                window.dispatchEvent(new CustomEvent('export:stand', {detail: d}));
                 if (this.running) {
                     clearTimeout(this._sammelTimer);
                     this._sammelTimer = setTimeout(() => this.sammelAbfragen(), 2000);
