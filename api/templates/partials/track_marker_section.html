@@ -37,8 +37,18 @@
           <span x-show="pendingTracks.length" class="text-xs text-sky-300/80"
                 x-text="trf('Vorschlag: {typ}', {typ: anzBeitrag(pendingTracks[0])})"></span>
         </div>
+        {# Die vier, die fast jeden Gottesdienst ausmachen, groß vorn — der Rest wie bisher darunter #}
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
+          <template x-for="t in ['Predigt', 'Chorlied', 'Gruppenlied', 'Gedicht'].filter(t => markerTypes.includes(t))" :key="t">
+            <button @click="setTrackType(t)" :disabled="busyTrack"
+                    :class="pendingTracks[0] === t
+                        ? 'bg-sky-500 text-zinc-950 hover:bg-sky-400 border-transparent'
+                        : 'bg-white/[0.10] text-zinc-50 border-white/15 hover:bg-white/[0.16]'"
+                    class="btn min-h-16 px-3 text-lg font-semibold border" x-text="anzBeitrag(t)"></button>
+          </template>
+        </div>
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          <template x-for="t in markerTypes" :key="t">
+          <template x-for="t in markerTypes.filter(t => !['Predigt', 'Chorlied', 'Gruppenlied', 'Gedicht'].includes(t))" :key="t">
             <button @click="setTrackType(t)" :disabled="busyTrack"
                     :class="pendingTracks[0] === t
                         ? 'bg-sky-500 text-zinc-950 hover:bg-sky-400 border-transparent'
